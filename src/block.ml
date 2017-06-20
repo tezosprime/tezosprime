@@ -4,6 +4,7 @@
 
 open Ser
 open Sha256
+open Ripemd160
 open Hash
 open Net
 open Db
@@ -24,8 +25,7 @@ let genesisfuturestakemod : stakemod ref = ref (0L,0L,0L,0L)
 
 let stakemod_string (x3,x2,x1,x0) = (Int64.to_string x3) ^ " " ^ (Int64.to_string x2) ^ " " ^ (Int64.to_string x1) ^ " " ^ (Int64.to_string x0)
 
-let set_genesis_stakemods x =
-  let (x4,x3,x2,x1,x0) = hexstring_hashval x in
+let compute_stakemods (x4,x3,x2,x1,x0) =
   sha256init();
   currblock.(0) <- x4;
   currblock.(1) <- x3;
@@ -64,9 +64,13 @@ let set_genesis_stakemods x =
 	    (Int64.shift_left (Int64.of_int32 (Int32.logand (Int32.shift_right_logical b 16) 0xffl)) 16)
 	    (Int64.of_int32 (Int32.logand b 0xffl))))
   in
-  genesiscurrentstakemod := (c y0 y1,c y2 y3,c y4 y5,c y6 y7);
-  genesisfuturestakemod := (c z0 z1,c z2 z3,c z4 z5,c z6 z7);;
+  ((c y0 y1,c y2 y3,c y4 y5,c y6 y7),(c z0 z1,c z2 z3,c z4 z5,c z6 z7));;
   
+let set_genesis_stakemods x =
+  let (csm,fsm) = compute_stakemods (hexstring_hashval x) in
+  genesiscurrentstakemod := csm;
+  genesisfuturestakemod := fsm;;
+
 (*** Here the last 20 bytes (40 hex chars) of the block hash for a particular bitcoin block should be included.
  sha256 is used to extract 512 bits to set the genesis current and future stake modifiers.
  ***)
@@ -158,6 +162,39 @@ let seo_targetinfo o ti c =
 let sei_targetinfo i c =
   sei_prod3 sei_stakemod sei_stakemod sei_big_int_256 i c
 
+type poburn =
+  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
+  | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
+
+let hashpoburn p =
+  match p with
+  | Poburn(h,k,x) -> hashtag (hashpair (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) (hashint64 x)) 194l
+  | SincePoburn(i) -> hashtag (hashint32 (Int32.of_int i)) 195l
+
+let seo_poburn o p c =
+  match p with
+  | Poburn(h,k,x) ->
+      let c = o 1 0 c in
+      let c = seo_md256 o h c in
+      let c = seo_md256 o k c in
+      let c = seo_int64 o x c in
+      c
+  | SincePoburn(i) ->
+      let c = o 1 1 c in
+      let c = seo_int32 o (Int32.of_int i) c in
+      c
+
+let sei_poburn i c =
+  let (y,c) = i 1 c in
+  if y = 0 then
+    let (h,c) = sei_md256 i c in
+    let (k,c) = sei_md256 i c in
+    let (x,c) = sei_int64 i c in
+    (Poburn(h,k,x),c)
+  else
+    let (j,c) = sei_int32 i c in
+    (SincePoburn(Int32.to_int j),c)
+
 type postor =
   | PostorTrm of hashval option * tm * tp * hashval
   | PostorDoc of payaddr * hashval * hashval option * pdoc * hashval
@@ -214,6 +251,7 @@ type blockheaderdata = {
     newledgerroot : hashval;
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
+    announcedpoburn : poburn;
     stored : postor option;
     timestamp : int64;
     deltatime : int32;
@@ -238,6 +276,7 @@ let fake_blockheader : blockheader =
      newledgerroot = (0l,0l,0l,0l,0l);
      stakeaddr = (0l,0l,0l,0l,0l);
      stakeassetid = (0l,0l,0l,0l,0l);
+     announcedpoburn = SincePoburn(0);
      stored = None;
      timestamp = 0L;
      deltatime = 0l;
@@ -257,6 +296,7 @@ let seo_blockheaderdata o bh c =
   let c = seo_hashval o bh.newledgerroot c in
   let c = seo_hashval o bh.stakeaddr c in (*** p2pkh addresses are hashvals ***)
   let c = seo_hashval o bh.stakeassetid c in
+  let c = seo_poburn o bh.announcedpoburn c in
   let c = seo_option seo_postor o bh.stored c in
   let c = seo_int64 o bh.timestamp c in
   let c = seo_int32 o bh.deltatime c in
@@ -271,6 +311,7 @@ let sei_blockheaderdata i c =
   let (x3,c) = sei_hashval i c in
   let (x4,c) = sei_hashval i c in (*** p2pkh addresses are hashvals ***)
   let (x5,c) = sei_hashval i c in
+  let (x6a,c) = sei_poburn i c in
   let (x6,c) = sei_option sei_postor i c in
   let (x7,c) = sei_int64 i c in
   let (x8,c) = sei_int32 i c in
@@ -283,6 +324,7 @@ let sei_blockheaderdata i c =
 	newledgerroot = x3;
 	stakeaddr = x4;
 	stakeassetid = x5;
+	announcedpoburn = x6a;
 	stored = x6;
 	timestamp = x7;
 	deltatime = x8;
@@ -483,35 +525,41 @@ let check_postor_pdoc tm csm mtar alpha beta m =
 
 (***
  hitval computes a big_int by hashing the timestamp (in seconds), the stake's asset id and the current stake modifier.
- If there is no proof of storage, then there's a hit if the hitval is less than the target times the stake.
+ If there is no proof of burn or proof of storage, then there's a hit if the hitval is less than the target times the stake.
+ If there is proof of burn, the number of litecoin satoshis * 10000 is added to the stake.
  With a proof of storage, the stake is multiplied by 1.25 before the comparison is made.
  A proof of storage is either a term or partial document which abbreviates everything except one
  leaf. That leaf hashed with the hash of the root of the term/pdoc should hash with the stake address
  in a way that has 16 0 bits as the least significant bits.
  That is, for each stake address there are 0.0015% of proofs-of-storage that can be used by that address.
 ***)
-let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr strd =
+let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd =
+  let (v,sincepow) =
+    match brn with
+    | Poburn(_,_,u) -> (Int64.add v (Int64.mul u 10000L),0)
+    | SincePoburn(j) -> (v,j)
+  in
   match strd with
-  | None -> lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl v))
+  | None -> lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
   | Some(PostorTrm(th,m,a,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
       let beta = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
-      let mtar = (mult_big_int tar (coinage blkh bday obl (incrstake v))) in
+      let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
       lt_big_int (hitval tmstmp stkid csm) mtar
 	&&
       check_postor_tm tmstmp csm mtar stkaddr beta m
   | Some(PostorDoc(gamma,nonce,th,d,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
       let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
-      let mtar = (mult_big_int tar (coinage blkh bday obl (incrstake v))) in
+      let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
       lt_big_int (hitval tmstmp stkid csm) mtar
 	&&
       check_postor_pdoc tmstmp csm mtar stkaddr prebeta d
 
-let check_hit_a blkh bday obl v tinf tmstmp stkid stkaddr strd =
+let check_hit_a blkh bday obl v tinf tmstmp stkid stkaddr brn strd =
   let (csm,fsm,tar) = tinf in
-  check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr strd
+  check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd
 
 let check_hit blkh tinf bh bday obl v =
-  check_hit_a blkh bday obl v tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.stored
+  check_hit_a blkh bday obl v tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn bh.stored
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
@@ -530,11 +578,13 @@ let hash_blockheaderdata bh =
 		bh.newledgerroot))
 	  (hashpair
 	     (hashpair bh.stakeaddr bh.stakeassetid)
-	     (hashopair2
-		(hashopostor bh.stored)
-		(hashpair
-		   (hashtargetinfo bh.tinfo)
-		   (hashpair (hashint64 bh.timestamp) (hashint32 bh.deltatime)))))))
+	     (hashpair
+		(hashpoburn bh.announcedpoburn)
+		(hashopair2
+		   (hashopostor bh.stored)
+		   (hashpair
+		      (hashtargetinfo bh.tinfo)
+		      (hashpair (hashint64 bh.timestamp) (hashint32 bh.deltatime))))))))
     1028l
 
 let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
@@ -542,31 +592,37 @@ let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
     &&
   match u with
   | Currency(v) ->
-    begin
-  check_hit blkh tinfo bhd bday obl v
-    &&
-  bhd.deltatime > 0l
-    &&
-  begin
-    match bhd.stored with
-    | None -> true
-    | Some(PostorTrm(th,m,a,h)) ->
-	let beta = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
+      begin
+	check_hit blkh tinfo bhd bday obl v
+	  &&
+	bhd.deltatime > 0l
+	  &&
 	begin
-	  match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq (termaddr_addr beta)) with
-	  | Some(_,_,_,OwnsObj(_,_)) -> true
-	  | _ -> false
+	  match bhd.announcedpoburn with
+	  | Poburn(_,_,_) -> true
+	  | SincePoburn(i) -> i < 256 (*** insist on poburn at least every 256 blocks ***)
 	end
-    | Some(PostorDoc(gamma,nonce,th,d,h)) ->
-	let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
-	let beta = hashval_pub_addr prebeta in
+	  &&
 	begin
-	  match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq beta) with
-	  | Some(_,_,_,DocPublication(_,_,_,_)) -> true
-	  | _ -> false
+	  match bhd.stored with
+	  | None -> true
+	  | Some(PostorTrm(th,m,a,h)) ->
+	      let beta = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
+	      begin
+		match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq (termaddr_addr beta)) with
+		| Some(_,_,_,OwnsObj(_,_)) -> true
+		| _ -> false
+	      end
+	  | Some(PostorDoc(gamma,nonce,th,d,h)) ->
+	      let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
+	      let beta = hashval_pub_addr prebeta in
+	      begin
+		match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq beta) with
+		| Some(_,_,_,DocPublication(_,_,_,_)) -> true
+		| _ -> false
+	      end
 	end
-  end
-    end
+      end
   | _ -> false
 
 let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
@@ -947,7 +1003,7 @@ let cumul_stake cs tar deltm =
     cs
     (max_big_int unit_big_int (div_big_int !max_target (shift_right_towards_zero_big_int (mult_big_int tar (big_int_of_int32 deltm)) 20)))
 
-let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
+let blockheader_succ_a prevledgerroot tmstamp1 announcedpoburn1 tinfo1 bh2 =
   let (bhd2,bhs2) = bh2 in
   ctree_hashroot bhd2.prevledger = prevledgerroot
     &&
@@ -955,9 +1011,20 @@ let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
     &&
   let (csm1,fsm1,tar1) = tinfo1 in
   let (csm2,fsm2,tar2) = bhd2.tinfo in
-  stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)
-    &&
-  stakemod_pushbit (stakemod_firstbit fsm2) fsm1 = fsm2 (*** the new bit of the new future stake modifier fsm2 is freely chosen by the staker ***)
+  begin
+    match bhd2.announcedpoburn with
+    | Poburn(h,k,x) -> (*** If proof of burn, then the new csm2 and fsm2 are determined by h and k (where h was the ltc block hash, which is unpredictable) ***)
+	let (csm,fsm) = compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) in
+	csm2 = csm && fsm2 = fsm
+    | SincePoburn(i) ->
+	stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)
+	  &&
+	stakemod_pushbit (stakemod_firstbit fsm2) fsm1 = fsm2 (*** the new bit of the new future stake modifier fsm2 is freely chosen by the staker ***)
+	  &&
+	match announcedpoburn1 with (*** ensure that we are counting the number of blocks since the last poburn ***)
+	| Poburn(_,_,_) -> i = 1
+	| SincePoburn(j) -> i = j + 1
+  end
     &&
   eq_big_int tar2 (retarget tar1 bhd2.deltatime)
 
@@ -966,7 +1033,7 @@ let blockheader_succ bh1 bh2 =
   let (bhd2,bhs2) = bh2 in
   bhd2.prevblockhash = Some (hash_blockheaderdata bhd1)
     &&
-  blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.tinfo bh2
+  blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.announcedpoburn bhd1.tinfo bh2
 
 let rec valid_blockchain_aux blkh bl =
   match bl with
@@ -987,7 +1054,7 @@ let rec valid_blockchain_aux blkh bl =
   | [(bh,bd)] ->
       let (bhd,bhs) = bh in
       if blkh = 1L && bhd.prevblockhash = None
-	  && blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) bh
+	  && blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (SincePoburn(0)) (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) bh
       then
 	begin
 	  match valid_block None None blkh (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bh,bd) with
@@ -1024,7 +1091,7 @@ let rec valid_blockheaderchain_aux blkh bhl =
 	&&
       ctree_hashroot bhd.prevledger = !genesisledgerroot
 	&&
-      blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bhd,bhs)
+      blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (SincePoburn(0)) (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bhd,bhs)
   | [] -> false
 
 let valid_blockheaderchain blkh bhc =

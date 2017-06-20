@@ -61,8 +61,9 @@ echo let prompt = ref \"\> \" >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else
-    echo let genesistimestamp = ref 1467588727L >> src/config.ml
+    echo let genesistimestamp = ref 1497953081L >> src/config.ml
 fi
+echo let maxburn = ref 0L >> src/config.ml
 if [ $SEED ]; then
     echo let seed = ref \"$SEED\" >> src/config.ml
 else

@@ -22,7 +22,7 @@ open Blocktree;;
 open Setconfig;;
 
 let rec pblockchain s n c lr m =
-  let BlocktreeNode(par,_,pbh,_,_,plr,_,_,_,blkh,_,_,chl) = n in
+  let BlocktreeNode(par,_,pbh,_,_,plr,_,_,_,_,blkh,_,_,chl) = n in
   if m > 0 then
     begin
       match par with
@@ -108,7 +108,7 @@ let initnetwork () =
   (*** empty placeholder for now ***)
   ();;
 
-type nextstakeinfo = NextStake of (int64 * p2pkhaddr * hashval * int64 * obligation * int64 * big_int) | NoStakeUpTo of int64;;
+type nextstakeinfo = NextStake of (int64 * p2pkhaddr * hashval * int64 * obligation * int64 * int64 option * big_int) | NoStakeUpTo of int64;;
 
 let nextstakechances : (hashval option,nextstakeinfo) Hashtbl.t = Hashtbl.create 100;;
 
@@ -123,24 +123,24 @@ let compute_recid (r,s) k =
 	if evenp y then 2 else 3
   | None -> raise (Failure "bad0");;
 
-let rec hlist_stakingassets blkh alpha hl n =
+let rec hlist_stakingassets blkh sincepob alpha hl n =
   if n > 0 then
     match hl with
     | HCons((aid,bday,obl,Currency(v)),hr) ->
 	Mutex.lock stakingassetsmutex;
-	let ca = coinage blkh bday obl v in
+	let ca = coinage blkh bday obl sincepob v in
 	if gt_big_int ca zero_big_int && not (Hashtbl.mem Commands.unconfirmed_spent_assets aid) then
 	  begin
 	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid);
 	    Commands.stakingassets := (alpha,aid,bday,obl,v)::!Commands.stakingassets
 	  end;
 	Mutex.unlock stakingassetsmutex;
-	hlist_stakingassets blkh alpha hr (n-1)
-    | HCons(_,hr) -> hlist_stakingassets blkh alpha hr (n-1)
+	hlist_stakingassets blkh sincepob alpha hr (n-1)
+    | HCons(_,hr) -> hlist_stakingassets blkh sincepob alpha hr (n-1)
     | HConsH(h,hr) ->
 	begin
 	  try
-	    hlist_stakingassets blkh alpha (HCons(DbAsset.dbget h,hr)) n
+	    hlist_stakingassets blkh sincepob alpha (HCons(DbAsset.dbget h,hr)) n
 	  with Not_found -> ()
 	end
     | HHash(h) ->
@@ -148,8 +148,8 @@ let rec hlist_stakingassets blkh alpha hl n =
 	  try
 	    let (h1,h2) = DbHConsElt.dbget h in
 	    match h2 with
-	    | Some(h2) -> hlist_stakingassets blkh alpha (HConsH(h1,HHash(h2))) n
-	    | None -> hlist_stakingassets blkh alpha (HConsH(h1,HNil)) n
+	    | Some(h2) -> hlist_stakingassets blkh sincepob alpha (HConsH(h1,HHash(h2))) n
+	    | None -> hlist_stakingassets blkh sincepob alpha (HConsH(h1,HNil)) n
 	  with Not_found -> ()
 	end
     | _ -> ()
@@ -158,73 +158,78 @@ let rec hlist_stakingassets blkh alpha hl n =
 
 let compute_staking_chances n fromtm totm =
   let i = ref fromtm in
-   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
-   let (csm1,fsm1,tar1) = currtinfo in
-   let c = CHash(currledgerroot) in
-   (*** collect assets allowed to stake now ***)
-   Commands.stakingassets := [];
-   Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght;
-   List.iter
-     (fun (k,b,(x,y),w,h,alpha) ->
-       match try ctree_addr true true (hashval_p2pkh_addr h) c None with _ -> (None,0) with
-       | (Some(hl),_) ->
-           hlist_stakingassets blkhght h (nehlist_hlist hl) 50
-       | _ ->
-	   ())
-     !Commands.walletkeys;
-  List.iter
-    (fun (alpha,beta,_,_,_,_) ->
-      let (p,x4,x3,x2,x1,x0) = alpha in
-      let (q,_,_,_,_,_) = beta in
-      if not p && not q then (*** only p2pkh can stake ***)
-	match try ctree_addr true true (payaddr_addr alpha) c None with _ -> (None,0) with
+  let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,currpoburn,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
+  let (mustburn,sincepob) =
+    match currpoburn with
+    | SincePoburn(j) when j >= 255 -> (true,j) (*** burn is required for next block ***)
+    | SincePoburn(j) -> (false,j)
+    | _ -> (false,0)
+  in
+  if !Config.maxburn <= 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
+    ()
+  else
+    let (csm1,fsm1,tar1) = currtinfo in
+    let c = CHash(currledgerroot) in
+    (*** collect assets allowed to stake now ***)
+    Commands.stakingassets := [];
+    Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght;
+    List.iter
+      (fun (k,b,(x,y),w,h,alpha) ->
+	match try ctree_addr true true (hashval_p2pkh_addr h) c None with _ -> (None,0) with
 	| (Some(hl),_) ->
-	    hlist_stakingassets blkhght (x4,x3,x2,x1,x0) (nehlist_hlist hl) 50
-	| _ -> ())
-     !Commands.walletendorsements;
-   Printf.fprintf !log "%d staking assets\n" (List.length !Commands.stakingassets);
-  try
-    while !i < totm do
-      i := Int64.add 1L !i;
-      (*** go through assets and check for staking at time !i ***)
-      List.iter
-	(fun (stkaddr,h,bday,obl,v) ->
-	  if gt_big_int (coinage blkhght bday obl v) zero_big_int then
-	    begin
-	      let mtar = mult_big_int tar1 (coinage blkhght bday obl (incrstake v)) in
-	      let ntar = mult_big_int tar1 (coinage blkhght bday obl v) in
-(*	      output_string !log ("i := " ^ (Int64.to_string !i) ^ "\nh := " ^ (Hash.hashval_hexstring h) ^ "\nblkhght = " ^ (Int64.to_string blkhght) ^ "\n"); *)
-	      let (m3,m2,m1,m0) = csm1 in
-(*	      output_string !log ("csm1 := (" ^ (Int64.to_string m3) ^ "," ^ (Int64.to_string m2) ^ "," ^ (Int64.to_string m1) ^ "," ^ (Int64.to_string m0) ^ ")\n");
-	      output_string !log ("ntar   := " ^ (string_of_big_int ntar) ^ "\n");
-	      output_string !log ("hitval := " ^ (string_of_big_int (hitval !i h csm1)) ^ "\n");
-	      flush !log; *)
-	      (*** first check if it would be a hit with some storage component: ***)
-	      if lt_big_int (hitval !i h csm1) mtar then
-		begin (*** if so, then check if it's a hit without some storage component ***)
-		  if lt_big_int (hitval !i h csm1) ntar then
-		    begin
-                      output_string !log ("stake at time " ^ (Int64.to_string !i) ^ " with " ^ (hashval_hexstring h) ^ " in " ^ (Int64.to_string (Int64.sub !i (Int64.of_float (Unix.time()))))  ^ " seconds.\n"); flush !log;
-		      let deltm = Int64.to_int32 (Int64.sub !i tmstamp) in
-		      let (_,_,tar) = currtinfo in
-		      let csnew = cumul_stake prevcumulstk tar deltm in
-		      Hashtbl.add nextstakechances prevblk (NextStake(!i,stkaddr,h,bday,obl,v,csnew));
-		      raise Exit
-		    end
-		  else (*** if not, check if there is some storage that will make it a hit [todo] ***)
-		    begin
-                      ()
-		    end
-		end
-	    end
-	)
-	!Commands.stakingassets
-    done;
-    Hashtbl.add nextstakechances prevblk (NoStakeUpTo(totm));
-  with
-  | Exit -> ()
-  | exn ->
-      Printf.fprintf stdout "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
+            hlist_stakingassets blkhght sincepob h (nehlist_hlist hl) 50
+	| _ ->
+	    ())
+      !Commands.walletkeys;
+    List.iter
+      (fun (alpha,beta,_,_,_,_) ->
+	let (p,x4,x3,x2,x1,x0) = alpha in
+	let (q,_,_,_,_,_) = beta in
+	if not p && not q then (*** only p2pkh can stake ***)
+	  match try ctree_addr true true (payaddr_addr alpha) c None with _ -> (None,0) with
+	  | (Some(hl),_) ->
+	      hlist_stakingassets blkhght sincepob (x4,x3,x2,x1,x0) (nehlist_hlist hl) 50
+	  | _ -> ())
+      !Commands.walletendorsements;
+    Printf.fprintf !log "%d staking assets\n" (List.length !Commands.stakingassets);
+    let nextstake i stkaddr h bday obl v toburn =
+      let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
+      let (_,_,tar) = currtinfo in
+      let csnew = cumul_stake prevcumulstk tar deltm in
+      Hashtbl.add nextstakechances prevblk (NextStake(i,stkaddr,h,bday,obl,v,toburn,csnew));
+      raise Exit
+    in
+    try
+      while !i < totm do
+	i := Int64.add 1L !i;
+	(*** go through assets and check for staking at time !i ***)
+	List.iter
+	  (fun (stkaddr,h,bday,obl,v) ->
+	    let v2 = Int64.add v (Int64.mul !Config.maxburn 10000L) in
+	    let caf = coinagefactor blkhght bday obl sincepob in
+	    if gt_big_int (mult_big_int caf (big_int_of_int64 v2)) zero_big_int then
+	      begin
+		let hv = hitval !i h csm1 in
+		let mtar = mult_big_int tar1 caf in
+		let minv = succ_big_int (div_big_int hv mtar) in (*** ignoring storage for now ***)
+		if le_big_int minv (big_int_of_int64 v) then (*** hit without burn or storage ***)
+		  if mustburn then
+		    nextstake !i stkaddr h bday obl v (Some(0L)) (*** burn nothing, but announce in the pow chain (ltc) ***)
+		  else
+		    nextstake !i stkaddr h bday obl v None
+		else
+		  let toburn = div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 10000) in
+		  if le_big_int toburn (big_int_of_int64 !Config.maxburn) then (*** hit with burn, without storage ***)
+		    nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
+	      end
+	  )
+	  !Commands.stakingassets
+      done;
+      Hashtbl.add nextstakechances prevblk (NoStakeUpTo(totm));
+    with
+    | Exit -> ()
+    | exn ->
+	Printf.fprintf stdout "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
 
 exception StakingProblemPause
 
@@ -246,7 +251,7 @@ let stakingthread () =
 	let pbhh = node_prevblockhash best in
 	let blkh = node_blockheight best in
         match Hashtbl.find nextstakechances pbhh with
-	| NextStake(tm,alpha,aid,bday,obl,v,csnew) ->
+	| NextStake(tm,alpha,aid,bday,obl,v,toburn,csnew) ->
 	    let nw = Unix.time() in
 	    if tm > Int64.of_float (nw +. 10.0) then
 	      begin (*** wait for a minute and then reevaluate; would be better to sleep until time to publish or until a new best block is found **)
@@ -268,6 +273,24 @@ let stakingthread () =
 		let newrandbit = rand_bit() in
 		let fsm = stakemod_pushbit newrandbit fsm0 in
 		let csm = stakemod_pushbit (stakemod_lastbit fsm0) csm0 in
+		let apob =
+		  match toburn with
+		  | Some(u) ->
+		      begin (*** will need to actually burn u litecoin satoshis and wait for a confirmation to know the block hash; fake it for now ***)
+			let h = big_int_md256 (rand_256()) in
+			let k = big_int_md256 (rand_256()) in
+			output_string !log ("Pretending to burn " ^ (Int64.to_string u) ^ " litecoin satoshis\n");
+			Poburn(h,k,u)
+		      end
+		  | None ->
+		      match node_poburn best with
+		      | SincePoburn(j) ->
+			  if j < 255 then
+			    SincePoburn(j+1)
+			  else
+			    raise (Failure("must burn, should have known"))
+		      | _ -> SincePoburn(1)
+		in
 		let tar = retarget tar0 deltm in
 		let alpha2 = p2pkhaddr_addr alpha in
 		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_qedaddrstr alpha2) (hashval_hexstring aid) bday;
@@ -396,6 +419,7 @@ let stakingthread () =
 			newledgerroot = newcr;
 			stakeaddr = alpha;
 			stakeassetid = aid;
+			announcedpoburn = apob;
 			stored = None;
 			timestamp = tm;
 			deltatime = deltm;
@@ -494,7 +518,7 @@ let stakingthread () =
 		let publish_new_block () =
 		  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew);
 		  let newnode =
-		    BlocktreeNode(Some(best),ref [],Some(bhdnewh),newthtroot,newsigtroot,newcr,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
+		    BlocktreeNode(Some(best),ref [],Some(bhdnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
 		  in
 		  Printf.fprintf !log "block at height %Ld: %s, deltm = %ld, timestamp %Ld, cumul stake %s\n" blkh (hashval_hexstring bhdnewh) bhdnew.deltatime tm (string_of_big_int csnew); 
 		  record_recent_staker alpha newnode 6;
@@ -682,7 +706,7 @@ let do_command l =
 	match al with
 	| [] ->
 	    let best = !bestnode in
-	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_) = best in
+	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
 	    Commands.printctreeinfo currledgerroot
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
 	| _ -> raise (Failure "printctreeinfo [ledgerroot]")

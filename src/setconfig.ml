@@ -17,7 +17,8 @@ let intconfigvars = [
 ("maxconns",fun x -> Config.maxconns := x)
 ];;
 let int64configvars = [
-("genesistime",fun x -> Config.genesistimestamp := x)
+("genesistime",fun x -> Config.genesistimestamp := x);
+("maxburn",fun x -> Config.maxburn := x)
 ];;
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);

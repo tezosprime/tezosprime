@@ -14,7 +14,8 @@ val datadir : unit -> string
 val reward_maturation : int64
 val reward_locktime : int64 -> int64
 
-val coinage : int64 -> int64 -> obligation -> int64 -> big_int
+val coinagefactor : int64 -> int64 -> obligation -> int -> big_int
+val coinage : int64 -> int64 -> obligation -> int -> int64 -> big_int
 
 type hlist = HHash of hashval | HNil | HCons of asset * hlist | HConsH of hashval * hlist
 
@@ -101,7 +102,7 @@ val sei_ctree : (int -> 'a -> int * 'a) -> 'a -> ctree * 'a
 
 val print_hlist_gen : out_channel -> hlist -> (asset -> unit) -> unit
 val print_hlist : out_channel -> hlist -> unit
-val print_hlist_to_buffer : Buffer.t -> int64 -> hlist -> unit
+val print_hlist_to_buffer : Buffer.t -> int64 -> int -> hlist -> unit
 val print_ctree : ctree -> unit
 val print_ctree_all : out_channel -> ctree -> unit
 

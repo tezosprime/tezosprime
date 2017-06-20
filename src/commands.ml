@@ -473,7 +473,7 @@ let printassets_in_ledger ledgerroot =
   Printf.printf "Total watched: %s fraenks\n" (fraenks_of_cants !tot4)
 
 let printassets () =
-  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_) = !bestnode in
+  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = !bestnode in
   printassets_in_ledger ledgerroot
 
 let printasset h =

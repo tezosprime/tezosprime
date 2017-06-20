@@ -303,7 +303,7 @@ let importendorsement a b s =
       | None ->
 	  if !Config.testnet then
 	    begin
-	      match verifybitcoinmessage_recover (-629004799l, -157083340l, -103691444l, 1197709645l, 224718539l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_qedaddrstr alpha) ^ ")") with
+	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_qedaddrstr alpha) ^ ")") with
 	      | None ->
 		  raise (Failure "endorsement signature verification failed; not adding endorsement to wallet")
 	      | Some(x,y) ->

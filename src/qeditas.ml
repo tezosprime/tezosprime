@@ -400,6 +400,12 @@ let stakingthread () =
 		  | None -> raise (Failure "ctree should not have become empty")
 		in
 		let s = Buffer.create 10000 in
+		seosbf (seo_option seo_ctree seosb prevc (s,None));
+		Printf.fprintf !log "prevc:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
+		let s = Buffer.create 10000 in
+		seosbf (seo_list seo_tx seosb (coinstk::othertxs) (s,None));
+		Printf.fprintf !log "txs:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
+		let s = Buffer.create 10000 in
 		seosbf (seo_ctree seosb prevcforblock (s,None));
 		Printf.fprintf !log "prevcforblock:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		if not (ctree_hashroot prevcforblock = prevledgerroot) then (Printf.fprintf !log "prevcforblock has the wrong hash root. This should never happen.\n"; Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
@@ -548,6 +554,7 @@ let stakingthread () =
 	compute_staking_chances best (node_timestamp best) (Int64.add (Int64.of_float (Unix.time())) 7200L)
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
 	Printf.fprintf !log "Pausing due to a staking bug; will retry staking in about an hour.\n";
+	flush !log;
 	Unix.sleep 3600;
 	Printf.fprintf !log "Continuing staking.\n";
 	compute_staking_chances best (node_timestamp best) (Int64.add (Int64.of_float (Unix.time())) 7200L)

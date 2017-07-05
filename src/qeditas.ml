@@ -1,11 +1,13 @@
-(* Copyright (c) 2015-2016 The Qeditas developers *)
+(* Copyright (c) 2015-2017 The Qeditas developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json;;
 open Big_int;;
 open Utils;;
 open Ser;;
 open Sha256;;
+open Ripemd160;;
 open Hash;;
 open Net;;
 open Db;;
@@ -127,14 +129,15 @@ let rec hlist_stakingassets blkh sincepob alpha hl n =
   if n > 0 then
     match hl with
     | HCons((aid,bday,obl,Currency(v)),hr) ->
-	Mutex.lock stakingassetsmutex;
 	let ca = coinage blkh bday obl sincepob v in
+(*	Printf.fprintf !log "Checking asset %s %Ld %Ld %s %d %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) sincepob v (string_of_big_int ca); *)
 	if gt_big_int ca zero_big_int && not (Hashtbl.mem Commands.unconfirmed_spent_assets aid) then
 	  begin
-	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid);
-	    Commands.stakingassets := (alpha,aid,bday,obl,v)::!Commands.stakingassets
+(*	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid); *)
+	    Mutex.lock stakingassetsmutex;
+	    Commands.stakingassets := (alpha,aid,bday,obl,v)::!Commands.stakingassets;
+	    Mutex.unlock stakingassetsmutex;
 	  end;
-	Mutex.unlock stakingassetsmutex;
 	hlist_stakingassets blkh sincepob alpha hr (n-1)
     | HCons(_,hr) -> hlist_stakingassets blkh sincepob alpha hr (n-1)
     | HConsH(h,hr) ->
@@ -156,23 +159,48 @@ let rec hlist_stakingassets blkh sincepob alpha hl n =
   else
     ();;
 
+let lastburn : int64 ref = ref 0L;;
+
+let allowedburn tm =
+  if !lastburn > 0L then
+    let sinceburn = Int64.sub tm !lastburn in
+    sinceburn >= !Config.mintimebetweenburns
+  else
+    true
+
+let maxburnnow tm =
+  let mbn =
+    if !lastburn > 0L then
+      let sinceburn = Int64.sub tm !lastburn in
+      if sinceburn < !Config.mintimebetweenburns then
+	0L
+      else
+	min !Config.maxburn (Int64.div (Int64.mul !Config.maxburn (Int64.sub tm !lastburn)) 86400L)
+    else
+      !Config.maxburn
+  in
+  if mbn >= !Config.ltctxfee then
+    Int64.sub mbn !Config.ltctxfee
+  else
+    0L
+
 let compute_staking_chances n fromtm totm =
   let i = ref fromtm in
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,currpoburn,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
   let (mustburn,sincepob) =
     match currpoburn with
-    | SincePoburn(j) when j >= 255 -> (true,j) (*** burn is required for next block ***)
-    | SincePoburn(j) -> (false,j)
-    | _ -> (false,0)
+    | SincePoburn(j) when j+1 >= 256 -> (true,j+1) (*** burn is required for next block ***)
+    | SincePoburn(j) -> (false,j+1)
+    | _ -> (false,1)
   in
-  if !Config.maxburn <= 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
+  if !Config.maxburn < 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
     ()
   else
     let (csm1,fsm1,tar1) = currtinfo in
     let c = CHash(currledgerroot) in
     (*** collect assets allowed to stake now ***)
     Commands.stakingassets := [];
-    Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght;
+(*    Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght; *)
     List.iter
       (fun (k,b,(x,y),w,h,alpha) ->
 	match try ctree_addr true true (hashval_p2pkh_addr h) c None with _ -> (None,0) with
@@ -191,46 +219,52 @@ let compute_staking_chances n fromtm totm =
 	      hlist_stakingassets blkhght sincepob (x4,x3,x2,x1,x0) (nehlist_hlist hl) 50
 	  | _ -> ())
       !Commands.walletendorsements;
-    Printf.fprintf !log "%d staking assets\n" (List.length !Commands.stakingassets);
-    let nextstake i stkaddr h bday obl v toburn =
-      let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
-      let (_,_,tar) = currtinfo in
-      let csnew = cumul_stake prevcumulstk tar deltm in
-      Hashtbl.add nextstakechances prevblk (NextStake(i,stkaddr,h,bday,obl,v,toburn,csnew));
-      raise Exit
-    in
-    try
-      while !i < totm do
-	i := Int64.add 1L !i;
-	(*** go through assets and check for staking at time !i ***)
-	List.iter
-	  (fun (stkaddr,h,bday,obl,v) ->
-	    let v2 = Int64.add v (Int64.mul !Config.maxburn 10000L) in
-	    let caf = coinagefactor blkhght bday obl sincepob in
-	    if gt_big_int (mult_big_int caf (big_int_of_int64 v2)) zero_big_int then
-	      begin
-		let hv = hitval !i h csm1 in
-		let mtar = mult_big_int tar1 caf in
-		let minv = succ_big_int (div_big_int hv mtar) in (*** ignoring storage for now ***)
-		if le_big_int minv (big_int_of_int64 v) then (*** hit without burn or storage ***)
-		  if mustburn then
-		    nextstake !i stkaddr h bday obl v (Some(0L)) (*** burn nothing, but announce in the pow chain (ltc) ***)
-		  else
-		    nextstake !i stkaddr h bday obl v None
-		else
-		  let toburn = div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 10000) in
-		  if le_big_int toburn (big_int_of_int64 !Config.maxburn) then (*** hit with burn, without storage ***)
-		    nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
-	      end
-	  )
-	  !Commands.stakingassets
-      done;
-      Hashtbl.add nextstakechances prevblk (NoStakeUpTo(totm));
-    with
-    | Exit -> ()
-    | exn ->
-	Printf.fprintf stdout "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
-
+(*    Printf.fprintf !log "%d staking assets\n" (List.length !Commands.stakingassets); *)
+    if not (!Commands.stakingassets = []) then
+      let mustburn = mustburn || List.length !Commands.stakingassets <= !Config.burnifleq in
+(*       Printf.fprintf !log "mustburn %b\n" mustburn; flush !log; *)
+      let nextstake i stkaddr h bday obl v toburn =
+	let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
+	let (_,_,tar) = currtinfo in
+	let csnew = cumul_stake prevcumulstk tar deltm in
+	Hashtbl.add nextstakechances prevblk (NextStake(i,stkaddr,h,bday,obl,v,toburn,csnew));
+	raise Exit
+      in
+      try
+	while !i < totm do
+	  i := Int64.add 1L !i;
+	  (*** go through assets and check for staking at time !i ***)
+	  List.iter
+	    (fun (stkaddr,h,bday,obl,v) ->
+	      let v2 = Int64.add v (Int64.mul (maxburnnow !i) 1000L) in
+	      let caf = coinagefactor blkhght bday obl sincepob in
+	      if gt_big_int (mult_big_int caf (big_int_of_int64 v2)) zero_big_int then
+		begin
+		  let hv = hitval !i h csm1 in
+		  let mtar = mult_big_int tar1 caf in
+		  let minv = succ_big_int (div_big_int hv mtar) in (*** ignoring storage for now ***)
+		  if lt_big_int minv (big_int_of_int64 v) then (*** hit without burn or storage ***)
+		    if mustburn then
+		      if allowedburn !i then
+			nextstake !i stkaddr h bday obl v (Some(0L)) (*** burn nothing, but announce in the pow chain (ltc) ***)
+		      else
+			()
+		    else
+		      nextstake !i stkaddr h bday obl v None
+		  else if allowedburn !i then
+		    let toburn = succ_big_int (succ_big_int (div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 1000))) in
+		    if lt_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn, without storage ***)
+		      nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
+		end
+	    )
+	    !Commands.stakingassets
+	done;
+	Hashtbl.add nextstakechances prevblk (NoStakeUpTo(totm));
+      with
+      | Exit -> ()
+      | exn ->
+	  Printf.fprintf stdout "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
+	    
 exception StakingProblemPause
 
 let stakingthread () =
@@ -256,7 +290,8 @@ let stakingthread () =
 	    if tm > Int64.of_float (nw +. 10.0) then
 	      begin (*** wait for a minute and then reevaluate; would be better to sleep until time to publish or until a new best block is found **)
 		let tmtopub = Int64.sub tm (Int64.of_float nw) in
-		output_string !log ((Int64.to_string tmtopub) ^ " seconds until time to publish staked block\n");
+(*		output_string !log ((Int64.to_string tmtopub) ^ " seconds until time to publish staked block\n");
+		flush !log; *)
 		if tmtopub >= 60L then
 		  sleepuntil := nw +. 60.0
 		else
@@ -270,16 +305,14 @@ let stakingthread () =
 		let (csm0,fsm0,tar0) = node_targetinfo best in
 		let pbhtm = node_timestamp best in
 		let deltm = Int64.to_int32 (Int64.sub tm pbhtm) in
-		let newrandbit = rand_bit() in
-		let fsm = stakemod_pushbit newrandbit fsm0 in
-		let csm = stakemod_pushbit (stakemod_lastbit fsm0) csm0 in
 		let apob =
 		  match toburn with
 		  | Some(u) ->
-		      begin (*** will need to actually burn u litecoin satoshis and wait for a confirmation to know the block hash; fake it for now ***)
+		      begin (*** will need to actually burn u litoshis and wait for a confirmation to know the block hash; fake it for now ***)
 			let h = big_int_md256 (rand_256()) in
 			let k = big_int_md256 (rand_256()) in
-			output_string !log ("Pretending to burn " ^ (Int64.to_string u) ^ " litecoin satoshis\n");
+			output_string !log ("Pretending to burn " ^ (Int64.to_string u) ^ " litoshis\n");
+			lastburn := tm; (*** remember the last time we burned litoshis so we can control the rate they are burned at ***)
 			Poburn(h,k,u)
 		      end
 		  | None ->
@@ -291,16 +324,21 @@ let stakingthread () =
 			    raise (Failure("must burn, should have known"))
 		      | _ -> SincePoburn(1)
 		in
+		let (csm,fsm) =
+		  match apob with
+		  | Poburn(h,k,u) -> compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k))
+		  | _ -> (stakemod_pushbit (stakemod_lastbit fsm0) csm0,stakemod_pushbit false fsm0) (*** since we do poburn at least every 256 blocks, no need for 'random' bit on future stake modifier ***)
+		in
 		let tar = retarget tar0 deltm in
 		let alpha2 = p2pkhaddr_addr alpha in
 		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_qedaddrstr alpha2) (hashval_hexstring aid) bday;
 		let obl2 =
 		  match obl with
 		  | None ->  (* if the staked asset had the default obligation it can be left as the default obligation or locked for some number of blocks to commit to staking; there should be a configurable policy for the node *)
-		      if rand_bit() then
-			None
-		      else
+		      None
+(**
 			Some(p2pkhaddr_payaddr alpha,Int64.add blkh (Int64.logand 2048L (rand_int64())),false) (* it is not marked as a reward *)
+**)
 		  | _ -> obl (* unless it's the default obligation, then the obligation cannot change when staking it *)
 		in
 		let prevc = Some(CHash(prevledgerroot)) in
@@ -310,9 +348,6 @@ let stakingthread () =
 		  | None -> raise (Failure "tree should not be empty")
 		in
 		let dync = ref (octree_ctree prevc) in
-		let s = Buffer.create 10000 in
-		seosbf (seo_ctree seosb !dync (s,None));
-		Printf.fprintf !log "dync initial:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		let dyntht = ref (lookup_thytree (node_theoryroot best)) in
 		let dynsigt = ref (lookup_sigtree (node_signaroot best)) in
 		let fees = ref 0L in
@@ -320,10 +355,10 @@ let stakingthread () =
 		let rembytesestimate = ref (maxblockdeltasize blkh - (2048 * 2)) in (*** estimate the remaining room in the block delta if the tx is added ***)
 		Hashtbl.iter
 		  (fun h ((tauin,tauout),sg) ->
-		    Printf.fprintf !log "Trying to include tx %s\n" (hashval_hexstring h); flush stdout;
+(*		    Printf.fprintf !log "Trying to include tx %s\n" (hashval_hexstring h); flush stdout; *)
 		    try
 		      ignore (List.find (fun (_,h) -> h = aid) tauin);
-		      Printf.fprintf !log "tx spends the staked asset; removing tx from pool\n"; flush !log;
+(*		      Printf.fprintf !log "tx spends the staked asset; removing tx from pool\n"; flush !log; *)
 		      Commands.remove_from_txpool h
 		    with Not_found ->
 		      if tx_valid (tauin,tauout) then
@@ -334,8 +369,8 @@ let stakingthread () =
 			      let nfee = ctree_supports_tx true false !dyntht !dynsigt blkh (tauin,tauout) !dync in
 			      if nfee > 0L then
 				begin
-				  Printf.fprintf !log "tx %s has negative fees %Ld; removing from pool\n" (hashval_hexstring h) nfee;
-				  flush !log;
+(*				  Printf.fprintf !log "tx %s has negative fees %Ld; removing from pool\n" (hashval_hexstring h) nfee;
+				  flush !log; *)
 				  Commands.remove_from_txpool h;
 				end
 			      else
@@ -352,25 +387,25 @@ let stakingthread () =
 				  end
 				else
 				  begin
-				    Printf.fprintf !log "tx %s not being included because estimated block size would be too big (rembytesestimate %d, bytesestimate %d)\n" (hashval_hexstring h) !rembytesestimate bytesestimate;
-				    flush !log
+(*				    Printf.fprintf !log "tx %s not being included because estimated block size would be too big (rembytesestimate %d, bytesestimate %d)\n" (hashval_hexstring h) !rembytesestimate bytesestimate;
+				    flush !log *)
 				  end
 			    end
 			  else
 			    begin
-			      Printf.fprintf !log "tx %s has an invalid signature; removing from pool\n" (hashval_hexstring h);
-			      flush !log;
+(*			      Printf.fprintf !log "tx %s has an invalid signature; removing from pool\n" (hashval_hexstring h);
+			      flush !log; *)
 			      Commands.remove_from_txpool h;
 			    end
 			with exn ->
 			  begin
-			    Printf.fprintf !log "Exception %s raised while trying to validate tx %s; this may mean the tx is not yet supported so leaving it in the pool\n" (Printexc.to_string exn) (hashval_hexstring h);
-			    flush !log;
+(*			    Printf.fprintf !log "Exception %s raised while trying to validate tx %s; this may mean the tx is not yet supported so leaving it in the pool\n" (Printexc.to_string exn) (hashval_hexstring h);
+			    flush !log; *)
 			  end
 		      else
 			begin
-			  Printf.fprintf !log "tx %s is invalid; removing from pool\n" (hashval_hexstring h);
-			  flush !log;
+(*			  Printf.fprintf !log "tx %s is invalid; removing from pool\n" (hashval_hexstring h);
+			  flush !log; *)
 			  Commands.remove_from_txpool h;
 			end)
 		  stxpool;
@@ -384,14 +419,7 @@ let stakingthread () =
 		let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
 		let stkoutl = [(alpha2,(obl2,Currency(v)));(alpha2,(Some(p2pkhaddr_payaddr alpha,Int64.add blkh (reward_locktime blkh),true),Currency(Int64.add !fees (rewfn blkh))))] in
 		let coinstk : tx = ([(alpha2,aid)],stkoutl) in
-		Printf.fprintf !log "dync before coinstk\n";
-		let s = Buffer.create 10000 in
-		seosbf (seo_ctree seosb !dync (s,None));
-		Printf.fprintf !log "dync before coinstk:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		dync := octree_ctree (tx_octree_trans blkh coinstk (Some(!dync)));
-		let s = Buffer.create 10000 in
-		seosbf (seo_ctree seosb !dync (s,None));
-		Printf.fprintf !log "dync after coinstk:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		let prevcforblock =
 		  match
 		    get_txl_supporting_octree (coinstk::othertxs) prevc
@@ -399,22 +427,25 @@ let stakingthread () =
 		  | Some(c) -> c
 		  | None -> raise (Failure "ctree should not have become empty")
 		in
-		let s = Buffer.create 10000 in
-		seosbf (seo_option seo_ctree seosb prevc (s,None));
-		Printf.fprintf !log "prevc:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
-		let s = Buffer.create 10000 in
-		seosbf (seo_list seo_tx seosb (coinstk::othertxs) (s,None));
-		Printf.fprintf !log "txs:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
-		let s = Buffer.create 10000 in
-		seosbf (seo_ctree seosb prevcforblock (s,None));
-		Printf.fprintf !log "prevcforblock:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
-		if not (ctree_hashroot prevcforblock = prevledgerroot) then (Printf.fprintf !log "prevcforblock has the wrong hash root. This should never happen.\n"; Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
+		if not (ctree_hashroot prevcforblock = prevledgerroot) then
+		  begin
+		    Printf.fprintf !log "prevcforblock has the wrong hash root. This should never happen.\n";
+		    let s = Buffer.create 10000 in
+		    seosbf (seo_option seo_ctree seosb prevc (s,None));
+		    Printf.fprintf !log "prevc: %s\n" (Hashaux.string_hexstring (Buffer.contents s));
+		    let s = Buffer.create 10000 in
+		    seosbf (seo_ctree seosb prevcforblock (s,None));
+		    Printf.fprintf !log "prevcforblock: %s\nprevledgerroot: %s\n" (Hashaux.string_hexstring (Buffer.contents s)) (hashval_hexstring prevledgerroot);
+		    let s = Buffer.create 10000 in
+		    seosbf (seo_list seo_tx seosb (coinstk::othertxs) (s,None));
+		    Printf.fprintf !log "txs: %s\n" (Hashaux.string_hexstring (Buffer.contents s));
+		    flush !log;
+		    Hashtbl.remove nextstakechances pbhh;
+		    raise StakingProblemPause;
+		  end;
 		let (prevcforheader,cgr) = factor_inputs_ctree_cgraft [(alpha2,aid)] prevcforblock in
-		let s = Buffer.create 10000 in
-		seosbf (seo_ctree seosb prevcforheader (s,None));
-		Printf.fprintf !log "prevcforheader:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s)); flush !log;
 		let newcr = save_ctree_elements !dync in
-		Printf.fprintf !log "finished saving ctree elements of dync\n"; flush !log;
+(*		Printf.fprintf !log "finished saving ctree elements of dync\n"; flush !log; *)
 (*		    Hashtbl.add recentledgerroots newcr (blkh,newcr); *)
 		let newthtroot = ottree_hashroot !dyntht in
 		let newsigtroot = ostree_hashroot !dynsigt in
@@ -470,7 +501,7 @@ let stakingthread () =
 		    with Not_found ->
 		      raise (Failure("Was staking for " ^ Cryptocurr.addr_qedaddrstr (hashval_p2pkh_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 		in
-		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs);
+(*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
 		let bhnew = (bhdnew,bhsnew) in
 		let bdnew : blockdelta =
 		  { stakeoutput = stkoutl;
@@ -481,20 +512,16 @@ let stakingthread () =
 		in
 		begin
 		  let s = Buffer.create 10000 in
-		  seosbf (seo_blockheader seosb bhnew (s,None));
-		  Printf.fprintf !log "new blockheader %s:\n%s\n" (hashval_hexstring bhdnewh) (Hashaux.string_hexstring (Buffer.contents s));
-		  let s = Buffer.create 10000 in
 		  seosbf (seo_blockdelta seosb bdnew (s,None));
 		  let bds = Buffer.length s in
 		  if bds > maxblockdeltasize blkh then
 		    (Printf.fprintf !log "New block is too big (%d bytes)\n" bds; flush !log; raise Not_found); (** in this case, probably the best option would be to switch back to an empty block **)
-		  Printf.fprintf !log "new blockdelta:\n%s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		  if valid_blockheader blkh (csm0,fsm0,tar0) bhnew then
-		    (Printf.fprintf !log "New block header is valid\n"; flush !log)
+		    () (* (Printf.fprintf !log "New block header is valid\n"; flush !log) *)
 		  else
 		    (Printf.fprintf !log "New block header is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate"); Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
 		  if not ((valid_block None None blkh (csm0,fsm0,tar0) (bhnew,bdnew)) = None) then
-		    (Printf.fprintf !log "New block is valid\n"; flush stdout)
+		    () (* (Printf.fprintf !log "New block is valid\n"; flush stdout) *)
 		  else
 		    (Printf.fprintf !log "New block is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate"); Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
 		  match pbhh with
@@ -507,14 +534,21 @@ let stakingthread () =
 			  &&
 			let (csm1,fsm1,tar1) = bhd1.tinfo in
 			let (csm2,fsm2,tar2) = bhd2.tinfo in
-			stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)
-			  &&
-			stakemod_pushbit (stakemod_firstbit fsm2) fsm1 = fsm2 (*** the new bit of the new future stake modifier fsm2 is freely chosen by the staker ***)
+			begin
+			  match bhd2.announcedpoburn with
+			  | Poburn(h,k,_) ->
+			      let (csm,fsm) = compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) in
+			      csm2 = csm && fsm2 = fsm
+			  | SincePoburn(_) ->
+			      stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)
+				&&
+			      stakemod_pushbit (stakemod_firstbit fsm2) fsm1 = fsm2 (*** the new bit of the new future stake modifier fsm2 is freely chosen by the staker ***)
+			end
 			  &&
 			eq_big_int tar2 (retarget tar1 bhd2.deltatime)
 		      in
 		      if tmpsucctest pbhd bhdnew then
-			(Printf.fprintf !log "Valid successor block\n"; flush !log)
+			() (* (Printf.fprintf !log "Valid successor block\n"; flush !log) *)
 		      else
 			(Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh)); raise StakingProblemPause)
 		end;
@@ -581,7 +615,7 @@ let rec parse_command_r l i n =
       incr j
     done;
     let b = Buffer.create 20 in
-    while !j < n && not (List.mem l.[!j] [' ';'"']) do
+    while !j < n && not (List.mem l.[!j] [' ';'"';'\'']) do
       Buffer.add_char b l.[!j];
       incr j
     done;
@@ -589,6 +623,8 @@ let rec parse_command_r l i n =
     let c d = if a = "" then d else a::d in
     if !j < n && l.[!j] = '"' then
       c (parse_command_r_q l (!j+1) n)
+    else if !j < n && l.[!j] = '\'' then
+      c (parse_command_r_sq l (!j+1) n)
     else
       c (parse_command_r l (!j+1) n)
   else
@@ -603,7 +639,18 @@ and parse_command_r_q l i n =
   if !j < n then
     Buffer.contents b::parse_command_r l (!j+1) n
   else
-    raise (Failure("missing quote"))
+    raise (Failure("missing \""))
+and parse_command_r_sq l i n =
+  let b = Buffer.create 20 in
+  let j = ref i in
+  while !j < n && not (l.[!j] = '\'') do
+    Buffer.add_char b l.[!j];
+    incr j
+  done;
+  if !j < n then
+    Buffer.contents b::parse_command_r l (!j+1) n
+  else
+    raise (Failure("missing '"))
 
 let parse_command l =
   let ll = parse_command_r l 0 (String.length l) in
@@ -611,13 +658,13 @@ let parse_command l =
   | [] -> raise Exit (*** empty command, silently ignore ***)
   | (c::al) -> (c,al)
 
-let do_command l =
+let do_command oc l =
   let (c,al) = parse_command l in
   match c with
   | "exit" ->
       (*** Could call Thread.kill on netth and stkth, but Thread.kill is not always implemented. ***)
       closelog();
-      Printf.printf "Shutting down threads. Please be patient.\n"; flush stdout;
+      Printf.fprintf oc "Shutting down threads. Please be patient.\n"; flush oc;
       !exitfn 0
   | "dumpstate" -> (*** dump state to a file for debugging ***)
       begin
@@ -656,28 +703,28 @@ let do_command l =
   | "getpeerinfo" ->
       remove_dead_conns();
       let ll = List.length !netconns in
-      Printf.printf "%d connection%s\n" ll (if ll = 1 then "" else "s");
+      Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
       List.iter
 	(fun (_,_,(_,_,_,gcs)) ->
 	  match !gcs with
 	  | Some(cs) ->
-	      Printf.printf "%s (%s): %s\n" cs.realaddr cs.addrfrom cs.useragent;
+	      Printf.fprintf oc "%s (%s): %s\n" cs.realaddr cs.addrfrom cs.useragent;
 	      let snc = Int64.of_float (Unix.time() -. cs.conntime) in
 	      let snc1 = sincetime cs.conntime in
 	      let snc2 = sincetime cs.lastmsgtm in
-	      Printf.printf "Connected for %s; last message %s ago.\n" snc1 snc2;
-	      if cs.handshakestep < 5 then Printf.printf "(Still in handshake phase)\n";
+	      Printf.fprintf oc "Connected for %s; last message %s ago.\n" snc1 snc2;
+	      if cs.handshakestep < 5 then Printf.fprintf oc "(Still in handshake phase)\n";
 	  | None -> (*** This could happen if a connection died after remove_dead_conns above. ***)
-	      Printf.printf "[Dead Connection]\n";
+	      Printf.fprintf oc "[Dead Connection]\n";
 	  )
 	!netconns;
-      flush stdout
+      flush oc
   | "nettime" ->
       let (tm,skew) = network_time() in
-      Printf.printf "network time %Ld (median skew of %d)\n" tm skew;
-      flush stdout;
-  | "printassets" when al = [] -> Commands.printassets()
-  | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger (hexstring_hashval h)) al
+      Printf.fprintf oc "network time %Ld (median skew of %d)\n" tm skew;
+      flush oc;
+  | "printassets" when al = [] -> Commands.printassets oc
+  | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger oc (hexstring_hashval h)) al
   | "printtx" -> List.iter (fun h -> Commands.printtx (hexstring_hashval h)) al
   | "importprivkey" -> List.iter Commands.importprivkey al
   | "importbtcprivkey" -> List.iter Commands.importbtcprivkey al
@@ -717,6 +764,22 @@ let do_command l =
 	    Commands.printctreeinfo currledgerroot
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
 	| _ -> raise (Failure "printctreeinfo [ledgerroot]")
+      end
+  | "createtx" ->
+      begin
+	try
+	  match al with
+	  | [inp;outp] ->
+	      let (inpj,_) = parse_jsonval inp in
+	      let (outpj,_) = parse_jsonval outp in
+	      let tau = Commands.createtx inpj outpj in
+	      let s = Buffer.create 100 in
+	      seosbf (seo_stx seosb (tau,([],[])) (s,None));
+	      let hs = Hashaux.string_hexstring (Buffer.contents s) in
+	      Printf.fprintf oc "%s\n" hs
+	  | _ -> raise Exit
+	with Exit ->
+	  Printf.fprintf oc "createtx <inputs as json array> <outputs as json array>\neach input: {\"<addr>\":\"<assetid>\"}\neach output: {\"addr\":\"<addr>\",\"val\":<fraenks>,\"lock\":<height>,\"obligationaddress\":\"<addr>\"}\nwhere lock is optional (default null, unlocked output)\nand obligationaddress is optional (default null, meaning the holder address is implicitly the obligationaddress)\n"
       end
   | "createsplitlocktx" ->
       begin
@@ -760,36 +823,36 @@ let do_command l =
 			  let lr = hexstring_hashval lr in
 			  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		      | _ ->
-			  Printf.printf "createsplitlocktx <current address> <assetid> <number of outputs> <lockheight> <fee> [<new holding address> [<new obligation address> [<ledger root>]]]\n";
-			  flush stdout
+			  Printf.fprintf oc "createsplitlocktx <current address> <assetid> <number of outputs> <lockheight> <fee> [<new holding address> [<new obligation address> [<ledger root>]]]\n";
+			  flush oc
 	    end
 	| _ ->
-	    Printf.printf "createsplitlocktx <current address> <assetid> <number of outputs> <lockheight> <fee> [<new holding address> [<new obligation address> [<ledger root>]]]\n";
-	    flush stdout
+	    Printf.fprintf oc "createsplitlocktx <current address> <assetid> <number of outputs> <lockheight> <fee> [<new holding address> [<new obligation address> [<ledger root>]]]\n";
+	    flush oc
       end
   | "signtx" ->
       begin
 	match al with
 	| [s] -> Commands.signtx (node_ledgerroot !bestnode) s
 	| _ ->
-	    Printf.printf "signtx <tx in hex>\n";
-	    flush stdout
+	    Printf.fprintf oc "signtx <tx in hex>\n";
+	    flush oc
       end
   | "savetxtopool" ->
       begin
 	match al with
 	| [s] -> Commands.savetxtopool (node_blockheight !bestnode) (node_ledgerroot !bestnode) s
 	| _ ->
-	    Printf.printf "savetxtopool <tx in hex>\n";
-	    flush stdout
+	    Printf.fprintf oc "savetxtopool <tx in hex>\n";
+	    flush oc
       end
   | "sendtx" ->
       begin
 	match al with
 	| [s] -> Commands.sendtx (node_blockheight !bestnode) (node_ledgerroot !bestnode) s
 	| _ ->
-	    Printf.printf "sendtx <tx in hex>\n";
-	    flush stdout
+	    Printf.fprintf oc "sendtx <tx in hex>\n";
+	    flush oc
       end
   | "bestblock" ->
       let node = !bestnode in
@@ -799,21 +862,21 @@ let do_command l =
       begin
 	match h with
 	| Some(h) ->
-	    Printf.printf "Height: %Ld\nBlock hash: %s\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring h) (hashval_hexstring lr);
-	    flush stdout
+	    Printf.fprintf oc "Height: %Ld\nBlock hash: %s\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring h) (hashval_hexstring lr);
+	    flush oc
 	| None ->
-	    Printf.printf "Height: %Ld\nNo blocks yet.\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring lr);
-	    flush stdout
+	    Printf.fprintf oc "Height: %Ld\nNo blocks yet.\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring lr);
+	    flush oc
       end
   | "difficulty" ->
       let node = !bestnode in
       let (_,_,tar) = node_targetinfo node in
       let blkh = node_blockheight node in
-      Printf.printf "Current target (for block at height %Ld): %s\n" blkh (string_of_big_int tar);
-      flush stdout
-  | "blockchain" -> pblockchain stdout !bestnode None None 1000
+      Printf.fprintf oc "Current target (for block at height %Ld): %s\n" blkh (string_of_big_int tar);
+      flush oc
+  | "blockchain" -> pblockchain oc !bestnode None None 1000
   | _ ->
-      (Printf.fprintf stdout "Ignoring unknown command: %s\n" c; List.iter (fun a -> Printf.printf "%s\n" a) al; flush stdout);;
+      (Printf.fprintf oc "Ignoring unknown command: %s\n" c; List.iter (fun a -> Printf.fprintf oc "%s\n" a) al; flush oc);;
 
 let initialize () =
   begin
@@ -888,19 +951,52 @@ let initialize () =
 initialize();;
 initnetwork();;
 if !Config.staking then stkth := Some(Thread.create stakingthread ());;
-while true do
-  try
-    Printf.printf "%s" !Config.prompt; flush stdout;
-    let l = read_line() in
-    do_command l
-  with
-  | Exit -> () (*** silently ignore ***)
-  | End_of_file ->
-      closelog();
-      Printf.printf "Shutting down threads. Please be patient.\n"; flush stdout;
-      !exitfn 0
-  | Failure(x) ->
-      Printf.fprintf stdout "Ignoring Uncaught Failure: %s\n" x; flush stdout
-  | exn -> (*** unexpected ***)
-      Printf.fprintf stdout "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush stdout
-done
+
+let readevalloop () =
+  while true do
+    try
+      Printf.printf "%s" !Config.prompt; flush stdout;
+      let l = read_line() in
+      do_command stdout l
+    with
+    | Exit -> () (*** silently ignore ***)
+    | End_of_file ->
+	closelog();
+	Printf.printf "Shutting down threads. Please be patient.\n"; flush stdout;
+	!exitfn 0
+    | Failure(x) ->
+	Printf.fprintf stdout "Ignoring Uncaught Failure: %s\n" x; flush stdout
+    | exn -> (*** unexpected ***)
+	Printf.fprintf stdout "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush stdout
+  done;;
+
+let daemon_readevalloop () =
+  let lst = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  let ia = Unix.inet_addr_of_string "127.0.0.1" in
+  Unix.bind lst (Unix.ADDR_INET(ia,!Config.rpcport));
+  Unix.listen lst 1;
+  while true do
+    try
+      let (s,a) = Unix.accept lst in
+      let sin = Unix.in_channel_of_descr s in
+      let sout = Unix.out_channel_of_descr s in
+      let l = input_line sin in
+      do_command sout l;
+      close_in sin;
+      close_out sout
+    with
+    | Exit -> () (*** silently ignore ***)
+    | End_of_file ->
+	closelog();
+	!exitfn 0
+    | Failure(x) ->
+	Printf.fprintf !log "Ignoring Uncaught Failure: %s\n" x; flush !log
+    | exn -> (*** unexpected ***)
+	Printf.fprintf !log "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush !log
+  done;;
+    
+
+if !Config.daemon then
+  daemon_readevalloop ()
+else
+  readevalloop();;

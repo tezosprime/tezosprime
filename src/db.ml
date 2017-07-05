@@ -501,7 +501,7 @@ module Dbbasic : dbtype = functor (M:sig type t val basedir : string val seival 
 	  if not (indl = List.sort (fun (k',q') (h',p') -> compare h' k') indl) then Printf.printf "After inserting %s into %s index is no longer sorted.\n" (hashval_hexstring k) M.basedir;
 	  try
 	    let u = dbget k in
-	    if not ((String.sub M.basedir (String.length M.basedir - 6) 6) = "header") then if not (u = v) then Printf.printf "%s db failure %s; not equal\n" M.basedir (hashval_hexstring k)
+	    if not (u = v) then Printf.printf "%s db failure %s; not equal\n" M.basedir (hashval_hexstring k)
 	  with Not_found ->
 	    Printf.printf "%s; db failure %s; not found\n" M.basedir (hashval_hexstring k)
 	end

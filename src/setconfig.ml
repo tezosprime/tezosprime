@@ -8,17 +8,22 @@ let stringconfigvars = [
 ("prompt",fun x -> Config.prompt := x)
 ];;
 let boolconfigvars = [
+("daemon",fun x -> Config.daemon := x);
 ("staking",fun x -> Config.staking := x);
 ("ipv6",fun x -> Config.ipv6 := x)
 ];;
 let intconfigvars = [
 ("port",fun x -> Config.port := x);
 ("socksport",fun x -> Config.socksport := x);
-("maxconns",fun x -> Config.maxconns := x)
+("rpcport",fun x -> Config.rpcport := x);
+("maxconns",fun x -> Config.maxconns := x);
+("burnifleq",fun x -> Config.burnifleq := x)
 ];;
 let int64configvars = [
 ("genesistime",fun x -> Config.genesistimestamp := x);
-("maxburn",fun x -> Config.maxburn := x)
+("maxburn",fun x -> Config.maxburn := x);
+("ltctxfee",fun x -> Config.ltctxfee := x);
+("mintimebetweenburns",fun x -> Config.mintimebetweenburns := x)
 ];;
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);

@@ -19,6 +19,7 @@ val stakemod_string : stakemod -> string
 val seo_stakemod : (int -> int -> 'a -> 'a) -> stakemod -> 'a -> 'a
 val sei_stakemod :(int -> 'a -> int * 'a) -> 'a -> stakemod * 'a
 
+val compute_stakemods : hashval -> stakemod * stakemod
 val set_genesis_stakemods : string -> unit
 val genesiscurrentstakemod : stakemod ref
 val genesisfuturestakemod : stakemod ref

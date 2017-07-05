@@ -79,8 +79,8 @@ set_genesis_stakemods "0000000000000000000000000000000000000000"
 (*** max target/min difficulty: 2^220 (for mainnet) ***)
 let max_target = ref (shift_left_big_int unit_big_int 220)
 let genesistarget = ref (shift_left_big_int unit_big_int 205) (* current estimate for initial difficulty *)
-(** let genesisledgerroot : hashval ref = ref (hexstring_hashval "fc25150b4880e27235d4878637d32f0ffe2280e6");; **) (*** snapshot ledger root ***)
-let genesisledgerroot : hashval ref = ref (hexstring_hashval "66c029f4c29b351785c0480cedc9449b64332dfa");; (*** snapshot ledger root ***)
+let genesisledgerroot : hashval ref = ref (hexstring_hashval "fc25150b4880e27235d4878637d32f0ffe2280e6");; (*** snapshot ledger root [This is the correct root when assets are referenced by hash instead of id.] ***)
+(** let genesisledgerroot : hashval ref = ref (hexstring_hashval "66c029f4c29b351785c0480cedc9449b64332dfa");; (*** snapshot ledger root [This is the root when assets were referenced by id, which was the case in the old initdistr on mega] ***) **)
 
 (*** base reward of 50 fraenks (5 trillion cants) like bitcoin, but assume the first 350000 blocks have passed. ***)
 let basereward = 5000000000000L
@@ -536,7 +536,7 @@ let check_postor_pdoc tm csm mtar alpha beta m =
 let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd =
   let (v,sincepow) =
     match brn with
-    | Poburn(_,_,u) -> (Int64.add v (Int64.mul u 10000L),0)
+    | Poburn(_,_,u) -> (Int64.add v (Int64.mul u 1000L),0)
     | SincePoburn(j) -> (v,j)
   in
   match strd with
@@ -636,7 +636,7 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
 	   verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	|| (!Config.testnet (*** allow fake endorsements in testnet ***)
 	      &&
-	    verifybitcoinmessage (-629004799l, -157083340l, -103691444l, 1197709645l, 224718539l) recid fcomp esg ("fakeendorsement " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr (hashval_p2pkh_addr bhd.stakeaddr)) ^ ")")
+	    verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr (hashval_p2pkh_addr bhd.stakeaddr)) ^ ")")
 	     &&
 	   verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	end

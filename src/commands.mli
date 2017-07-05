@@ -2,11 +2,13 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json
 open Big_int
 open Hash
 open Mathdata
 open Assets
 open Signat
+open Tx
 open Ctre
 
 (***
@@ -28,8 +30,8 @@ val load_txpool : unit -> unit
 val load_wallet : unit -> unit
 val save_wallet : unit -> unit
 
-val printassets : unit -> unit
-val printassets_in_ledger : hashval -> unit
+val printassets : out_channel -> unit
+val printassets_in_ledger : out_channel -> hashval -> unit
 val printctreeinfo : hashval -> unit
 val printctreeelt : hashval -> unit
 val printhconselt : hashval -> unit
@@ -43,6 +45,7 @@ val importendorsement : string -> string -> string -> unit
 val importwatchaddr : string -> unit
 val importwatchbtcaddr : string -> unit
 
+val createtx : jsonval -> jsonval -> tx
 val createsplitlocktx : hashval -> payaddr -> payaddr -> addr -> hashval -> int -> int64 -> int64 -> unit
 
 val signtx : hashval -> string -> unit

@@ -23,8 +23,6 @@ let sqr512 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 9)) i
 let maximum_age = 16384L
 let maximum_age_sqr = sqr512 maximum_age
 let reward_maturation = 512L (*** rewards become stakable after 512 blocks ***)
-let unlocked_maturation = 512L
-let locked_maturation = 512L
 let close_to_unlocked = 32L
 
 (*** make reward locktime start at a very big number of 16384
@@ -52,27 +50,26 @@ let coinagefactor blkh bday obl sincepob =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
     maximum_age_sqr
   else
-    let powmatur = Int64.add bday (Int64.of_int sincepob) < blkh in
     match obl with
     | None -> (*** unlocked ***)
-	let mday = Int64.add bday unlocked_maturation in
-	if not powmatur && mday >= blkh then (*** only start aging after it is mature ***)
+	let lastpob = Int64.sub blkh (Int64.of_int sincepob) in
+	if bday >= lastpob then (*** considered mature for staking after there has been at least one proof of burn ***)
 	  zero_big_int
 	else
-	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
+	  let a = Int64.sub blkh bday in (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
 	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     | Some(_,n,r) when r -> (*** in this case it's locked until block height n and is a reward ***)
-	let mday = Int64.add bday reward_maturation in
-	if not powmatur && (mday >= blkh || Int64.add blkh close_to_unlocked >= n) then (*** only start aging after it is mature and until it is close to unlocked ***)
+	let mday = Int64.add bday reward_maturation in (*** insist on being age mature here, not just proof of burn maturity ***)
+	if mday > blkh || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
 	  zero_big_int
 	else
 	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
 	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     | Some(_,n,_) -> (*** in this case it's locked until block height n and is not a reward ***)
-	let mday = Int64.add bday locked_maturation in
-	if not powmatur && (mday >= blkh || Int64.add blkh close_to_unlocked >= n) then (*** only start aging after it is mature and until it is close to unlocked ***)
+	let lastpob = Int64.sub blkh (Int64.of_int sincepob) in
+	if bday >= lastpob || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
 	  zero_big_int
 	else
 	  maximum_age_sqr (*** always at maximum age during after it is mature and until it is close to unlocked ***)

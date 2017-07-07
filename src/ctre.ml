@@ -24,8 +24,6 @@ let sqr512 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 9)) i
 let maximum_age = 16384L
 let maximum_age_sqr = sqr512 maximum_age
 let reward_maturation = 512L (*** rewards become stakable after 512 blocks ***)
-let unlocked_maturation = 512L
-let locked_maturation = 512L
 let close_to_unlocked = 32L
 
 (*** make reward locktime start at a very big number of 16384
@@ -49,33 +47,35 @@ let reward_locktime blkh =
     let b = Int64.to_int a in
     Int64.shift_right 16384L b
 
-let coinage blkh bday obl v =
+let coinagefactor blkh bday obl sincepob =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
-    mult_big_int maximum_age_sqr (big_int_of_int64 v)
+    maximum_age_sqr
   else
     match obl with
     | None -> (*** unlocked ***)
-	let mday = Int64.add bday unlocked_maturation in
-	if mday >= blkh then (*** only start aging after it is mature ***)
+	let lastpob = Int64.sub blkh (Int64.of_int sincepob) in
+	if bday >= lastpob then (*** considered mature for staking after there has been at least one proof of burn ***)
 	  zero_big_int
 	else
-	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
+	  let a = Int64.sub blkh bday in (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-	  mult_big_int (sqr512 a2) (big_int_of_int64 v) (*** multiply the currency units by (a2/512)^2 ***)
+	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     | Some(_,n,r) when r -> (*** in this case it's locked until block height n and is a reward ***)
-	let mday = Int64.add bday reward_maturation in
-	if mday >= blkh || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
+	let mday = Int64.add bday reward_maturation in (*** insist on being age mature here, not just proof of burn maturity ***)
+	if mday > blkh || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
 	  zero_big_int
 	else
 	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-	  mult_big_int (sqr512 a2) (big_int_of_int64 v) (*** multiply the currency units by (a2/512)^2 ***)
+	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     | Some(_,n,_) -> (*** in this case it's locked until block height n and is not a reward ***)
-	let mday = Int64.add bday locked_maturation in
-	if mday >= blkh || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
+	let lastpob = Int64.sub blkh (Int64.of_int sincepob) in
+	if bday >= lastpob || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
 	  zero_big_int
 	else
-	  mult_big_int maximum_age_sqr (big_int_of_int64 v) (*** always at maximum age during after it is mature and until it is close to unlocked ***)
+	  maximum_age_sqr (*** always at maximum age during after it is mature and until it is close to unlocked ***)
+
+let coinage blkh bday obl sincepob v = mult_big_int (coinagefactor blkh bday obl sincepob) (big_int_of_int64 v)
 
 type hlist = HHash of hashval | HNil | HCons of asset * hlist | HConsH of hashval * hlist
 
@@ -242,7 +242,7 @@ let fraenks_string v =
   else
     right_trim '0' ((Int64.to_string f) ^ "." ^ ds)
 
-let rec print_hlist_to_buffer sb blkh hl =
+let rec print_hlist_to_buffer sb blkh sincepob hl =
   match hl with
   | HHash(h) ->
       Buffer.add_string sb "...";
@@ -257,9 +257,9 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (fraenks_string v);
 	Buffer.add_string sb "; coinage ";
-	Buffer.add_string sb (string_of_big_int (coinage blkh bday None v));
+	Buffer.add_string sb (string_of_big_int (coinage blkh bday None sincepob v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)),hr) when b ->
       begin
@@ -282,9 +282,9 @@ let rec print_hlist_to_buffer sb blkh hl =
 	    Buffer.add_string sb " blocks ";
 	  end;
 	Buffer.add_string sb "; coinage ";
-	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl v));
+	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl sincepob v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)),hr) ->
       begin
@@ -307,9 +307,9 @@ let rec print_hlist_to_buffer sb blkh hl =
 	    Buffer.add_string sb " blocks ";
 	  end;
 	Buffer.add_string sb "; coinage ";
-	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl v));
+	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl sincepob v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,Bounty(v)),hr) ->
       begin
@@ -319,7 +319,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] Bounty ";
 	Buffer.add_string sb (fraenks_string v);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,OwnsObj(gamma,Some(r))),hr) ->
       begin
@@ -331,7 +331,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,OwnsObj(gamma,None)),hr) ->
       begin
@@ -341,7 +341,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned object ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,OwnsProp(gamma,Some(r))),hr) ->
       begin
@@ -353,7 +353,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,OwnsProp(gamma,None)),hr) ->
       begin
@@ -363,7 +363,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned prop ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,OwnsNegProp),hr) ->
       begin
@@ -371,7 +371,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned negation of prop\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,RightsObj(gamma,r)),hr) ->
       begin
@@ -383,7 +383,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " rights to use object ";
 	Buffer.add_string sb (addr_qedaddrstr (termaddr_addr gamma));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,RightsProp(gamma,r)),hr) ->
       begin
@@ -395,7 +395,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " rights to use prop ";
 	Buffer.add_string sb (addr_qedaddrstr (termaddr_addr gamma));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,Marker),hr) ->
       begin
@@ -403,7 +403,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Marker\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,TheoryPublication(gamma,nonce,d)),hr) ->
       begin
@@ -411,7 +411,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Theory\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,SignaPublication(gamma,nonce,th,d)),hr) ->
       begin
@@ -419,7 +419,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Signature\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HCons((aid,bday,obl,DocPublication(gamma,nonce,th,d)),hr) ->
       begin
@@ -427,13 +427,13 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Document\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
   | HConsH(ah,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring ah);
 	Buffer.add_string sb " *\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer sb blkh sincepob hr
       end
 
 let rec print_ctree_all_r f c n br =

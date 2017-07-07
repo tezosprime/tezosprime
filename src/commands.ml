@@ -2,6 +2,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json
 open Big_int
 open Config
 open Hashaux
@@ -303,7 +304,7 @@ let importendorsement a b s =
       | None ->
 	  if !Config.testnet then
 	    begin
-	      match verifybitcoinmessage_recover (-629004799l, -157083340l, -103691444l, 1197709645l, 224718539l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_qedaddrstr alpha) ^ ")") with
+	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_qedaddrstr alpha) ^ ")") with
 	      | None ->
 		  raise (Failure "endorsement signature verification failed; not adding endorsement to wallet")
 	      | Some(x,y) ->
@@ -346,7 +347,7 @@ let importwatchbtcaddr a =
   walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
-let printassets_in_ledger ledgerroot =
+let printassets_in_ledger oc ledgerroot =
   let ctr = Ctre.CHash(ledgerroot) in
   let warned = ref false in
   let waitprinted = ref false in
@@ -371,23 +372,23 @@ let printassets_in_ledger ledgerroot =
 	    begin (** ignore if there are no connections **)
 	      if not !warned then
 		begin
-		  Printf.printf "Warning: The complete ledger is not in the local database and there are no connections to request missing data.\n";
-		  Printf.printf "Some assets in the ledger might not be displayed.\n";
+		  Printf.fprintf oc "Warning: The complete ledger is not in the local database and there are no connections to request missing data.\n";
+		  Printf.fprintf oc "Some assets in the ledger might not be displayed.\n";
 		  warned := true
 		end;
 	      raise Exit
 	    end
 	  else
 	    begin
-	      if not !waitprinted then (Printf.printf "Some data is being requested from remote nodes...please wait a minute or two...\n"; flush stdout; waitprinted := true);
+	      if not !waitprinted then (Printf.fprintf oc "Some data is being requested from remote nodes...please wait a minute or two...\n"; flush oc; waitprinted := true);
 	      Unix.sleep 2;
 	    end
       done;
       if not !warned then
 	begin
-	  Printf.printf "Warning: The complete ledger is not in the local database.\n";
-	  Printf.printf "Remote data is being requested, but is taking too long.\n";
-	  Printf.printf "Some assets in the ledger might not be displayed.\n";
+	  Printf.fprintf oc "Warning: The complete ledger is not in the local database.\n";
+	  Printf.fprintf oc "Remote data is being requested, but is taking too long.\n";
+	  Printf.fprintf oc "Some assets in the ledger might not be displayed.\n";
 	  warned := true
 	end
     with Exit -> ()
@@ -414,67 +415,67 @@ let printassets_in_ledger ledgerroot =
     | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
     | _ -> ()
   in
-  Printf.printf "Assets in ledger with root %s:\n" (hashval_hexstring ledgerroot);
-  Printf.printf "Controlled p2pkh assets:\n";
+  Printf.fprintf oc "Assets in ledger with root %s:\n" (hashval_hexstring ledgerroot);
+  Printf.fprintf oc "Controlled p2pkh assets:\n";
   List.iter
     (fun (z,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.printf "%s:\n" z;
-	  Ctre.print_hlist_gen stdout (Ctre.nehlist_hlist hl) (sumcurr tot1)
+	  Printf.fprintf oc "%s:\n" z;
+	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot1)
       | (None,_) ->
-	  Printf.printf "%s: empty\n" z;
+	  Printf.fprintf oc "%s: empty\n" z;
       | _ ->
-	  Printf.printf "%s: no information\n" z;
+	  Printf.fprintf oc "%s: no information\n" z;
     )
     !al1;
-  Printf.printf "Possibly controlled p2sh assets:\n";
+  Printf.fprintf oc "Possibly controlled p2sh assets:\n";
   List.iter
     (fun (z,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.printf "%s:\n" z;
-	  Ctre.print_hlist_gen stdout (Ctre.nehlist_hlist hl) (sumcurr tot2)
+	  Printf.fprintf oc "%s:\n" z;
+	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot2)
       | (None,_) ->
-	  Printf.printf "%s: empty\n" z;
+	  Printf.fprintf oc "%s: empty\n" z;
       | _ ->
-	  Printf.printf "%s: no information\n" z;
+	  Printf.fprintf oc "%s: no information\n" z;
     )
     !al2;
-  Printf.printf "Assets via endorsement:\n";
+  Printf.fprintf oc "Assets via endorsement:\n";
   List.iter
     (fun (alpha2,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.printf "%s:\n" (addr_qedaddrstr alpha2);
-	  Ctre.print_hlist_gen stdout (Ctre.nehlist_hlist hl) (sumcurr tot3)
+	  Printf.fprintf oc "%s:\n" (addr_qedaddrstr alpha2);
+	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot3)
       | (None,_) ->
-	  Printf.printf "%s: empty\n" (addr_qedaddrstr alpha2);
+	  Printf.fprintf oc "%s: empty\n" (addr_qedaddrstr alpha2);
       | _ ->
-	  Printf.printf "%s: no information\n" (addr_qedaddrstr alpha2);
+	  Printf.fprintf oc "%s: no information\n" (addr_qedaddrstr alpha2);
     )
     !al3;
-  Printf.printf "Watched assets:\n";
+  Printf.fprintf oc "Watched assets:\n";
   List.iter
     (fun (alpha,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.printf "%s:\n" (addr_qedaddrstr alpha);
-	  Ctre.print_hlist_gen stdout (Ctre.nehlist_hlist hl) (sumcurr tot4)
+	  Printf.fprintf oc "%s:\n" (addr_qedaddrstr alpha);
+	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot4)
       | (None,_) ->
-	  Printf.printf "%s: empty\n" (addr_qedaddrstr alpha);
+	  Printf.fprintf oc "%s: empty\n" (addr_qedaddrstr alpha);
       | _ ->
-	  Printf.printf "%s: no information\n" (addr_qedaddrstr alpha);
+	  Printf.fprintf oc "%s: no information\n" (addr_qedaddrstr alpha);
     )
     !al4;
-  Printf.printf "Total p2pkh: %s fraenks\n" (fraenks_of_cants !tot1);
-  Printf.printf "Total p2sh: %s fraenks\n" (fraenks_of_cants !tot2);
-  Printf.printf "Total via endorsement: %s fraenks\n" (fraenks_of_cants !tot3);
-  Printf.printf "Total watched: %s fraenks\n" (fraenks_of_cants !tot4)
+  Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants !tot1);
+  Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants !tot2);
+  Printf.fprintf oc "Total via endorsement: %s fraenks\n" (fraenks_of_cants !tot3);
+  Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants !tot4)
 
-let printassets () =
-  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_) = !bestnode in
-  printassets_in_ledger ledgerroot
+let printassets oc =
+  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = !bestnode in
+  printassets_in_ledger oc ledgerroot
 
 let printasset h =
   try
@@ -605,6 +606,72 @@ let printtx txid =
       printtx_a tau
     with Not_found ->
       Printf.printf "Unknown tx %s.\n" (hashval_hexstring txid)
+
+let createtx inpj outpj =
+  match (inpj,outpj) with
+  | (JsonArr(inpl),JsonArr(outpl)) ->
+      begin
+	let tauinl =
+	  List.map
+	    (fun inp ->
+	      match inp with
+	      | JsonObj([(alpha,JsonStr(aidhex))]) ->
+		  (qedaddrstr_addr alpha,hexstring_hashval aidhex)
+	      | _ -> raise Exit)
+	    inpl
+	in
+	  let tauoutl =
+	    List.map
+	      (fun outp ->
+		match outp with
+		| JsonObj(al) ->
+		    begin
+		      try
+			let betaj = List.assoc "addr" al in
+			let valj = List.assoc "val" al in
+			match (betaj,valj) with
+			| (JsonStr(beta),JsonNum(x)) ->
+			    begin
+			      let beta2 = qedaddrstr_addr beta in
+			      let v = cants_of_fraenks x in
+			      Printf.printf "saw %s computed %Ld cants which is %s fraenks\n" x v (fraenks_of_cants v);
+			      try
+				let lockj = List.assoc "lock" al in
+				match lockj with
+				| JsonNum(lockstr) ->
+				    let lock = Int64.of_string lockstr in
+				    begin
+				      try
+					let obladdrj = List.assoc "obligationaddr" al in
+					match obladdrj with
+					| JsonStr(obladdr) ->
+					    let gamma2 = qedaddrstr_addr obladdr in
+					    if not (payaddr_p gamma2) then raise (Failure (Printf.sprintf "obligation address %s must be a payaddr (p2pkh or p2sh)" obladdr));
+					    let (i,c4,c3,c2,c1,c0) = gamma2 in
+					    let gamma_as_payaddr = (i=1,c4,c3,c2,c1,c0) in
+					    let obl = Some(gamma_as_payaddr,lock,false) in
+					    (beta2,(obl,Currency(v)))
+					| _ -> raise Exit
+				      with Not_found ->
+					if not (payaddr_p beta2) then raise (Failure (Printf.sprintf "since output will be locked, receiving address %s must be a payaddr (p2pkh or p2sh) or a payaddr as obligation address must be given" beta));
+					let (i,b4,b3,b2,b1,b0) = beta2 in
+					let beta_as_payaddr = (i=1,b4,b3,b2,b1,b0) in
+					let obl = Some(beta_as_payaddr,lock,false) in
+					(beta2,(obl,Currency(v)))
+				    end
+				| _ -> raise Exit
+			      with Not_found ->
+				(beta2,(None,Currency(v)))
+			    end
+			| _ -> raise Exit
+		      with Not_found -> raise Exit
+		    end
+		| _ -> raise Exit)
+	      outpl
+	  in
+	  (tauinl,tauoutl)
+      end
+  | _ -> raise Exit
 
 let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
   if i <= 0 then raise (Failure ("Cannot split into " ^ (string_of_int i) ^ " assets"));
@@ -813,18 +880,27 @@ let savetxtopool blkh lr staustr =
 
 let sendtx blkh lr staustr =
   let s = hexstring_string staustr in
+  Printf.printf "sendtx 1\n";
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
+begin
+    Printf.printf "sendtx 2\n";
     let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr))) in
+    Printf.printf "sendtx 3\n";
     if tx_signatures_valid blkh al (tau,tausg) then
       let txh = hashtx tau in
+    Printf.printf "sendtx 4\n";
       let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
+    Printf.printf "sendtx 5\n";
       seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
       close_out ch;
+    Printf.printf "sendtx 6\n";
       publish_stx txh stau;
+    Printf.printf "sendtx 7\n";
       Printf.printf "%s\n" (hashval_hexstring txh);
       flush stdout;
     else
       Printf.printf "Invalid or incomplete signatures\n"
+end
   else
     Printf.printf "Invalid tx\n"

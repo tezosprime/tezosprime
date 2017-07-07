@@ -50,19 +50,25 @@ fi
 echo let datadir = ref \"$DATADIR\" > src/config.ml
 echo let testnet = ref false >> src/config.ml
 echo let staking = ref false >> src/config.ml
+echo let daemon = ref false >> src/config.ml
 echo let ip = ref None >> src/config.ml
 echo let ipv6 = ref false >> src/config.ml
 echo let port = ref 20805 >> src/config.ml
 echo let socks = ref None >> src/config.ml
 echo let socksport = ref 9050 >> src/config.ml
+echo let rpcport = ref 9052 >> src/config.ml
 echo let maxconns = ref 20 >> src/config.ml
 echo let lastcheckpoint = ref \"\" >> src/config.ml
 echo let prompt = ref \"\> \" >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else
-    echo let genesistimestamp = ref 1467588727L >> src/config.ml
+    echo let genesistimestamp = ref 1497953081L >> src/config.ml
 fi
+echo let maxburn = ref 0L >> src/config.ml
+echo let ltctxfee = ref 100000L >> src/config.ml
+echo let mintimebetweenburns = ref 0L >> src/config.ml
+echo let burnifleq = ref 2 >> src/config.ml
 if [ $SEED ]; then
     echo let seed = ref \"$SEED\" >> src/config.ml
 else

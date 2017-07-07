@@ -287,7 +287,7 @@ let cants_of_fraenks s =
   let f = ref 0L in
   let w = ref true in
   let c = ref 0L in
-  let d = ref 100000000000L in
+  let d = ref 10000000000L in
   let n = String.length s in
   let i = ref 0 in
   while !i < n do
@@ -309,5 +309,5 @@ let cants_of_fraenks s =
       else
 	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
   done;
-  Int64.add (Int64.mul !f 1000000000000L) !c
+  Int64.add (Int64.mul !f 100000000000L) !c
 

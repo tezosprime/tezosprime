@@ -2,6 +2,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Sha256
 open Hash
 open Big_int
 open Mathdata
@@ -19,6 +20,7 @@ val stakemod_string : stakemod -> string
 val seo_stakemod : (int -> int -> 'a -> 'a) -> stakemod -> 'a -> 'a
 val sei_stakemod :(int -> 'a -> int * 'a) -> 'a -> stakemod * 'a
 
+val compute_stakemods : hashval -> stakemod * stakemod
 val set_genesis_stakemods : string -> unit
 val genesiscurrentstakemod : stakemod ref
 val genesisfuturestakemod : stakemod ref
@@ -40,6 +42,10 @@ val sei_targetinfo : (int -> 'a -> int * 'a) -> 'a -> targetinfo * 'a
 val rewfn : int64 -> int64
 val hitval : int64 -> hashval -> stakemod -> big_int
 
+type poburn =
+  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
+  | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
+
 type postor =
   | PostorTrm of hashval option * trm * stp * hashval
   | PostorDoc of payaddr * hashval * hashval option * pdoc * hashval
@@ -54,6 +60,7 @@ type blockheaderdata = {
     newledgerroot : hashval;
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
+    announcedpoburn : poburn;
     stored : postor option;
     timestamp : int64;
     deltatime : int32;
@@ -122,9 +129,9 @@ val check_postor_tm_r : trm -> hashval
 val check_postor_pdoc_r : pdoc -> hashval
 
 val check_hit_b : int64 -> int64 -> obligation -> int64
-  -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> postor option -> bool
+  -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> poburn -> postor option -> bool
 val check_hit_a : int64 -> int64 -> obligation -> int64
-  -> targetinfo -> int64 -> hashval -> p2pkhaddr -> postor option -> bool
+  -> targetinfo -> int64 -> hashval -> p2pkhaddr -> poburn -> postor option -> bool
 val check_hit : int64 -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
 
 val hash_blockheaderdata : blockheaderdata -> hashval
@@ -147,7 +154,7 @@ val cumul_stake : big_int -> big_int -> int32 -> big_int
 
 val valid_block : ttree option -> stree option -> int64 -> targetinfo -> block -> (ttree option * stree option) option
 
-val blockheader_succ_a : hashval -> int64 -> targetinfo -> blockheader -> bool
+val blockheader_succ_a : hashval -> int64 -> poburn -> targetinfo -> blockheader -> bool
 val blockheader_succ : blockheader -> blockheader -> bool
 
 type blockchain = block * block list

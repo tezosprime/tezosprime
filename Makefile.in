@@ -1,14 +1,11 @@
-opt: bin/qeditas bin/fixinitledger
+opt: bin/qeditas
 bytecode: bin/qeditasbc
 
-bin/fixinitledger: bin/fixinitledger.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/fixinitledger unix.cmxa threads.cmxa nums.cmxa config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx blocktree.cmx setconfig.cmx commands.cmx fixinitledger.cmx
+bin/qeditas: bin/qeditas.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditas unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx blocktree.cmx setconfig.cmx commands.cmx qeditas.cmx
 
-bin/qeditas: bin/qeditas.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditas unix.cmxa threads.cmxa nums.cmxa config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx blocktree.cmx setconfig.cmx commands.cmx qeditas.cmx
-
-bin/qeditasbc: bin/qeditas.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
-	$(OCAMLC) -I bin -I +threads -o bin/qeditasbc unix.cma threads.cma nums.cma config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo blocktree.cmo setconfig.cmo commands.cmo qeditas.cmo
+bin/qeditasbc: bin/qeditas.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/qeditasbc unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo blocktree.cmo setconfig.cmo commands.cmo qeditas.cmo
 
 bin/version.cmi: src/version.mli
 	$(OCAMLC) -I bin -o bin/version.cmi -c src/version.mli
@@ -18,6 +15,9 @@ bin/utils.cmi: src/utils.mli
 
 bin/ser.cmi: src/ser.mli
 	$(OCAMLC) -I bin -o bin/ser.cmi -c src/ser.mli
+
+bin/json.cmi: src/json.mli
+	$(OCAMLC) -I bin -o bin/json.cmi -c src/json.mli
 
 bin/config.cmi: src/config.mli
 	$(OCAMLC) -I bin -o bin/config.cmi -c src/config.mli
@@ -85,7 +85,7 @@ bin/blocktree.cmi: src/blocktree.mli bin/hash.cmi bin/signat.cmi bin/tx.cmi bin/
 bin/setconfig.cmi: src/setconfig.mli
 	$(OCAMLC) -I bin -o bin/setconfig.cmi -c src/setconfig.mli
 
-bin/commands.cmi: src/commands.mli bin/ctre.cmi
+bin/commands.cmi: src/commands.mli bin/ctre.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/commands.cmi -c src/commands.mli
 
 bin/version.cmx: src/version.ml bin/version.cmi
@@ -108,6 +108,9 @@ bin/signat.cmx: src/signat.ml bin/signat.cmi bin/config.cmx bin/ser.cmx bin/sha2
 
 bin/script.cmx: src/script.ml bin/script.cmi bin/cryptocurr.cmx bin/secp256k1.cmx bin/hash.cmx bin/ripemd160.cmx bin/sha256.cmx bin/signat.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/script.cmx -c src/script.ml
+
+bin/json.cmx: src/json.ml bin/json.cmi
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/json.cmx -c src/json.ml
 
 bin/config.cmx: src/config.ml bin/config.cmi
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/config.cmx -c src/config.ml
@@ -163,7 +166,7 @@ bin/blocktree.cmx: src/blocktree.ml bin/blocktree.cmi bin/ser.cmx bin/hash.cmx b
 bin/setconfig.cmx: src/setconfig.ml bin/setconfig.cmi bin/config.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/setconfig.cmx -c src/setconfig.ml
 
-bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bin/hash.cmx bin/signat.cmx bin/net.cmx bin/ctre.cmx bin/cryptocurr.cmx bin/ctre.cmx bin/blocktree.cmx
+bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bin/hash.cmx bin/signat.cmx bin/net.cmx bin/ctre.cmx bin/cryptocurr.cmx bin/ctre.cmx bin/blocktree.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/commands.cmx -c src/commands.ml
 
 bin/qeditas.cmx: src/qeditas.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
@@ -195,6 +198,9 @@ bin/signat.cmo: src/signat.ml bin/signat.cmi bin/config.cmo bin/ser.cmo bin/sha2
 
 bin/script.cmo: src/script.ml bin/script.cmi bin/cryptocurr.cmo bin/secp256k1.cmo bin/hash.cmo bin/ripemd160.cmo bin/sha256.cmo bin/signat.cmo
 	$(OCAMLC) -I bin -o bin/script.cmo -c src/script.ml
+
+bin/json.cmo: src/json.ml bin/json.cmi
+	$(OCAMLC) -I bin -o bin/json.cmo -c src/json.ml
 
 bin/config.cmo: src/config.ml bin/config.cmi
 	$(OCAMLC) -I bin -o bin/config.cmo -c src/config.ml
@@ -250,7 +256,7 @@ bin/blocktree.cmo: src/blocktree.ml bin/blocktree.cmi bin/ser.cmo bin/hash.cmo b
 bin/setconfig.cmo: src/setconfig.ml bin/setconfig.cmi bin/config.cmo
 	$(OCAMLC) -I bin -o bin/setconfig.cmo -c src/setconfig.ml
 
-bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bin/hash.cmo bin/signat.cmo bin/net.cmo bin/ctre.cmo bin/cryptocurr.cmo bin/ctre.cmo bin/blocktree.cmo
+bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bin/hash.cmo bin/signat.cmo bin/net.cmo bin/ctre.cmo bin/cryptocurr.cmo bin/ctre.cmo bin/blocktree.cmo bin/json.cmo
 	$(OCAMLC) -I bin -o bin/commands.cmo -c src/commands.ml
 
 bin/qeditas.cmo: src/qeditas.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo

@@ -24,7 +24,7 @@ let print_stack stk =
     print_bytelist bl;
     Printf.printf "\n") stk
 
-let hashval_bytelist h =
+let md160_bytelist h =
   let (h4,h3,h2,h1,h0) = h in
   let bl = ref [] in
   bl := Int32.to_int (Int32.logand h0 255l)::!bl;
@@ -90,7 +90,7 @@ let md256_bytelist h =
   bl := Int32.to_int (Int32.shift_right_logical h7 24)::!bl;
   !bl
 
-let hash160_bytelist l =
+let hash160_bytelist l : md160 =
   let b = Buffer.create 100 in
   List.iter (fun x -> Buffer.add_char b (Char.chr x)) l;
   hash160 (Buffer.contents b)
@@ -677,7 +677,7 @@ let rec eval_script (tosign:big_int) bl stk altstk =
   | (169::br) ->
       begin
 	match stk with
-	| (l::stkr) -> eval_script tosign br ((hashval_bytelist (hash160_bytelist l))::stkr) altstk
+	| (l::stkr) -> eval_script tosign br ((md160_bytelist (hash160_bytelist l))::stkr) altstk
 	| _ -> raise (Failure ("not enough inputs for HASH160"))
       end
   | (170::br) ->
@@ -764,12 +764,12 @@ and checksig tosign gsg pubkey =
 		    let beta =
 		      if c = 4 then
 			let y2m = big_int_md256 y2 in
-			hashpubkey x2m y2m
+			hashval_md160 (hashpubkey x2m y2m)
 		      else
-			hashpubkeyc c x2m
+			hashval_md160 (hashpubkeyc c x2m)
 		    in
 		    (*** alpha signs that beta can sign ***)
-		    let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)))) in
+		    let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
 		    verify_signed_big_int ee q (r,s) && verify_signed_big_int tosign q2 (r2,s2)
 		| None -> false
 	      end
@@ -777,11 +777,11 @@ and checksig tosign gsg pubkey =
 	end
     | (z::esg) when z = 2 -> (*** signature via endorsement of a p2pkh to p2sh: 2 <20 byte p2sh address beta> <r[32 bytes]> <s[32 bytes]> <script> ***)
 	let (betal,esg) = next_bytes 20 esg in
-	let beta =  big_int_hashval (inum_be betal) in
+	let beta =  hashval_md160 (big_int_hashval (inum_be betal)) in
 	let (r,esg) = next_inum_be 32 esg in
 	let (s,scr2) = next_inum_be 32 esg in
 	(*** alpha signs that beta can sign ***)
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2sh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
 	verify_signed_big_int ee q (r,s) && check_p2sh tosign beta scr2
     | _ -> false
   with Failure(x) -> false
@@ -800,12 +800,12 @@ and checkmultisig tosign gsgs pubkeys =
 	    checkmultisig tosign gsgs pubkeyr
 
 (*** check_p2sh is mutually recursive with checksig and checkmultisig since endorsements require scripts to be evaluated to check the signatures of endorsees ***)
-and check_p2sh (tosign:big_int) h s =
+and check_p2sh (tosign:big_int) (beta:md160) s =
   let (stk,altstk) = eval_script tosign s [] [] in
   match stk with
   | [] -> false
   | (s1::stkr) ->
-      if h = hash160_bytelist s1 then
+      if beta = hash160_bytelist s1 then
 	begin
 	  let (stk2,_) = eval_script tosign s1 stkr altstk in
 	  match stk2 with
@@ -833,9 +833,9 @@ type gensignat =
   | P2pkhSignat of pt * bool * signat
   | P2shSignat of int list
   | EndP2pkhToP2pkhSignat of pt * bool * pt * bool * signat * signat
-  | EndP2pkhToP2shSignat of pt * bool * hashval * signat * int list
+  | EndP2pkhToP2shSignat of pt * bool * md160 * signat * int list
   | EndP2shToP2pkhSignat of pt * bool * int list * signat
-  | EndP2shToP2shSignat of hashval * int list * int list
+  | EndP2shToP2shSignat of md160 * int list * int list
 
 let verify_gensignat e gsg alpha =
   match gsg with
@@ -844,7 +844,7 @@ let verify_gensignat e gsg alpha =
       if i = 0 then (* p2pkh *)
 	let xm = big_int_md256 x in
 	let ym = big_int_md256 y in
-	let alpha2 = if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym in
+	let alpha2 = hashval_md160 (if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym) in
 	(x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int e (Some(x,y)) sg
       else
 	false
@@ -861,14 +861,14 @@ let verify_gensignat e gsg alpha =
 	let ym = big_int_md256 y in
 	let wm = big_int_md256 w in
 	let zm = big_int_md256 z in
-	let alpha2 = if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym in
-	let beta = if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)))) in
+	let alpha2 = hashval_md160 (if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym) in
+	let beta = hashval_md160 (if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
 	let ok = (x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int ee (Some(x,y)) esg && verify_signed_big_int e (Some(w,z)) sg in
 	if ok then
 	  true
 	else if !Config.testnet then (* in testnet the address tQYVs9eXyBZH38NfcJC6GAM81TjSrUegyQh (btc 1KMt288Qjx5Vv2fmxrHyPPWFLKa1A49uHQ) can sign all endorsements; this is a way to redistribute for testing *)
-	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
+	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
 	  (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) = alpha2
 	    &&
 	  verify_signed_big_int ee (Some(x,y)) esg && verify_signed_big_int e (Some(w,z)) sg
@@ -881,13 +881,13 @@ let verify_gensignat e gsg alpha =
       if i = 0 then (* p2pkh *)
 	let xm = big_int_md256 x in
 	let ym = big_int_md256 y in
-	let alpha2 = if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2sh_addr beta)))) in
+	let alpha2 = hashval_md160 (if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
 	let ok = (x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int ee (Some(x,y)) esg && verify_p2sh e beta scr in
 	if ok then
 	  true
 	else if !Config.testnet then (* in testnet the address tQa4MMDc6DKiUcPyVF6Xe7XASdXAJRGMYeB (btc 1LvNDhCXmiWwQ3yeukjMLZYgW7HT9wCMru) can sign all endorsements; this is a way to redistribute for testing *)
-	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
+	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
 	  (-629004799l, -157083340l, -103691444l, 1197709645l, 224718539l) = alpha2
 	    &&
 	  verify_signed_big_int ee (Some(x,y)) esg && verify_p2sh e beta scr
@@ -900,15 +900,15 @@ let verify_gensignat e gsg alpha =
       if i = 1 then (* p2sh *)
 	let wm = big_int_md256 w in
 	let zm = big_int_md256 z in
-	let beta = if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)))) in
+	let beta = hashval_md160 (if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
 	verify_p2sh ee (x0,x1,x2,x3,x4) escr && verify_signed_big_int e (Some(w,z)) sg
       else
 	false
   | EndP2shToP2shSignat(beta,escr,scr) ->
       let (i,x0,x1,x2,x3,x4) = alpha in
       if i = 1 then (* p2sh *)
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (hashval_p2sh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
 	verify_p2sh ee (x0,x1,x2,x3,x4) escr && verify_p2sh e beta scr
       else
 	false
@@ -927,13 +927,13 @@ let seo_gensignat o gsg c =
       seo_prod6 seo_pt seo_bool seo_pt seo_bool seo_signat seo_signat o (p,b,q,d,esg,sg) c
   | EndP2pkhToP2shSignat(p,b,beta,esg,scr) -> (* 10 1 *)
       let c = o 3 6 c in
-      seo_prod5 seo_pt seo_bool seo_hashval seo_signat (seo_list seo_int8) o (p,b,beta,esg,scr) c
+      seo_prod5 seo_pt seo_bool seo_md160 seo_signat (seo_list seo_int8) o (p,b,beta,esg,scr) c
   | EndP2shToP2pkhSignat(q,d,escr,sg) -> (* 11 0 *)
       let c = o 3 3 c in
       seo_prod4 seo_pt seo_bool (seo_list seo_int8) seo_signat o (q,d,escr,sg) c
   | EndP2shToP2shSignat(beta,escr,scr) -> (* 11 1 *)
       let c = o 3 7 c in
-      seo_prod3 seo_hashval (seo_list seo_int8) (seo_list seo_int8) o (beta,escr,scr) c
+      seo_prod3 seo_md160 (seo_list seo_int8) (seo_list seo_int8) o (beta,escr,scr) c
 
 let sei_gensignat i c =
   let (x,c) = i 2 c in
@@ -949,7 +949,7 @@ let sei_gensignat i c =
       let ((p,b,q,d,esg,sg),c) = sei_prod6 sei_pt sei_bool sei_pt sei_bool sei_signat sei_signat i c in
       (EndP2pkhToP2pkhSignat(p,b,q,d,esg,sg),c)
     else
-      let ((p,b,beta,esg,scr),c) = sei_prod5 sei_pt sei_bool sei_hashval sei_signat (sei_list sei_int8) i c in
+      let ((p,b,beta,esg,scr),c) = sei_prod5 sei_pt sei_bool sei_md160 sei_signat (sei_list sei_int8) i c in
       (EndP2pkhToP2shSignat(p,b,beta,esg,scr),c)
   else
     let (x,c) = i 1 c in
@@ -957,5 +957,5 @@ let sei_gensignat i c =
       let ((q,d,escr,sg),c) = sei_prod4 sei_pt sei_bool (sei_list sei_int8) sei_signat i c in
       (EndP2shToP2pkhSignat(q,d,escr,sg),c)
     else
-      let ((beta,escr,scr),c) = sei_prod3 sei_hashval (sei_list sei_int8) (sei_list sei_int8) i c in
+      let ((beta,escr,scr),c) = sei_prod3 sei_md160 (sei_list sei_int8) (sei_list sei_int8) i c in
       (EndP2shToP2shSignat(beta,escr,scr),c)

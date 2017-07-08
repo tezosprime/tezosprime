@@ -154,19 +154,19 @@ let recover_key e (r,s) recid =
 
 let verify_p2pkhaddr_signat e alpha (r,s) recid fcomp =
   match recover_key e (r,s) recid with
-  | Some(q) -> pubkey_hashval q fcomp = alpha
+  | Some(q) -> pubkey_md160 q fcomp = alpha
   | None -> false
 
 let verifymessage alpha recid fcomp (r,s) m =
   let e = md256_big_int (sha256dstr m) in
   match recover_key e (r,s) recid with
-  | Some(q) -> pubkey_hashval q fcomp = alpha
+  | Some(q) -> pubkey_md160 q fcomp = alpha
   | None -> false
 
 let verifymessage_recover alpha recid fcomp (r,s) m =
   let e = md256_big_int (sha256dstr m) in
   match recover_key e (r,s) recid with
-  | Some(q) when pubkey_hashval q fcomp = alpha -> Some(q)
+  | Some(q) when pubkey_md160 q fcomp = alpha -> Some(q)
   | _ -> None
 
 let md256_of_bitcoin_message m =

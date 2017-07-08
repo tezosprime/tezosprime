@@ -169,27 +169,27 @@ let rec print_hlist_gen f hl g =
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,OwnsObj(gamma,Some(r))) as a,hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,OwnsObj(gamma,None)) as a,hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,OwnsProp(gamma,Some(r))) as a,hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,OwnsProp(gamma,None)) as a,hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
@@ -199,15 +199,15 @@ let rec print_hlist_gen f hl g =
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,RightsObj(gamma,r)) as a,hr) ->
+  | HCons((aid,bday,obl,RightsObj(k,r)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] RightsObj %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (termaddr_addr gamma)) r;
+	Printf.fprintf f "%s: %s [%Ld] RightsObj %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
 	g a;
 	print_hlist_gen f hr g
       end
-  | HCons((aid,bday,obl,RightsProp(gamma,r)) as a,hr) ->
+  | HCons((aid,bday,obl,RightsProp(k,r)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] RightsProp %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (addr_qedaddrstr (termaddr_addr gamma)) r;
+	Printf.fprintf f "%s: %s [%Ld] RightsProp %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
 	g a;
 	print_hlist_gen f hr g
       end
@@ -321,46 +321,54 @@ let rec print_hlist_to_buffer sb blkh sincepob hl =
 	Buffer.add_char sb '\n';
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,OwnsObj(gamma,Some(r))),hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned object ";
+	Buffer.add_string sb (hashval_hexstring k);
+	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,OwnsObj(gamma,None)),hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,None)),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned object ";
+	Buffer.add_string sb (hashval_hexstring k);
+	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,OwnsProp(gamma,Some(r))),hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned prop ";
+	Buffer.add_string sb (hashval_hexstring k);
+	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,OwnsProp(gamma,None)),hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,None)),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned prop ";
+	Buffer.add_string sb (hashval_hexstring k);
+	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	print_hlist_to_buffer sb blkh sincepob hr
@@ -373,7 +381,7 @@ let rec print_hlist_to_buffer sb blkh sincepob hl =
 	Buffer.add_string sb "] owned negation of prop\n";
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,RightsObj(gamma,r)),hr) ->
+  | HCons((aid,bday,obl,RightsObj(k,r)),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -381,11 +389,11 @@ let rec print_hlist_to_buffer sb blkh sincepob hl =
 	Buffer.add_string sb "] ";
 	Buffer.add_string sb (Int64.to_string r);
 	Buffer.add_string sb " rights to use object ";
-	Buffer.add_string sb (addr_qedaddrstr (termaddr_addr gamma));
+	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_char sb '\n';
 	print_hlist_to_buffer sb blkh sincepob hr
       end
-  | HCons((aid,bday,obl,RightsProp(gamma,r)),hr) ->
+  | HCons((aid,bday,obl,RightsProp(k,r)),hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -393,7 +401,7 @@ let rec print_hlist_to_buffer sb blkh sincepob hl =
 	Buffer.add_string sb "] ";
 	Buffer.add_string sb (Int64.to_string r);
 	Buffer.add_string sb " rights to use prop ";
-	Buffer.add_string sb (addr_qedaddrstr (termaddr_addr gamma));
+	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_char sb '\n';
 	print_hlist_to_buffer sb blkh sincepob hr
       end
@@ -775,24 +783,24 @@ let nehlist_lookup_asset exp req k hl = nehlist_lookup_asset_gen exp req (fun a 
 let hlist_lookup_marker exp req hl = hlist_lookup_asset_gen exp req (fun a -> assetpre a = Marker) hl
 let nehlist_lookup_marker exp req hl = nehlist_lookup_asset_gen exp req (fun a -> assetpre a = Marker) hl
 
-let hlist_lookup_obj_owner exp req hl =
-  match hlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsObj(_,_)) -> true | _ -> false) hl with
-  | Some(_,_,_,OwnsObj(beta,r)) -> Some(beta,r)
+let hlist_lookup_obj_owner exp req oid hl =
+  match hlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsObj(oid2,_,_)) when oid = oid2 -> true | _ -> false) hl with
+  | Some(_,_,_,OwnsObj(_,beta,r)) -> Some(beta,r)
   | _ -> None
 
-let nehlist_lookup_obj_owner exp req hl =
-  match nehlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsObj(_,_)) -> true | _ -> false) hl with
-  | Some(_,_,_,OwnsObj(beta,r)) -> Some(beta,r)
+let nehlist_lookup_obj_owner exp req oid hl =
+  match nehlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsObj(oid2,_,_)) when oid = oid2 -> true | _ -> false) hl with
+  | Some(_,_,_,OwnsObj(_,beta,r)) -> Some(beta,r)
   | _ -> None
 
-let rec hlist_lookup_prop_owner exp req hl =
-  match hlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsProp(_,_)) -> true | _ -> false) hl with
-  | Some(_,_,_,OwnsProp(beta,r)) -> Some(beta,r)
+let rec hlist_lookup_prop_owner exp req pid hl =
+  match hlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsProp(pid2,_,_)) when pid = pid2 -> true | _ -> false) hl with
+  | Some(_,_,_,OwnsProp(_,beta,r)) -> Some(beta,r)
   | _ -> None
 
-let nehlist_lookup_prop_owner exp req hl =
-  match nehlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsProp(_,_)) -> true | _ -> false) hl with
-  | Some(_,_,_,OwnsProp(beta,r)) -> Some(beta,r)
+let nehlist_lookup_prop_owner exp req pid hl =
+  match nehlist_lookup_asset_gen exp req (fun a -> match a with (_,_,_,OwnsProp(pid2,_,_)) when pid = pid2 -> true | _ -> false) hl with
+  | Some(_,_,_,OwnsProp(_,beta,r)) -> Some(beta,r)
   | _ -> None
 
 let hlist_lookup_neg_prop_owner exp req hl =
@@ -1170,7 +1178,7 @@ let rec process_unused_ctrees_2 a c1 c2 =
      end
    | _ -> ()
 
-let ctree_rights_balanced tr alpha ownr rtot1 rtot2 rtot3 outpl =
+let ctree_rights_balanced tr ownr rtot1 rtot2 rtot3 outpl =
   match ownr with
   | Some(beta,None) -> (*** Owner does not allow right to use. Rights may have been obtained in the past. ***)
       Int64.add rtot1 rtot2 = rtot3
@@ -1451,27 +1459,27 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   let (inpl,outpl) = tx in
   (*** Each output address must be supported. ***)
   ctree_supports_output_addrs exp req outpl tr;
-  let objaddrs = obj_rights_mentioned outpl in
-  let propaddrs = prop_rights_mentioned outpl in
+  let objids = obj_rights_mentioned outpl in
+  let propids = prop_rights_mentioned outpl in
   let susesobjs = output_signaspec_uses_objs outpl in
   let susesprops = output_signaspec_uses_props outpl in
   let usesobjs = output_doc_uses_objs outpl in
   let usesprops = output_doc_uses_props outpl in
   let createsobjs = output_creates_objs outpl in
   let createsprops = output_creates_props outpl in
-  let createsobjsaddrs1 = List.map (fun (th,h,k) -> hashval_term_addr h) createsobjs in
-  let createspropsaddrs1 = List.map (fun (th,h) -> hashval_term_addr h) createsprops in
-  let createsobjsaddrs2 = List.map (fun (th,h,k) -> hashval_term_addr (hashtag (hashopair2 th (hashpair h k)) 32l)) createsobjs in
-  let createspropsaddrs2 = List.map (fun (th,h) -> hashval_term_addr (hashtag (hashopair2 th h) 33l)) createsprops in
+  let createsobjsids1 = List.map (fun (th,h,k) -> h) createsobjs in
+  let createspropsids1 = List.map (fun (th,h) -> h) createsprops in
+  let createsobjsids2 = List.map (fun (th,h,k) -> hashtag (hashopair2 th (hashpair h k)) 32l) createsobjs in
+  let createspropsids2 = List.map (fun (th,h) -> hashtag (hashopair2 th h) 33l) createsprops in
   let createsnegpropsaddrs2 = List.map (fun (th,h) -> hashval_term_addr (hashtag (hashopair2 th h) 33l)) (output_creates_neg_props outpl) in
   (*** If an object or prop is included in a signaspec, then it must be royalty-free to use. ***)
   List.iter (fun (alphapure,alphathy) ->
-    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alphapure)) in
-    match hlist_lookup_obj_owner exp req hl with
+    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphapure))) in
+    match hlist_lookup_obj_owner exp req alphapure hl with
     | Some(_,Some(r)) when r = 0L ->
 	begin
-	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alphathy)) in
-	  match hlist_lookup_obj_owner exp req hl with
+	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphathy))) in
+	  match hlist_lookup_obj_owner exp req alphathy hl with
 	  | Some(_,Some(r)) when r = 0L -> ()
 	  | _ -> raise NotSupported
 	end
@@ -1479,12 +1487,12 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     )
     susesobjs;
   List.iter (fun (alphapure,alphathy) ->
-    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alphapure)) in
-    match hlist_lookup_prop_owner exp req hl with
+    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphapure))) in
+    match hlist_lookup_prop_owner exp req alphapure hl with
     | Some(_,Some(r)) when r = 0L ->
 	begin
-	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alphathy)) in
-	  match hlist_lookup_prop_owner exp req hl with
+	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphathy))) in
+	  match hlist_lookup_prop_owner exp req alphathy hl with
 	  | Some(_,Some(r)) when r = 0L -> ()
 	  | _ -> raise NotSupported
 	end
@@ -1494,42 +1502,44 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   (*** If rights are consumed in the input, then they must be mentioned in the output. ***)
   List.iter (fun a ->
     match a with
-    | (_,_,_,RightsObj(beta,n)) ->
-	if not (List.mem beta objaddrs) then
+    | (_,_,_,RightsObj(h,n)) ->
+	if not (List.mem h objids) then
 	  raise NotSupported
-    | (_,_,_,RightsProp(beta,n)) ->
-	if not (List.mem beta propaddrs) then
+    | (_,_,_,RightsProp(h,n)) ->
+	if not (List.mem h propids) then
 	  raise NotSupported
     | _ -> ()
 	    )
     al;
   (*** ensure rights are balanced ***)
-  List.iter (fun alpha ->
+  List.iter (fun oid ->
+    let alpha = hashval_md160 oid in
     let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alpha)) in
     if hlist_full_approx exp req hl &&
-      ctree_rights_balanced tr alpha (hlist_lookup_obj_owner exp req hl)
-	(Int64.of_int (count_rights_used usesobjs alpha))
-	(rights_out_obj outpl alpha)
-	(count_obj_rights al alpha)
+      ctree_rights_balanced tr (hlist_lookup_obj_owner exp req oid hl)
+	(Int64.of_int (count_rights_used usesobjs oid))
+	(rights_out_obj outpl oid)
+	(count_obj_rights al oid)
 	outpl
     then
       ()
     else
       raise NotSupported)
-    objaddrs;
-  List.iter (fun alpha ->
+    objids;
+  List.iter (fun pid ->
+    let alpha = hashval_md160 pid in
     let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr alpha)) in
     if hlist_full_approx exp req hl &&
-      ctree_rights_balanced tr alpha (hlist_lookup_prop_owner exp req hl)
-	(Int64.of_int (count_rights_used usesprops alpha))
-	(rights_out_prop outpl alpha)
-	(count_prop_rights al alpha)
+      ctree_rights_balanced tr (hlist_lookup_prop_owner exp req pid hl)
+	(Int64.of_int (count_rights_used usesprops pid))
+	(rights_out_prop outpl pid)
+	(count_prop_rights al pid)
 	outpl
     then
       ()
     else
       raise NotSupported)
-    propaddrs;
+    propids;
   (*** publications are correct, new, and were declared in advance by placing a marker in the right pubaddr ***)
   let ensure_addr_empty alpha =
     match ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) with
@@ -1573,16 +1583,18 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
 	    try
 	      let gvtp th h a =
-		let alpha = hashval_term_addr (hashtag (hashopair2 th (hashpair h (hashtp a))) 32l) in
+		let oid = hashtag (hashopair2 th (hashpair h (hashtp a))) 32l in
+		let alpha = hashval_term_addr oid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_obj_owner exp req hl with
+		match hlist_lookup_obj_owner exp req oid hl with
 		| Some(beta,r) -> true
 		| None -> false
 	      in
 	      let gvkn th k =
-		let alpha = hashval_term_addr (hashtag (hashopair2 th k) 33l) in
+		let pid = hashtag (hashopair2 th k) 33l in
+		let alpha = hashval_term_addr pid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_prop_owner exp req hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
+		match hlist_lookup_prop_owner exp req pid hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
 		| Some(beta,r) -> true
 		| None -> false
 	      in
@@ -1614,16 +1626,18 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
 	    try
 	      let gvtp th h a =
-		let alpha = hashval_term_addr (hashtag (hashopair2 th (hashpair h (hashtp a))) 32l) in
+		let oid = hashtag (hashopair2 th (hashpair h (hashtp a))) 32l in
+		let alpha = hashval_term_addr oid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_obj_owner exp req hl with
+		match hlist_lookup_obj_owner exp req oid hl with
 		| Some(beta,r) -> true
 		| None -> false
 	      in
 	      let gvkn th k =
-		let alpha = hashval_term_addr (hashtag (hashopair2 th k) 33l) in
+		let pid = hashtag (hashopair2 th k) 33l in
+		let alpha = hashval_term_addr pid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_prop_owner exp req hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
+		match hlist_lookup_prop_owner exp req pid hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
 		| Some(beta,r) -> true
 		| None -> false
 	      in
@@ -1661,30 +1675,30 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
       | _ -> ())
     al;
   (*** If an ownership asset is spent in the input, then it must be included as an output.
-       Once a termaddr is owned by someone, it must remain owned by someone. ***)
+       Once a hashval at a termaddr is owned by someone, it must remain owned by someone. ***)
   List.iter
     (fun (alpha,(h,bday,obl,u)) ->
       match u with
-      | OwnsObj(beta,r) ->
+      | OwnsObj(oid,beta,r) ->
 	  begin
 	    try
 	      ignore (List.find
 			(fun (alpha2,(obl2,u2)) ->
 			  alpha = alpha2 &&
 			  match u2 with
-			  | OwnsObj(beta2,r2) -> true
+			  | OwnsObj(oid2,beta2,r2) when oid = oid2 -> true
 			  | _ -> false)
 			outpl)
 	    with Not_found -> raise NotSupported
 	  end
-      | OwnsProp(beta,r) ->
+      | OwnsProp(pid,beta,r) ->
 	  begin
 	    try
 	      ignore (List.find
 			(fun (alpha2,(obl2,u2)) ->
 			  alpha = alpha2 &&
 			  match u2 with
-			  | OwnsProp(beta2,r2) -> true
+			  | OwnsProp(pid2,beta2,r2) when pid = pid2 -> true
 			  | _ -> false)
 			outpl)
 	    with Not_found -> raise NotSupported
@@ -1721,8 +1735,9 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   List.iter
     (fun (alpha,(obl,u)) ->
       match u with
-      | OwnsObj(beta,r) ->
+      | OwnsObj(oid,beta,r) ->
 	  begin
+	    if not (termaddr_addr (hashval_md160 oid) = alpha) then raise NotSupported; (*** the term address holding the ownership asset must be the 160-bit digest of the object's (256 bit) id ***)
 	    checkoblnonrew obl;
 	    try
 	      ignore
@@ -1730,25 +1745,26 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		   (fun (alpha1,(_,_,_,u1)) ->
 		     alpha = alpha1 &&
 		     match u1 with
-		     | OwnsObj(_,_) -> true
+		     | OwnsObj(oid2,_,_) when oid = oid2 -> true
 		     | _ -> false)
 		   aal); (*** if the ownership is being transferred ***)
-	      ownobjclaims := alpha::!ownobjclaims;
+	      ownobjclaims := oid::!ownobjclaims;
 	    with Not_found ->
 	      (*** if the ownership is being created ***)
-	      if (List.mem alpha createsobjsaddrs1 || List.mem alpha createsobjsaddrs2) && not (List.mem alpha !ownobjclaims) then
+	      if (List.mem oid createsobjsids1 || List.mem oid createsobjsids2) && not (List.mem oid !ownobjclaims) then
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		begin
-		  ownobjclaims := alpha::!ownobjclaims;
-		  match hlist_lookup_obj_owner exp req hl with
+		  ownobjclaims := oid::!ownobjclaims;
+		  match hlist_lookup_obj_owner exp req oid hl with
 		  | Some(beta2,r2) -> raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
 	      else
 		raise NotSupported
 	  end
-      | OwnsProp(beta,r) -> 
+      | OwnsProp(pid,beta,r) -> 
 	  begin
+	    if not (termaddr_addr (hashval_md160 pid) = alpha) then raise NotSupported; (*** the term address holding the ownership asset must be the 160-bit digest of the proposition's (256 bit) id ***)
 	    checkoblnonrew obl;
 	    try
 	      ignore
@@ -1756,17 +1772,17 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		   (fun (alpha1,(_,_,_,u1)) ->
 		     alpha = alpha1 &&
 		     match u1 with
-		     | OwnsProp(beta1,r1) -> true
+		     | OwnsProp(pid1,beta1,r1) when pid = pid1 -> true
 		     | _ -> false)
 		   aal); (*** if the ownership is being transferred ***)
-	      ownpropclaims := alpha::!ownpropclaims;
+	      ownpropclaims := pid::!ownpropclaims;
 	    with Not_found ->
 	      (*** if the ownership is being created ***)
-	      if (List.mem alpha createspropsaddrs1 || List.mem alpha createspropsaddrs2) && not (List.mem alpha !ownpropclaims) then
+	      if (List.mem pid createspropsids1 || List.mem pid createspropsids2) && not (List.mem pid !ownpropclaims) then
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		begin
-		  ownpropclaims := alpha::!ownpropclaims;
-		  match hlist_lookup_prop_owner exp req hl with
+		  ownpropclaims := pid::!ownpropclaims;
+		  match hlist_lookup_prop_owner exp req pid hl with
 		  | Some(beta2,r2) -> raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
@@ -1784,7 +1800,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	      if (List.mem alpha createsnegpropsaddrs2) && not (List.mem alpha !ownnegpropclaims) then
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		begin
-		  ownpropclaims := alpha::!ownpropclaims;
+		  ownnegpropclaims := alpha::!ownnegpropclaims;
 		  if hlist_lookup_neg_prop_owner exp req hl then
 		    raise NotSupported (*** already owned ***)
 		end
@@ -1799,17 +1815,18 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
    ***)
   List.iter (fun (th,tmh,tph) ->
     try
-      let ensureowned alpha =
+      let ensureowned oid =
+	let alpha = hashval_term_addr oid in
 	let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-	match hlist_lookup_obj_owner exp req hl with
+	match hlist_lookup_obj_owner exp req oid hl with
 	| Some(beta2,r2) -> () (*** already owned ***)
 	| None -> (*** Since alpha was listed in full_needed we know alpha really isn't owned here ***)
 	    (*** ensure that it will be owned after the tx ***)
-	    if not (List.mem alpha !ownobjclaims) then
+	    if not (List.mem oid !ownobjclaims) then
 	      raise Not_found
       in
-      let alphapure = hashval_term_addr tmh in
-      let alphathy = hashval_term_addr (hashtag (hashopair2 th (hashpair tmh tph)) 32l) in
+      let alphapure = tmh in
+      let alphathy = hashtag (hashopair2 th (hashpair tmh tph)) 32l in
       ensureowned alphapure;
       ensureowned alphathy
     with Not_found -> raise NotSupported
@@ -1817,17 +1834,18 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     createsobjs;
   List.iter (fun (th,tmh) ->
     try
-      let ensureowned alpha =
+      let ensureowned pid =
+	let alpha = hashval_term_addr pid in
 	let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-	match hlist_lookup_prop_owner exp req hl with
+	match hlist_lookup_prop_owner exp req pid hl with
 	| Some(beta2,r2) -> () (*** already owned ***)
 	| None -> (*** Since alpha was listed in full_needed we know alpha really isn't owned here ***)
 	    (*** ensure that it will be owned after the tx ***)
-	    if not (List.mem alpha !ownpropclaims) then
+	    if not (List.mem pid !ownpropclaims) then
 	      raise Not_found
       in
-      let alphapure = hashval_term_addr tmh in
-      let alphathy = hashval_term_addr (hashtag (hashopair2 th tmh) 33l) in
+      let alphapure = tmh in
+      let alphathy = hashtag (hashopair2 th tmh) 33l in
       ensureowned alphapure;
       ensureowned alphathy
     with Not_found -> raise NotSupported
@@ -1844,7 +1862,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   List.iter
     (fun (alpha,(h,bday,obl,u)) -> 
       match u with
-      | Bounty(v) ->
+      | Bounty(v) -> (*** Note: The bounty could be collected due to a hash collision, but this does not seem to be subject to the birthday paradox so it should be safe. Otherwise we should save the propositions id (preimage of alpha) explicitly here. ***)
 	  begin
 	    try
 	      (*** ensure that an owner of the prop or negprop signed the tx because the ownership asset was an input value ***)
@@ -1853,7 +1871,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		   (fun (alpha2,(h2,bday2,obl2,u2)) -> (*** remember: it's the obligation that determines who signs these; so the obligations tells who the "owners" are for the purpose of collecting bounties ***)
 		     alpha = alpha2 &&
 		     match u2 with
-		     | OwnsProp(beta2,r2) -> true
+		     | OwnsProp(pid2,beta2,r2) -> true
 		     | OwnsNegProp -> true
 		     | _ -> false
 		   )
@@ -2145,10 +2163,10 @@ let octree_reduce_to_min_support inpl outpl full oc =
 let rec full_needed_1 outpl =
   match outpl with
   | [] -> []
-  | (_,(o,(RightsObj(beta,_))))::outpr -> addr_bitseq (termaddr_addr beta)::full_needed_1 outpr
-  | (_,(o,(RightsProp(beta,_))))::outpr -> addr_bitseq (termaddr_addr beta)::full_needed_1 outpr
-  | (alpha,(o,(OwnsObj(_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
-  | (alpha,(o,(OwnsProp(_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
+  | (_,(o,(RightsObj(h,_))))::outpr -> addr_bitseq (termaddr_addr (hashval_md160 h))::full_needed_1 outpr
+  | (_,(o,(RightsProp(h,_))))::outpr -> addr_bitseq (termaddr_addr (hashval_md160 h))::full_needed_1 outpr
+  | (alpha,(o,(OwnsObj(_,_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
+  | (alpha,(o,(OwnsProp(_,_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
   | (_,(o,TheoryPublication(gamma,nonce,thy)))::outpr ->
       let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashopair1 nonce (hashtheory (theoryspec_theory thy)))) in
       addr_bitseq beta::full_needed_1 outpr

@@ -10,6 +10,8 @@ open Big_int
 (*** Following the description in http://csrc.nist.gov/groups/STM/cavp/documents/shs/sha256-384-512.pdf ***)
 type md256 = int32 * int32 * int32 * int32 * int32 * int32 * int32 * int32
 
+let sha256mutex : Mutex.t = Mutex.create()
+
 let sha256inithashval : int32 array =
   [| 0x6a09e667l; 0xbb67ae85l; 0x3c6ef372l; 0xa54ff53al;
      0x510e527fl; 0x9b05688cl; 0x1f83d9abl; 0x5be0cd19l |]
@@ -163,6 +165,7 @@ let sha256str s =
   let totl = totl0 + 32 in
   let bl = totl / 512 in
   let ch = ref 0 in
+  Mutex.lock sha256mutex;
   sha256init();
   for b = 1 to bl do
     for i = 0 to 15 do
@@ -180,7 +183,9 @@ let sha256str s =
     done;
     sha256round()
   done;
-  getcurrmd256()
+  let d = getcurrmd256() in
+  Mutex.unlock sha256mutex;
+  d
 
 let sha256dstr s =
   let l = String.length s in
@@ -190,6 +195,7 @@ let sha256dstr s =
   let totl = totl0 + 32 in
   let bl = totl / 512 in
   let ch = ref 0 in
+  Mutex.lock sha256mutex;
   sha256init();
   for b = 1 to bl do
     for i = 0 to 15 do
@@ -227,7 +233,9 @@ let sha256dstr s =
   currblock.(15) <- 256l;
   sha256init();
   sha256round();
-  getcurrmd256()
+  let d = getcurrmd256() in
+  Mutex.unlock sha256mutex;
+  d
 
 let md256_hexstring h =
   let b = Buffer.create 64 in

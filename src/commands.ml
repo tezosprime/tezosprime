@@ -78,8 +78,9 @@ let load_wallet () =
 	      (match Secp256k1.smulp k Secp256k1._g with
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
-		  let alpha = addr_qedaddrstr (Hash.hashval_p2pkh_addr h) in
-		  (k,b,(x,y),qedwif k b,h,alpha)
+		  let alpha1 = hashval_md160 h in
+		  let alpha = addr_qedaddrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),qedwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys
@@ -87,7 +88,7 @@ let load_wallet () =
 	    let (scr,_) = sei_list sei_int8 seic (s,None) in
 	    walletp2shs :=
 	      (let h = hash160_bytelist scr in
-	      let a = addr_qedaddrstr (hashval_p2sh_addr h) in
+	      let a = addr_qedaddrstr (p2shaddr_addr h) in
 	      (h,a,scr))::!walletp2shs
 	| 2 ->
 	    let (endors,_) = sei_prod6 sei_payaddr sei_payaddr (sei_prod sei_big_int_256 sei_big_int_256) sei_varintb sei_bool sei_signat seic (s,None) in (*** For each (alpha,beta,esg) beta can use esg to justify signing for alpha; endorsements can be used for spending/moving, but not for staking. ***)
@@ -251,8 +252,8 @@ let btctoqedaddr a =
 let importprivkey_real (k,b) =
   match Secp256k1.smulp k Secp256k1._g with
   | Some(x,y) ->
-      let h = pubkey_hashval (x,y) b in
-      let alpha = Hash.hashval_p2pkh_addr h in
+      let h = hashval_md160 (pubkey_hashval (x,y) b) in
+      let alpha = p2pkhaddr_addr h in
       let a = addr_qedaddrstr alpha in
       let replwall = ref false in
       if privkey_in_wallet_p alpha then raise (Failure "Private key already in wallet.");
@@ -395,11 +396,11 @@ let printassets_in_ledger oc ledgerroot =
   in
   List.iter
     (fun (k,b,(x,y),w,h,z) ->
-      handler (fun () -> al1 := (z,Ctre.ctree_addr true true (hashval_p2pkh_addr h) ctr None)::!al1))
+      handler (fun () -> al1 := (z,Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None)::!al1))
     !walletkeys;
   List.iter
     (fun (h,z,scr) ->
-      handler (fun () -> al2 := (z,Ctre.ctree_addr true true (hashval_p2sh_addr h) ctr None)::!al2))
+      handler (fun () -> al2 := (z,Ctre.ctree_addr true true (p2shaddr_addr h) ctr None)::!al2))
     !walletp2shs;
   List.iter
     (fun (alpha,beta,(x,y),recid,fcomp,esg) -> 
@@ -524,8 +525,8 @@ let printctreeinfo h =
 	match preast with
 	| Currency(u) -> v := Int64.add u !v
 	| Bounty(u) -> b := Int64.add u !b
-	| OwnsObj(_,_) -> incr own
-	| OwnsProp(_,_) -> incr own
+	| OwnsObj(_,_,_) -> incr own
+	| OwnsProp(_,_,_) -> incr own
 	| OwnsNegProp -> incr own
 	| RightsObj(_,_) -> incr rght
 	| RightsProp(_,_) -> incr rght

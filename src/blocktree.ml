@@ -29,7 +29,7 @@ let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
 
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock (*** It isn't clear if there are any circumstances when it is safe to say the header is not the header for a valid block. InvalidBlock may be unused. ***)
 
-type blocktree = BlocktreeNode of blocktree option * hashval list ref * hashval option * hashval option * hashval option * hashval * poburn * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
+type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * hashval option * hashval option * hashval option * hashval * poburn * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
 
 let genesisblocktreenode = ref (BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,SincePoburn(0),(!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget),!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []));;
 
@@ -917,7 +917,7 @@ let dumpblocktreestate sa =
     (fun h (BlocktreeNode(_,rs,pbh,tr,sr,lr,pb,((csm3,csm2,csm1,csm0),(fsm3,fsm2,fsm1,fsm0),tar),tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "- blk %s node:\n" (match h with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "recentstakers:\n";
-      List.iter (fun k -> Printf.fprintf sa "%s\n" (hashval_hexstring k)) !rs;
+      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
       Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");
@@ -945,7 +945,7 @@ let dumpblocktreestate sa =
     (fun (futuretm,BlocktreeNode(_,rs,pbh,tr,sr,lr,pb,((csm3,csm2,csm1,csm0),(fsm3,fsm2,fsm1,fsm0),tar),tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "future timestamp: %Ld\n" futuretm;
       Printf.fprintf sa "recentstakers:\n";
-      List.iter (fun k -> Printf.fprintf sa "%s\n" (hashval_hexstring k)) !rs;
+      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
       Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");

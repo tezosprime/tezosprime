@@ -21,7 +21,7 @@ val verify_signed_hashval : hashval -> pt -> signat -> bool
 val verify_p2pkhaddr_signat : big_int -> p2pkhaddr -> signat -> int -> bool -> bool
 
 val verifybitcoinmessage : p2pkhaddr -> int -> bool -> signat -> string -> bool
-val verifybitcoinmessage_recover : hashval -> int -> bool -> signat -> string -> (big_int * big_int) option
+val verifybitcoinmessage_recover : p2pkhaddr -> int -> bool -> signat -> string -> (big_int * big_int) option
 
 val md256_of_bitcoin_message : string -> md256
 

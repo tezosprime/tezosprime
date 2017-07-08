@@ -137,8 +137,11 @@ let printmd h =
 let hexstring_md h =
   (hexsubstring_int32 h 0,hexsubstring_int32 h 8,hexsubstring_int32 h 16,hexsubstring_int32 h 24,hexsubstring_int32 h 32)
 
+let ripemd160mutex : Mutex.t = Mutex.create()
+
 let ripemd160_md256 h =
   let (h0,h1,h2,h3,h4,h5,h6,h7) = h in
+  Mutex.lock ripemd160mutex;
   currblock.(0) <- int32_rev h0;
   currblock.(1) <- int32_rev h1;
   currblock.(2) <- int32_rev h2;
@@ -157,5 +160,6 @@ let ripemd160_md256 h =
   currblock.(15) <- 0l;
   ripemd160init();
   ripemd160round();
-  getcurrmd ()
-
+  let d = getcurrmd () in
+  Mutex.unlock ripemd160mutex;
+  d

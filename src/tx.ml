@@ -39,16 +39,16 @@ let tx_inputs_valid inpl =
 (*** Ensure at most one owner is declared for each object/proposition ***)
 let rec tx_outputs_valid_one_owner outpl ool pol nol =
   match outpl with
-  | (alpha,(_,OwnsObj(beta,io)))::outpr ->
-      if List.mem alpha ool then
+  | (alpha,(_,OwnsObj(h,beta,io)))::outpr ->
+      if List.mem h ool then
 	false
       else
-	tx_outputs_valid_one_owner outpr (alpha::ool) pol nol
-  | (alpha,(_,OwnsProp(beta,io)))::outpr ->
-      if List.mem alpha pol then
+	tx_outputs_valid_one_owner outpr (h::ool) pol nol
+  | (alpha,(_,OwnsProp(h,beta,io)))::outpr ->
+      if List.mem h pol then
 	false
       else
-	tx_outputs_valid_one_owner outpr ool (alpha::pol) nol
+	tx_outputs_valid_one_owner outpr ool (h::pol) nol
   | (alpha,(_,OwnsNegProp))::outpr ->
       if List.mem alpha nol then
 	false
@@ -60,8 +60,8 @@ let rec tx_outputs_valid_one_owner outpl ool pol nol =
 (*** Ensure ownership deeds are sent to term addresses and publications are sent to publication addresses. ***)
 let rec tx_outputs_valid_addr_cats outpl =
   match outpl with
-  | (alpha,(_,OwnsObj(beta,u)))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
-  | (alpha,(_,OwnsProp(beta,u)))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
+  | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> termaddr_p alpha && hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
+  | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> termaddr_p alpha && hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsNegProp))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr ->
       begin

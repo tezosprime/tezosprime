@@ -6,6 +6,7 @@ open Big_int
 open Utils
 open Ser
 open Hashaux
+open Sha256
 open Hash
 
 let netblkh : int64 ref = ref 0L
@@ -389,7 +390,7 @@ let send_msg c mh replyto mt ms =
   flush c
 
 let queue_msg_real cs replyto mt m =
-  let mh = hash160 m in
+  let mh = sha256str m in
   Mutex.lock cs.connmutex;
   Queue.add (mh,replyto,mt,m) cs.sendqueue;
   Mutex.unlock cs.connmutex;
@@ -440,7 +441,7 @@ let rec_msg blkh c =
     done;
     let ms = Buffer.contents sb in
     Printf.fprintf !log "Got msg %s\n" (string_of_msgtype mt);
-    if not (mh = hash160 ms) then raise IllformedMsg;
+    if not (mh = sha256str ms) then raise IllformedMsg;
     Printf.fprintf !log "msg hash correct\n";
     (replyto,mh,mt,ms)
   with

@@ -16,7 +16,7 @@ open Logic
 val addnode : string -> int -> bool
 ***)
 
-val walletkeys : (big_int * bool * (big_int * big_int) * string * hashval * string) list ref
+val walletkeys : (big_int * bool * (big_int * big_int) * string * p2pkhaddr * string) list ref
 val walletendorsements : (payaddr * payaddr * (big_int * big_int) * int * bool * signat) list ref
 val walletwatchaddrs : addr list ref
 val stakingassets : (p2pkhaddr * hashval * int64 * obligation * int64) list ref

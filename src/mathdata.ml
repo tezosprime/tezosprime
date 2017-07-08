@@ -1,4 +1,5 @@
 open Ser
+open Sha256
 open Hash
 open Htree
 open Logic
@@ -34,7 +35,7 @@ let tp_to_str m =
   seosbf (seo_tp seosb m (c,None));
   Buffer.contents c
 
-let hashtp m = hashtag (hash160 (tp_to_str m)) 64l
+let hashtp m = hashtag (sha256str (tp_to_str m)) 64l
 
 let rec sei_tp i c =
   let (b,c) = i 2 c in
@@ -69,7 +70,7 @@ let hashtpl al =
   if al = [] then
     None
   else
-    Some(hashtag (hash160 (tpl_to_str al)) 65l)
+    Some(hashtag (sha256str (tpl_to_str al)) 65l)
 
 (** ** tm serialization ***)
 let rec seo_tm o m c =
@@ -128,7 +129,7 @@ let tm_to_str m =
   seosbf (seo_tm seosb m (c,None));
   Buffer.contents c
 
-let hashtm m = hashtag (hash160 (tm_to_str m)) 66l
+let hashtm m = hashtag (sha256str (tm_to_str m)) 66l
 
 let rec sei_tm i c =
   let (x,c) = i 3 c in
@@ -219,7 +220,7 @@ let pf_to_str m =
   seosbf (seo_pf seosb m (c,None));
   Buffer.contents c
 
-let hashpf m = hashtag (hash160 (pf_to_str m)) 67l
+let hashpf m = hashtag (sha256str (pf_to_str m)) 67l
 
 let rec sei_pf i c =
   let (x,c) = i 3 c in
@@ -398,7 +399,7 @@ let doc_to_str m =
   seosbf (seo_doc seosb m (c,None));
   Buffer.contents c
 
-let hashdoc m = hashtag (hash160 (doc_to_str m)) 70l
+let hashdoc m = hashtag (sha256str (doc_to_str m)) 70l
 
 (** ** serialization of theories ***)
 let seo_theory o (al,kl) c =
@@ -509,9 +510,9 @@ let ostree_insert t bl s =
   | Some(t) -> htree_insert t bl s
   | None -> htree_create bl s
 
-let ottree_hashroot t = ohtree_hashroot hashtheory 160 t
+let ottree_hashroot t = ohtree_hashroot hashtheory 256 t
 
-let ostree_hashroot t = ohtree_hashroot (fun s -> Some(hashsigna s)) 160 t
+let ostree_hashroot t = ohtree_hashroot (fun s -> Some(hashsigna s)) 256 t
 
 let ottree_lookup (t:ttree option) h =
   match t, h with
@@ -841,7 +842,7 @@ let pdoc_to_str m =
   seosbf (seo_pdoc seosb m (c,None));
   Buffer.contents c
 
-let hashpdoc m = hashtag (hash160 (pdoc_to_str m)) 71l
+let hashpdoc m = hashtag (sha256str (pdoc_to_str m)) 71l
 
 let rec sei_pdoc i c =
   let (b,c) = i 2 c in

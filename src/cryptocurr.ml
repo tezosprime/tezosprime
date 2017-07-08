@@ -186,14 +186,17 @@ let pubkey_hashval (x,y) compr =
   else
     hashpubkey (big_int_md256 x) (big_int_md256 y)
 
-let hashval_from_addrstr b =
+let pubkey_md160 (x,y) compr =
+  hashval_md160 (pubkey_hashval (x,y) compr)
+
+let md160_from_addrstr b =
   let (_,_,x0,x1,x2,x3,x4,_) = big_int_md256 (frombase58 b) in
   (x0,x1,x2,x3,x4)
 
 let calc_checksum pre rm1 =
   let s = Buffer.create 21 in
   Buffer.add_char s (Char.chr (pre mod 256));
-  let c = seo_hashval seosb rm1 (s,None) in
+  let c = seo_md160 seosb rm1 (s,None) in
   seosbf c;
   let (sh30,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   sh30
@@ -230,11 +233,11 @@ let btcaddrstr_addr b =
   else
     raise (Failure "Not a Bitcoin address")
 
-let hashval_btcaddrstr rm1 =
+let md160_btcaddrstr rm1 =
   let c0 = count0bytes rm1 in
   let s = Buffer.create 21 in
   Buffer.add_char s '\000';
-  let c = seo_hashval seosb rm1 (s,None) in
+  let c = seo_md160 seosb rm1 (s,None) in
   seosbf c;
   let (sh30,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   let (rm10,rm11,rm12,rm13,rm14) = rm1 in

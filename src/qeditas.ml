@@ -203,7 +203,7 @@ let compute_staking_chances n fromtm totm =
 (*    Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght; *)
     List.iter
       (fun (k,b,(x,y),w,h,alpha) ->
-	match try ctree_addr true true (hashval_p2pkh_addr h) c None with _ -> (None,0) with
+	match try ctree_addr true true (p2pkhaddr_addr h) c None with _ -> (None,0) with
 	| (Some(hl),_) ->
             hlist_stakingassets blkhght sincepob h (nehlist_hlist hl) 50
 	| _ ->
@@ -326,7 +326,7 @@ let stakingthread () =
 		in
 		let (csm,fsm) =
 		  match apob with
-		  | Poburn(h,k,u) -> compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k))
+		  | Poburn(h,k,u) -> compute_stakemods (hashpair h k)
 		  | _ -> (stakemod_pushbit (stakemod_lastbit fsm0) csm0,stakemod_pushbit false fsm0) (*** since we do poburn at least every 256 blocks, no need for 'random' bit on future stake modifier ***)
 		in
 		let tar = retarget tar0 deltm in
@@ -499,7 +499,7 @@ let stakingthread () =
 			blocksignatendorsement = Some(betah,recid,fcomp,esg)
 		      }
 		    with Not_found ->
-		      raise (Failure("Was staking for " ^ Cryptocurr.addr_qedaddrstr (hashval_p2pkh_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
+		      raise (Failure("Was staking for " ^ Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 		in
 (*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
 		let bhnew = (bhdnew,bhsnew) in
@@ -537,7 +537,7 @@ let stakingthread () =
 			begin
 			  match bhd2.announcedpoburn with
 			  | Poburn(h,k,_) ->
-			      let (csm,fsm) = compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) in
+			      let (csm,fsm) = compute_stakemods (hashpair h k) in
 			      csm2 = csm && fsm2 = fsm
 			  | SincePoburn(_) ->
 			      stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)

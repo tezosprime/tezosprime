@@ -16,9 +16,9 @@ type gensignat =
   | P2pkhSignat of pt * bool * signat
   | P2shSignat of int list
   | EndP2pkhToP2pkhSignat of pt * bool * pt * bool * signat * signat
-  | EndP2pkhToP2shSignat of pt * bool * hashval * signat * int list
+  | EndP2pkhToP2shSignat of pt * bool * md160 * signat * int list
   | EndP2shToP2pkhSignat of pt * bool * int list * signat
-  | EndP2shToP2shSignat of hashval * int list * int list
+  | EndP2shToP2shSignat of md160 * int list * int list
 
 val verify_gensignat : big_int -> gensignat -> addr -> bool
 

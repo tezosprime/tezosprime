@@ -19,11 +19,11 @@ type obligation = (payaddr * int64 * bool) option
 type preasset =
   | Currency of int64
   | Bounty of int64
-  | OwnsObj of payaddr * int64 option
-  | OwnsProp of payaddr * int64 option
+  | OwnsObj of hashval * payaddr * int64 option
+  | OwnsProp of hashval * payaddr * int64 option
   | OwnsNegProp
-  | RightsObj of termaddr * int64
-  | RightsProp of termaddr * int64
+  | RightsObj of hashval * int64
+  | RightsProp of hashval * int64
   | Marker
   | TheoryPublication of payaddr * hashval * theoryspec
   | SignaPublication of payaddr * hashval * hashval option * signaspec
@@ -39,13 +39,13 @@ let preasset_string u =
   match u with
   | Currency(v) -> fraenks_of_cants v ^ " fraenks"
   | Bounty(v) -> "bounty of " ^ fraenks_of_cants v ^ " fraenks"
-  | OwnsObj(beta,None) -> "ownership as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsObj(beta,Some(r)) -> "ownership as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
-  | OwnsProp(beta,None) -> "ownership as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsProp(beta,Some(r)) -> "ownership as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
   | OwnsNegProp -> "neg prop ownership"
-  | RightsObj(beta,l) -> "right to use " ^ (addr_qedaddrstr (termaddr_addr beta)) ^ " as an object " ^ (Int64.to_string l) ^ " times"
-  | RightsProp(beta,l) -> "right to use " ^ (addr_qedaddrstr (termaddr_addr beta)) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
+  | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
+  | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
   | Marker -> "marker"
   | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_qedaddrstr (payaddr_addr beta)
   | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_qedaddrstr (payaddr_addr beta)
@@ -64,13 +64,13 @@ let hashpreasset u =
   match u with
   | Currency(v) -> hashtag (hashint64 v) 256l
   | Bounty(v) -> hashtag (hashint64 v) 257l
-  | OwnsObj(a,None) -> hashtag (hashpayaddr a) 258l
-  | OwnsObj(a,Some(v)) -> hashtag (hashpair (hashpayaddr a) (hashint64 v)) 259l
-  | OwnsProp(a,None) -> hashtag (hashpayaddr a) 260l
-  | OwnsProp(a,Some(v)) -> hashtag (hashpair (hashpayaddr a) (hashint64 v)) 261l
+  | OwnsObj(h,a,None) -> hashtag (hashpair h (hashpayaddr a)) 258l
+  | OwnsObj(h,a,Some(v)) -> hashtag (hashpair h (hashpair (hashpayaddr a) (hashint64 v))) 259l
+  | OwnsProp(h,a,None) -> hashtag (hashpair h (hashpayaddr a)) 260l
+  | OwnsProp(h,a,Some(v)) -> hashtag (hashpair h (hashpair (hashpayaddr a) (hashint64 v))) 261l
   | OwnsNegProp -> hashint32 262l
-  | RightsObj(a,v) -> hashtag (hashpair (hashtermaddr a) (hashint64 v)) 263l
-  | RightsProp(a,v) -> hashtag (hashpair (hashtermaddr a) (hashint64 v)) 264l
+  | RightsObj(h,v) -> hashtag (hashpair h (hashint64 v)) 263l
+  | RightsProp(h,v) -> hashtag (hashpair h (hashint64 v)) 264l
   | Marker -> hashint32 265l
   | TheoryPublication(a,nonce,ths) -> hashtag (hashpair (hashpayaddr a) (hashopair1 nonce (hashtheory (theoryspec_theory ths)))) 266l (*** this only ensures the compiled theory gets a unique hash value ***)
   | SignaPublication(a,nonce,th,s) -> hashtag (hashpair (hashpayaddr a) (hashpair nonce (hashopair2 th (hashsigna (signaspec_signa s))))) 267l (*** this only ensures the compiled signature gets a unique hash value ***)
@@ -139,7 +139,7 @@ let asset_value blkh u = preasset_value blkh (assetbday u) (assetpre u)
 let asset_value_sum blkh al =
   List.fold_right Int64.add (List.map (fun a -> match asset_value blkh a with Some v -> v | None -> 0L) al) 0L
 
-let rec output_signaspec_uses_objs (outpl:addr_preasset list) : (termaddr * termaddr) list =
+let rec output_signaspec_uses_objs (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
   | (_,(_,SignaPublication(_,_,th,d)))::outpr ->
       List.map (fun (h,tph) -> (h,hashtag (hashopair2 th (hashpair h tph)) 32l)) (signaspec_uses_objs d)
@@ -147,7 +147,7 @@ let rec output_signaspec_uses_objs (outpl:addr_preasset list) : (termaddr * term
   | _::outpr -> output_signaspec_uses_objs outpr
   | [] -> []
 
-let rec output_signaspec_uses_props (outpl:addr_preasset list) : (termaddr * termaddr) list =
+let rec output_signaspec_uses_props (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
   | (_,(_,SignaPublication(_,_,th,d)))::outpr ->
       List.map (fun h -> (h,hashtag (hashopair2 th h) 33l)) (signaspec_uses_props d)
@@ -155,7 +155,7 @@ let rec output_signaspec_uses_props (outpl:addr_preasset list) : (termaddr * ter
   | _::outpr -> output_signaspec_uses_props outpr
   | [] -> []
 
-let rec output_doc_uses_objs (outpl:addr_preasset list) : (termaddr * termaddr) list =
+let rec output_doc_uses_objs (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
   | (_,(_,DocPublication(_,_,th,d)))::outpr ->
       List.map (fun (h,tph) -> (h,hashtag (hashopair2 th (hashpair h tph)) 32l)) (doc_uses_objs d)
@@ -163,7 +163,7 @@ let rec output_doc_uses_objs (outpl:addr_preasset list) : (termaddr * termaddr) 
   | _::outpr -> output_doc_uses_objs outpr
   | [] -> []
 
-let rec output_doc_uses_props (outpl:addr_preasset list) : (termaddr * termaddr) list =
+let rec output_doc_uses_props (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
   | (_,(_,DocPublication(_,_,th,d)))::outpr ->
       List.map (fun h -> (h,hashtag (hashopair2 th h) 33l)) (doc_uses_props d)
@@ -196,40 +196,40 @@ let rec output_creates_neg_props (outpl:addr_preasset list) : (hashval option * 
   | _::outpr -> output_creates_neg_props outpr
   | [] -> []
 
-let rec rights_out_obj outpl alpha =
+let rec rights_out_obj outpl k =
   match outpl with
-  | (_,(_,RightsObj(beta,n)))::outpr when alpha = beta -> Int64.add n (rights_out_obj outpr alpha)
-  | _::outpr -> rights_out_obj outpr alpha
+  | (_,(_,RightsObj(h,n)))::outpr when h = k -> Int64.add n (rights_out_obj outpr k)
+  | _::outpr -> rights_out_obj outpr k
   | [] -> 0L
 
-let rec rights_out_prop outpl alpha =
+let rec rights_out_prop outpl k =
   match outpl with
-  | (_,(_,RightsProp(beta,n)))::outpr when alpha = beta -> Int64.add n (rights_out_prop outpr alpha)
-  | _::outpr -> rights_out_prop outpr alpha
+  | (_,(_,RightsProp(h,n)))::outpr when h = k -> Int64.add n (rights_out_prop outpr k)
+  | _::outpr -> rights_out_prop outpr k
   | [] -> 0L
 
-let rec count_obj_rights al alpha =
+let rec count_obj_rights al k =
   match al with
-  | (_,_,_,RightsObj(beta,n))::ar when alpha = beta -> Int64.add n (count_obj_rights ar alpha)
-  | _::ar -> count_obj_rights ar alpha
+  | (_,_,_,RightsObj(h,n))::ar when h = k -> Int64.add n (count_obj_rights ar k)
+  | _::ar -> count_obj_rights ar k
   | [] -> 0L
 
-let rec count_prop_rights al alpha =
+let rec count_prop_rights al k =
   match al with
-  | (_,_,_,RightsProp(beta,n))::ar when alpha = beta -> Int64.add n (count_prop_rights ar alpha)
-  | _::ar -> count_prop_rights ar alpha
+  | (_,_,_,RightsProp(h,n))::ar when h = k -> Int64.add n (count_prop_rights ar k)
+  | _::ar -> count_prop_rights ar k
   | [] -> 0L
 
-let rec count_rights_used bl alpha =
+let rec count_rights_used bl k =
   match bl with
-  | (beta1,beta2)::br when beta1 = alpha || beta2 = alpha -> 1+count_rights_used br alpha
-  | _::br -> count_rights_used br alpha
+  | (h1,h2)::br when h1 = k || h2 = k -> 1+count_rights_used br k
+  | _::br -> count_rights_used br k
   | [] -> 0
 
 let rec obj_rights_mentioned_aux outpl r =
   match outpl with
-  | (beta,(obl,RightsObj(alpha,n)))::outpr ->
-      obj_rights_mentioned_aux outpr (alpha::r)
+  | (beta,(obl,RightsObj(h,n)))::outpr ->
+      obj_rights_mentioned_aux outpr (h::r)
   | (_,(_,DocPublication(_,_,th,d)))::outpr ->
       let duo = doc_uses_objs d in
       obj_rights_mentioned_aux outpr
@@ -243,8 +243,8 @@ let obj_rights_mentioned outpl = obj_rights_mentioned_aux outpl []
 
 let rec prop_rights_mentioned_aux outpl r =
   match outpl with
-  | (beta,(obl,RightsProp(alpha,n)))::outpr ->
-      prop_rights_mentioned_aux outpr (alpha::r)
+  | (beta,(obl,RightsProp(h,n)))::outpr ->
+      prop_rights_mentioned_aux outpr (h::r)
   | (_,(_,DocPublication(_,_,th,d)))::outpr ->
       let dup = doc_uses_props d in
       prop_rights_mentioned_aux outpr
@@ -288,24 +288,26 @@ let seo_preasset o u c =
   | Bounty(v) -> (** 001 **)
       let c = o 3 1 c in
       seo_int64 o v c
-  | OwnsObj(alpha,r) -> (** 010 0 **)
+  | OwnsObj(h,alpha,r) -> (** 010 0 **)
       let c = o 4 2 c in
+      let c = seo_hashval o h c in
       let c = seo_payaddr o alpha c in
       seo_option seo_int64 o r c
-  | OwnsProp(alpha,r) -> (** 010 1 0 **)
+  | OwnsProp(h,alpha,r) -> (** 010 1 0 **)
       let c = o 5 10 c in
+      let c = seo_hashval o h c in
       let c = seo_payaddr o alpha c in
       seo_option seo_int64 o r c
   | OwnsNegProp -> (** 010 1 1 **)
       let c = o 5 26 c in
       c
-  | RightsObj(alpha,n) -> (** 011 0 **)
+  | RightsObj(h,n) -> (** 011 0 **)
       let c = o 4 3 c in
-      let c = seo_termaddr o alpha c in
+      let c = seo_hashval o h c in
       seo_int64 o n c
-  | RightsProp(alpha,n) -> (** 011 1 **)
+  | RightsProp(h,n) -> (** 011 1 **)
       let c = o 4 11 c in
-      let c = seo_termaddr o alpha c in
+      let c = seo_hashval o h c in
       seo_int64 o n c
   | Marker -> (** 100 **)
       let c = o 3 4 c in
@@ -339,25 +341,27 @@ let sei_preasset i c =
   else if x = 2 then
     let (y,c) = i 1 c in
     if y = 0 then
+      let (h,c) = sei_hashval i c in
       let (alpha,c) = sei_payaddr i c in
       let (r,c) = sei_option sei_int64 i c in
-      (OwnsObj(alpha,r),c)
+      (OwnsObj(h,alpha,r),c)
     else
       let (z,c) = i 1 c in
       if z = 0 then
+	let (h,c) = sei_hashval i c in
 	let (alpha,c) = sei_payaddr i c in
 	let (r,c) = sei_option sei_int64 i c in
-	(OwnsProp(alpha,r),c)
+	(OwnsProp(h,alpha,r),c)
       else
 	(OwnsNegProp,c)
   else if x = 3 then
     let (y,c) = i 1 c in
-    let (alpha,c) = sei_termaddr i c in
+    let (h,c) = sei_hashval i c in
     let (n,c) = sei_int64 i c in
     if y = 0 then
-      (RightsObj(alpha,n),c)
+      (RightsObj(h,n),c)
     else
-      (RightsProp(alpha,n),c)
+      (RightsProp(h,n),c)
   else if x = 4 then
     (Marker,c)
   else if x = 5 then

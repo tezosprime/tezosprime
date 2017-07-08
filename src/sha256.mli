@@ -6,6 +6,7 @@ open Big_int
 
 type md256 = int32 * int32 * int32 * int32 * int32 * int32 * int32 * int32
 
+val sha256mutex : Mutex.t
 val sha256init : unit -> unit
 val currblock : int32 array
 val sha256round : unit -> unit

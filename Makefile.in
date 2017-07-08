@@ -26,7 +26,7 @@ bin/hashaux.cmi: src/hashaux.mli
 	$(OCAMLC) -I bin -o bin/hashaux.cmi -c src/hashaux.mli
 
 bin/sha256.cmi: src/sha256.mli bin/ser.cmi
-	$(OCAMLC) -I bin -o bin/sha256.cmi -c src/sha256.mli
+	$(OCAMLC) -I bin -I +threads -o bin/sha256.cmi -c src/sha256.mli
 
 bin/ripemd160.cmi: src/ripemd160.mli bin/sha256.cmi
 	$(OCAMLC) -I bin -o bin/ripemd160.cmi -c src/ripemd160.mli
@@ -119,13 +119,13 @@ bin/hashaux.cmx: src/hashaux.ml bin/hashaux.cmi
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/hashaux.cmx -c src/hashaux.ml
 
 bin/sha256.cmx: src/sha256.ml bin/sha256.cmi bin/hashaux.cmx bin/ser.cmx bin/utils.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/sha256.cmx -c src/sha256.ml
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/sha256.cmx -c src/sha256.ml
 
 bin/ripemd160.cmx: src/ripemd160.ml bin/ripemd160.cmi bin/hashaux.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/ripemd160.cmx -c src/ripemd160.ml
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/ripemd160.cmx -c src/ripemd160.ml
 
 bin/hash.cmx: src/hash.ml bin/hash.cmi bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/ser.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/hash.cmx -c src/hash.ml
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/hash.cmx -c src/hash.ml
 
 bin/htree.cmx: src/htree.ml bin/htree.cmi bin/hash.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/htree.cmx -c src/htree.ml
@@ -155,7 +155,7 @@ bin/ctregraft.cmx: src/ctregraft.ml bin/ctregraft.cmi bin/ser.cmx bin/hash.cmx b
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/ctregraft.cmx -c src/ctregraft.ml
 
 bin/block.cmx: src/block.ml bin/block.cmi bin/hash.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/signat.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/db.cmx bin/net.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/block.cmx -c src/block.ml
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/block.cmx -c src/block.ml
 
 bin/net.cmx: src/net.ml bin/net.cmi bin/ser.cmx bin/hash.cmx bin/version.cmx bin/utils.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/net.cmx -c src/net.ml
@@ -191,7 +191,7 @@ bin/secp256k1.cmo: src/secp256k1.ml bin/secp256k1.cmi
 	$(OCAMLC) -I bin -o bin/secp256k1.cmo -c src/secp256k1.ml
 
 bin/cryptocurr.cmo: src/cryptocurr.ml bin/cryptocurr.cmi bin/ser.cmo bin/hashaux.cmo bin/sha256.cmo bin/hash.cmo bin/secp256k1.cmo bin/config.cmo
-	$(OCAMLC) -I bin -o bin/cryptocurr.cmo -c src/cryptocurr.ml
+	$(OCAMLC) -I bin -I +threads -o bin/cryptocurr.cmo -c src/cryptocurr.ml
 
 bin/signat.cmo: src/signat.ml bin/signat.cmi bin/config.cmo bin/ser.cmo bin/sha256.cmo bin/hash.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/net.cmo
 	$(OCAMLC) -I bin -o bin/signat.cmo -c src/signat.ml
@@ -212,10 +212,10 @@ bin/sha256.cmo: src/sha256.ml bin/sha256.cmi bin/hashaux.cmo bin/ser.cmo bin/uti
 	$(OCAMLC) -I bin -o bin/sha256.cmo -c src/sha256.ml
 
 bin/ripemd160.cmo: src/ripemd160.ml bin/ripemd160.cmi bin/hashaux.cmo
-	$(OCAMLC) -I bin -o bin/ripemd160.cmo -c src/ripemd160.ml
+	$(OCAMLC) -I bin -I +threads -o bin/ripemd160.cmo -c src/ripemd160.ml
 
 bin/hash.cmo: src/hash.ml bin/hash.cmi bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/ser.cmo
-	$(OCAMLC) -I bin -o bin/hash.cmo -c src/hash.ml
+	$(OCAMLC) -I bin -I +threads -o bin/hash.cmo -c src/hash.ml
 
 bin/htree.cmo: src/htree.ml bin/htree.cmi bin/hash.cmo
 	$(OCAMLC) -I bin -o bin/htree.cmo -c src/htree.ml
@@ -245,7 +245,7 @@ bin/ctregraft.cmo: src/ctregraft.ml bin/ctregraft.cmi bin/ser.cmo bin/hash.cmo b
 	$(OCAMLC) -I bin -o bin/ctregraft.cmo -c src/ctregraft.ml
 
 bin/block.cmo: src/block.ml bin/block.cmi bin/hash.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/signat.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/db.cmo bin/net.cmo
-	$(OCAMLC) -I bin -o bin/block.cmo -c src/block.ml
+	$(OCAMLC) -I bin -I +threads -o bin/block.cmo -c src/block.ml
 
 bin/net.cmo: src/net.ml bin/net.cmi bin/ser.cmo bin/hash.cmo bin/version.cmo bin/utils.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/net.cmo -c src/net.ml

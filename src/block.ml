@@ -26,18 +26,22 @@ let genesisfuturestakemod : stakemod ref = ref (0L,0L,0L,0L)
 
 let stakemod_string (x3,x2,x1,x0) = (Int64.to_string x3) ^ " " ^ (Int64.to_string x2) ^ " " ^ (Int64.to_string x1) ^ " " ^ (Int64.to_string x0)
 
-let compute_stakemods (x4,x3,x2,x1,x0) =
+let compute_stakemods (x7,x6,x5,x4,x3,x2,x1,x0) =
+  Mutex.lock sha256mutex;
   sha256init();
-  currblock.(0) <- x4;
-  currblock.(1) <- x3;
-  currblock.(2) <- x2;
-  currblock.(3) <- x1;
-  currblock.(4) <- x0;
-  currblock.(5) <- 0x80000000l;
-  for i = 6 to 14 do
+  currblock.(0) <- x7;
+  currblock.(1) <- x6;
+  currblock.(2) <- x5;
+  currblock.(3) <- x4;
+  currblock.(4) <- x3;
+  currblock.(5) <- x2;
+  currblock.(6) <- x1;
+  currblock.(7) <- x0;
+  currblock.(8) <- 0x80000000l;
+  for i = 9 to 14 do
     currblock.(i) <- 0l;
   done;
-  currblock.(15) <- 160l;
+  currblock.(15) <- 256l;
   sha256round();
   let (y0,y1,y2,y3,y4,y5,y6,y7) = getcurrmd256() in
   sha256init();
@@ -56,6 +60,7 @@ let compute_stakemods (x4,x3,x2,x1,x0) =
   currblock.(15) <- 256l;
   sha256round();
   let (z0,z1,z2,z3,z4,z5,z6,z7) = getcurrmd256() in
+  Mutex.unlock sha256mutex;
   let c a b =
     Int64.logor
       (Int64.shift_left (Int64.of_int32 (Int32.logand (Int32.shift_right_logical a 16) 0xffl)) 48)
@@ -121,8 +126,9 @@ let stakemod_firstbit sm =
 
 (*** one round of sha256 combining the timestamp (least significant 32 bits only), the hash value of the stake's assetid and the stake modifier, then converted to a big_int to do arithmetic ***)
 let hitval tm h sm =
-  let (x0,x1,x2,x3,x4) = h in
+  let (x0,x1,x2,x3,x4,x5,x6,x7) = h in
   let (m3,m2,m1,m0) = sm in
+  Mutex.lock sha256mutex;
   sha256init();
   currblock.(0) <- Int64.to_int32 tm;
   currblock.(1) <- x0;
@@ -130,18 +136,27 @@ let hitval tm h sm =
   currblock.(3) <- x2;
   currblock.(4) <- x3;
   currblock.(5) <- x4;
-  currblock.(6) <- Int64.to_int32 (Int64.shift_right_logical m3 32);
-  currblock.(7) <- Int64.to_int32 m3;
-  currblock.(8) <- Int64.to_int32 (Int64.shift_right_logical m2 32);
-  currblock.(9) <- Int64.to_int32 m2;
-  currblock.(10) <- Int64.to_int32 (Int64.shift_right_logical m1 32);
-  currblock.(11) <- Int64.to_int32 m1;
-  currblock.(12) <- Int64.to_int32 (Int64.shift_right_logical m0 32);
-  currblock.(13) <- Int64.to_int32 m0;
-  currblock.(14) <- 0x80000000l;
-  currblock.(15) <- 448l;
+  currblock.(6) <- x5;
+  currblock.(7) <- x6;
+  currblock.(8) <- x7;
+  currblock.(9) <- Int64.to_int32 (Int64.shift_right_logical m3 32);
+  currblock.(10) <- Int64.to_int32 m3;
+  currblock.(11) <- Int64.to_int32 (Int64.shift_right_logical m2 32);
+  currblock.(12) <- Int64.to_int32 m2;
+  currblock.(13) <- Int64.to_int32 (Int64.shift_right_logical m1 32);
+  currblock.(14) <- Int64.to_int32 m1;
+  currblock.(15) <- Int64.to_int32 (Int64.shift_right_logical m0 32);
   sha256round();
-  md256_big_int (getcurrmd256())
+  currblock.(0) <- Int64.to_int32 m0;
+  currblock.(1) <- 0x80000000l;
+  for j = 2 to 14 do
+    currblock.(j) <- 0l;
+  done;
+  currblock.(15) <- 544l;
+  sha256round();
+  let d = getcurrmd256() in
+  Mutex.unlock sha256mutex;
+  md256_big_int d
 
 (*** current stake modifier, future stake modifier, target (big_int, but assumed to be at most 256 bits ***)
 type targetinfo = stakemod * stakemod * big_int
@@ -169,7 +184,7 @@ type poburn =
 
 let hashpoburn p =
   match p with
-  | Poburn(h,k,x) -> hashtag (hashpair (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) (hashint64 x)) 194l
+  | Poburn(h,k,x) -> hashtag (hashpair (hashpair h k) (hashint64 x)) 194l
   | SincePoburn(i) -> hashtag (hashint32 (Int32.of_int i)) 195l
 
 let seo_poburn o p c =
@@ -274,15 +289,15 @@ let fake_blockheader : blockheader =
   ({ prevblockhash = None;
      newtheoryroot = None;
      newsignaroot = None;
-     newledgerroot = (0l,0l,0l,0l,0l);
+     newledgerroot = (0l,0l,0l,0l,0l,0l,0l,0l);
      stakeaddr = (0l,0l,0l,0l,0l);
-     stakeassetid = (0l,0l,0l,0l,0l);
+     stakeassetid = (0l,0l,0l,0l,0l,0l,0l,0l);
      announcedpoburn = SincePoburn(0);
      stored = None;
      timestamp = 0L;
      deltatime = 0l;
      tinfo = ((0L,0L,0L,0L),(0L,0L,0L,0L),zero_big_int);
-     prevledger = CHash(0l,0l,0l,0l,0l);
+     prevledger = CHash(0l,0l,0l,0l,0l,0l,0l,0l);
    },
    { blocksignat = (zero_big_int,zero_big_int);
      blocksignatrecid = 0;
@@ -295,7 +310,7 @@ let seo_blockheaderdata o bh c =
   let c = seo_option seo_hashval o bh.newtheoryroot c in
   let c = seo_option seo_hashval o bh.newsignaroot c in
   let c = seo_hashval o bh.newledgerroot c in
-  let c = seo_hashval o bh.stakeaddr c in (*** p2pkh addresses are hashvals ***)
+  let c = seo_md160 o bh.stakeaddr c in (*** p2pkh addresses are md160 ***)
   let c = seo_hashval o bh.stakeassetid c in
   let c = seo_poburn o bh.announcedpoburn c in
   let c = seo_option seo_postor o bh.stored c in
@@ -310,7 +325,7 @@ let sei_blockheaderdata i c =
   let (x1,c) = sei_option sei_hashval i c in
   let (x2,c) = sei_option sei_hashval i c in
   let (x3,c) = sei_hashval i c in
-  let (x4,c) = sei_hashval i c in (*** p2pkh addresses are hashvals ***)
+  let (x4,c) = sei_md160 i c in (*** p2pkh addresses are md160 ***)
   let (x5,c) = sei_hashval i c in
   let (x6a,c) = sei_poburn i c in
   let (x6,c) = sei_option sei_postor i c in
@@ -339,14 +354,14 @@ let seo_blockheadersig o bhs c =
   let c = seo_signat o bhs.blocksignat c in
   let c = o 2 bhs.blocksignatrecid c in
   let c = seo_bool o bhs.blocksignatfcomp c in
-  let c = seo_option (seo_prod4 seo_hashval seo_varintb seo_bool seo_signat) o bhs.blocksignatendorsement c in
+  let c = seo_option (seo_prod4 seo_md160 seo_varintb seo_bool seo_signat) o bhs.blocksignatendorsement c in
   c
 
 let sei_blockheadersig i c = 
   let (x,c) = sei_signat i c in
   let (r,c) = i 2 c in
   let (f,c) = sei_bool i c in
-  let (e,c) = sei_option (sei_prod4 sei_hashval sei_varintb sei_bool sei_signat) i c in
+  let (e,c) = sei_option (sei_prod4 sei_md160 sei_varintb sei_bool sei_signat) i c in
   let bhs : blockheadersig =
     { blocksignat = x;
       blocksignatrecid = r;
@@ -445,12 +460,12 @@ let rec check_postor_tm_r m =
   | TTpLam(m) -> check_postor_tm_r m
   | TTpAll(m) -> check_postor_tm_r m
 
-(*** alpha is a p2pkhaddr, beta is a termaddr, and these types are both the same as hashval ***)
-let check_postor_tm tm csm mtar alpha beta m =
+(*** alpha is a p2pkhaddr, oid is a hashval, and these types are both the same as hashval ***)
+let check_postor_tm tm csm mtar alpha oid m =
   try
     let h = check_postor_tm_r m in
-    let betah = hashpair beta h in
-    let (x,_,_,_,_) = hashpair alpha betah in
+    let betah = hashpair oid h in
+    let (x,_,_,_,_,_,_,_) = hashpair (hashaddr (p2pkhaddr_addr alpha)) betah in
     Int32.logand x 0xffffl  = 0l (*** one of every 65536 (beta,h) pairs can be used by each address alpha ***)
       &&
     lt_big_int (hitval tm betah csm) mtar
@@ -505,13 +520,13 @@ let rec check_postor_pdoc_r d =
   | PDocPfOf(_,_,dr) -> raise InappropriatePostor
   | PDocPfOfHash(h,dr) -> check_postor_pdoc_r dr
 
-(*** alpha is a p2pkhaddr, beta is a pubaddr, and these types are both the same as hashval ***)
-let check_postor_pdoc tm csm mtar alpha beta m =
+(*** alpha is a p2pkhaddr, pubid is publication id (hashval), and these types are both the same as hashval ***)
+let check_postor_pdoc tm csm mtar alpha pubid m =
   try
     let h = check_postor_pdoc_r m in
-    let betah = hashpair beta h in
-    let (_,_,_,_,x) = hashpair alpha betah in
-    Int32.logand x 0xffffl  = 0l (*** one of every 65536 (beta,h) pairs can be used by each address alpha ***)
+    let betah = hashpair pubid h in
+    let (_,_,_,_,_,_,_,x) = hashpair (hashaddr (p2pkhaddr_addr alpha)) betah in
+    Int32.logand x 0xffffl  = 0l (*** one of every 65536 (pubid,h) pairs can be used by each address alpha ***)
       &&
     lt_big_int (hitval tm betah csm) mtar
   with InappropriatePostor -> false
@@ -535,11 +550,11 @@ let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd =
   match strd with
   | None -> lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
   | Some(PostorTrm(th,m,a,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
-      let beta = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
+      let oid = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
       let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
       lt_big_int (hitval tmstmp stkid csm) mtar
 	&&
-      check_postor_tm tmstmp csm mtar stkaddr beta m
+      check_postor_tm tmstmp csm mtar stkaddr oid m
   | Some(PostorDoc(gamma,nonce,th,d,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
       let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
       let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
@@ -570,7 +585,7 @@ let hash_blockheaderdata bh =
 	     (hashopair2 bh.newsignaroot
 		bh.newledgerroot))
 	  (hashpair
-	     (hashpair bh.stakeaddr bh.stakeassetid)
+	     (hashpair (hashaddr (p2pkhaddr_addr bh.stakeaddr)) bh.stakeassetid)
 	     (hashpair
 		(hashpoburn bh.announcedpoburn)
 		(hashopair2
@@ -600,10 +615,11 @@ let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
 	  match bhd.stored with
 	  | None -> true
 	  | Some(PostorTrm(th,m,a,h)) ->
-	      let beta = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
+	      let oid = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
+	      let beta = hashval_md160 oid in
 	      begin
 		match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq (termaddr_addr beta)) with
-		| Some(_,_,_,OwnsObj(_,_)) -> true
+		| Some(_,_,_,OwnsObj(oid2,_,_)) when oid = oid2 -> true
 		| _ -> false
 	      end
 	  | Some(PostorDoc(gamma,nonce,th,d,h)) ->
@@ -624,12 +640,12 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
     | None -> verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) bhd.stakeaddr bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp
     | Some(beta,recid,fcomp,esg) -> (*** signature via endorsement ***)
 	begin
-	  (verifybitcoinmessage bhd.stakeaddr recid fcomp esg ("endorse " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)))
+	  (verifybitcoinmessage bhd.stakeaddr recid fcomp esg ("endorse " ^ (addr_qedaddrstr (p2pkhaddr_addr beta)))
 	     &&
 	   verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	|| (!Config.testnet (*** allow fake endorsements in testnet ***)
 	      &&
-	    verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_qedaddrstr (hashval_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr (hashval_p2pkh_addr bhd.stakeaddr)) ^ ")")
+	    verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_qedaddrstr (p2pkhaddr_addr beta)) ^ " (" ^ (addr_qedaddrstr (p2pkhaddr_addr bhd.stakeaddr)) ^ ")")
 	     &&
 	   verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	end
@@ -849,8 +865,8 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 		  List.iter
 		    (fun (alpha1,(obl1,u1)) ->
 		      match u1 with
-		      | OwnsObj(_,_) -> oo1 := alpha1::!oo1
-		      | OwnsProp(_,_) -> op1 := alpha1::!op1
+		      | OwnsObj(_,_,_) -> oo1 := alpha1::!oo1
+		      | OwnsProp(_,_,_) -> op1 := alpha1::!op1
 		      | _ -> ())
 		    outpl1;
 		  stxlr := stxr;
@@ -864,9 +880,9 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 		      List.iter
 			(fun (alpha2,(obl2,u2)) ->
 			  match u2 with
-			  | OwnsObj(_,_) ->
+			  | OwnsObj(_,_,_) ->
 			      if List.mem alpha2 !oo1 then raise NotSupported
-			  | OwnsProp(_,_) ->
+			  | OwnsProp(_,_,_) ->
 			      if List.mem alpha2 !op1 then raise NotSupported
 			  | _ -> ()
 			)
@@ -885,25 +901,25 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 	    List.iter
 	      (fun (alpha,(obl,u)) ->
 		match u with
-		| OwnsObj(_,_) ->
+		| OwnsObj(_,_,_) ->
 		    List.iter
 		      (fun ((_,outpl2),_) ->
 			List.iter
 			  (fun (alpha2,(obl2,u2)) ->
 			    if alpha = alpha2 then
 			      match u2 with
-			      | OwnsObj(_,_) -> raise NotSupported
+			      | OwnsObj(_,_,_) -> raise NotSupported
 			      | _ -> ())
 			  outpl2)
 		      bd.blockdelta_stxl
-		| OwnsProp(_,_) ->
+		| OwnsProp(_,_,_) ->
 		    List.iter
 		      (fun ((_,outpl2),_) ->
 			List.iter
 			  (fun (alpha2,(obl2,u2)) ->
 			    if alpha = alpha2 then
 			      match u2 with
-			      | OwnsProp(_,_) -> raise NotSupported
+			      | OwnsProp(_,_,_) -> raise NotSupported
 			      | _ -> ())
 			  outpl2)
 		      bd.blockdelta_stxl
@@ -1007,7 +1023,7 @@ let blockheader_succ_a prevledgerroot tmstamp1 announcedpoburn1 tinfo1 bh2 =
   begin
     match bhd2.announcedpoburn with
     | Poburn(h,k,x) -> (*** If proof of burn, then the new csm2 and fsm2 are determined by h and k (where h was the ltc block hash, which is unpredictable) ***)
-	let (csm,fsm) = compute_stakemods (hashpair (ripemd160_md256 h) (ripemd160_md256 k)) in
+	let (csm,fsm) = compute_stakemods (hashpair h k) in
 	csm2 = csm && fsm2 = fsm
     | SincePoburn(i) ->
 	stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)

@@ -209,7 +209,7 @@ bin/hashaux.cmo: src/hashaux.ml bin/hashaux.cmi
 	$(OCAMLC) -I bin -o bin/hashaux.cmo -c src/hashaux.ml
 
 bin/sha256.cmo: src/sha256.ml bin/sha256.cmi bin/hashaux.cmo bin/ser.cmo bin/utils.cmo
-	$(OCAMLC) -I bin -o bin/sha256.cmo -c src/sha256.ml
+	$(OCAMLC) -I bin -I +threads -o bin/sha256.cmo -c src/sha256.ml
 
 bin/ripemd160.cmo: src/ripemd160.ml bin/ripemd160.cmi bin/hashaux.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/ripemd160.cmo -c src/ripemd160.ml

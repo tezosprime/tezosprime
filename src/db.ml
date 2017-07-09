@@ -84,7 +84,7 @@ let find_in_index d k =
     let ch = open_in_bin dind in
     let l = in_channel_length ch in
     let b = ref 0 in
-    let e = ref (l / 24) in
+    let e = ref (l / 36) in
     let r = ref None in
     begin
       try
@@ -92,7 +92,7 @@ let find_in_index d k =
 	  if !b < !e then
 	    let m = !b + (!e - !b) / 2 in
 	    begin
-	      seek_in ch (m*24);
+	      seek_in ch (m*36);
 	      let (h,c2) = sei_hashval seic (ch,None) in
 	      let chk = compare h k in
 	      if chk = 0 then
@@ -124,7 +124,7 @@ let count_deleted d =
   let ddel = Filename.concat d "deleted" in
   if Sys.file_exists ddel then
     let ch = open_in_bin ddel in
-    let i = (in_channel_length ch) / 20 in
+    let i = (in_channel_length ch) / 32 in
     close_in ch;
     i
   else
@@ -224,7 +224,7 @@ let rec dbfind_a d i k kh =
     let p = find_in_index d k in
     (d,p)
   with Not_found ->
-    if i < 20 then
+    if i < 32 then
       let dk' = Filename.concat d (String.sub kh i 2) in
       try
 	if Sys.is_directory dk' then

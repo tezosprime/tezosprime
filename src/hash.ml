@@ -359,25 +359,25 @@ let hashpubkey x y =
   let (x0,x1,x2,x3,x4,x5,x6,x7) = x in
   let (y0,y1,y2,y3,y4,y5,y6,y7) = y in
   hashinit();
-  currblock.(0) <- 4l;
-  currblock.(1) <- x0;
-  currblock.(2) <- x1;
-  currblock.(3) <- x2;
-  currblock.(4) <- x3;
-  currblock.(5) <- x4;
-  currblock.(6) <- x5;
-  currblock.(7) <- x6;
-  currblock.(8) <- x7;
-  currblock.(9) <- y0;
-  currblock.(10) <- y1;
-  currblock.(11) <- y2;
-  currblock.(12) <- y3;
-  currblock.(13) <- y4;
-  currblock.(14) <- y5;
-  currblock.(15) <- y6;
+  currblock.(0) <- Int32.logor (Int32.shift_left 4l 24) (Int32.shift_right_logical x0 8);
+  currblock.(1) <- Int32.logor (Int32.shift_left x0 24) (Int32.shift_right_logical x1 8);
+  currblock.(2) <- Int32.logor (Int32.shift_left x1 24) (Int32.shift_right_logical x2 8);
+  currblock.(3) <- Int32.logor (Int32.shift_left x2 24) (Int32.shift_right_logical x3 8);
+  currblock.(4) <- Int32.logor (Int32.shift_left x3 24) (Int32.shift_right_logical x4 8);
+  currblock.(5) <- Int32.logor (Int32.shift_left x4 24) (Int32.shift_right_logical x5 8);
+  currblock.(6) <- Int32.logor (Int32.shift_left x5 24) (Int32.shift_right_logical x6 8);
+  currblock.(7) <- Int32.logor (Int32.shift_left x6 24) (Int32.shift_right_logical x7 8);
+  currblock.(8) <- Int32.logor (Int32.shift_left x7 24) (Int32.shift_right_logical y0 8);
+  currblock.(9) <- Int32.logor (Int32.shift_left y0 24) (Int32.shift_right_logical y1 8);
+  currblock.(10) <- Int32.logor (Int32.shift_left y1 24) (Int32.shift_right_logical y2 8);
+  currblock.(11) <- Int32.logor (Int32.shift_left y2 24) (Int32.shift_right_logical y3 8);
+  currblock.(12) <- Int32.logor (Int32.shift_left y3 24) (Int32.shift_right_logical y4 8);
+  currblock.(13) <- Int32.logor (Int32.shift_left y4 24) (Int32.shift_right_logical y5 8);
+  currblock.(14) <- Int32.logor (Int32.shift_left y5 24) (Int32.shift_right_logical y6 8);
+  currblock.(15) <- Int32.logor (Int32.shift_left y6 24) (Int32.shift_right_logical y7 8);
   sha256round();
-  currblock.(0) <- y7;
-  currblock.(1) <- 0x80000000l;
+  currblock.(0) <- Int32.logor (Int32.shift_left y7 24) 0x800000l;
+  currblock.(1) <- 0l;
   currblock.(2) <- 0l;
   currblock.(3) <- 0l;
   currblock.(4) <- 0l;
@@ -391,29 +391,29 @@ let hashpubkey x y =
   currblock.(12) <- 0l;
   currblock.(13) <- 0l;
   currblock.(14) <- 0l;
-  currblock.(15) <- 544l;
+  currblock.(15) <- 520l;
   sha256round();
   getcurrhashval()
 
 let hashpubkeyc p x =
   let (x0,x1,x2,x3,x4,x5,x6,x7) = x in
   hashinit();
-  currblock.(0) <- Int32.of_int p;
-  currblock.(1) <- x0;
-  currblock.(2) <- x1;
-  currblock.(3) <- x2;
-  currblock.(4) <- x3;
-  currblock.(5) <- x4;
-  currblock.(6) <- x5;
-  currblock.(7) <- x6;
-  currblock.(8) <- x7;
-  currblock.(9) <- 0x80000000l;
+  currblock.(0) <- Int32.logor (Int32.shift_left (Int32.of_int p) 24) (Int32.shift_right_logical x0 8);
+  currblock.(1) <- Int32.logor (Int32.shift_left x0 24) (Int32.shift_right_logical x1 8);
+  currblock.(2) <- Int32.logor (Int32.shift_left x1 24) (Int32.shift_right_logical x2 8);
+  currblock.(3) <- Int32.logor (Int32.shift_left x2 24) (Int32.shift_right_logical x3 8);
+  currblock.(4) <- Int32.logor (Int32.shift_left x3 24) (Int32.shift_right_logical x4 8);
+  currblock.(5) <- Int32.logor (Int32.shift_left x4 24) (Int32.shift_right_logical x5 8);
+  currblock.(6) <- Int32.logor (Int32.shift_left x5 24) (Int32.shift_right_logical x6 8);
+  currblock.(7) <- Int32.logor (Int32.shift_left x6 24) (Int32.shift_right_logical x7 8);
+  currblock.(8) <- Int32.logor (Int32.shift_left x7 24) 0x800000l;
+  currblock.(9) <- 0l;
   currblock.(10) <- 0l;
   currblock.(11) <- 0l;
   currblock.(12) <- 0l;
   currblock.(13) <- 0l;
   currblock.(14) <- 0l;
-  currblock.(15) <- 288l;
+  currblock.(15) <- 264l;
   sha256round();
   getcurrhashval()
 

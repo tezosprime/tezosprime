@@ -151,7 +151,7 @@ let datadir_from_command_line () =
         begin
           Config.testnet := true;
           if not (List.mem "port" !setl) then Config.port := 20804;
-          if not (List.mem "seed" !setl) then Config.seed := "68324ba252550a4cb02b7279cf398b9994c0c39f"; (*** last 20 bytes of hash of bitcoin block 378800 ***)
+          if not (List.mem "seed" !setl) then Config.seed := "d3c195c68d64de93825bc1f0dd396286bf3108bebe73619223c8ae76883c0670"; (*** litecoin block 1,236,680 ***)
         end
     with Not_found -> ()
   done;;

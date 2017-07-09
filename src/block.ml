@@ -77,16 +77,15 @@ let set_genesis_stakemods x =
   genesiscurrentstakemod := csm;
   genesisfuturestakemod := fsm;;
 
-(*** Here the last 20 bytes (40 hex chars) of the block hash for a particular bitcoin block should be included.
+(*** Here the 32 bytes (64 hex chars) of the block hash for a particular litecoin block should be included.
  sha256 is used to extract 512 bits to set the genesis current and future stake modifiers.
  ***)
-set_genesis_stakemods "0000000000000000000000000000000000000000"
+set_genesis_stakemods "0000000000000000000000000000000000000000000000000000000000000000"
 
 (*** max target/min difficulty: 2^220 (for mainnet) ***)
 let max_target = ref (shift_left_big_int unit_big_int 220)
 let genesistarget = ref (shift_left_big_int unit_big_int 205) (* current estimate for initial difficulty *)
-let genesisledgerroot : hashval ref = ref (hexstring_hashval "fc25150b4880e27235d4878637d32f0ffe2280e6");; (*** snapshot ledger root [This is the correct root when assets are referenced by hash instead of id.] ***)
-(** let genesisledgerroot : hashval ref = ref (hexstring_hashval "66c029f4c29b351785c0480cedc9449b64332dfa");; (*** snapshot ledger root [This is the root when assets were referenced by id, which was the case in the old initdistr on mega] ***) **)
+let genesisledgerroot : hashval ref = ref (hexstring_hashval "0000000000000000000000000000000000000000000000000000000000000000");;
 
 (*** base reward of 50 fraenks (5 trillion cants) like bitcoin, but assume the first 350000 blocks have passed. ***)
 let basereward = 5000000000000L

@@ -924,7 +924,7 @@ let initialize () =
       end;
     if not (!Config.seed = "") then
       begin
-	if not (String.length !Config.seed = 40) then raise (Failure "Bad seed");
+	if not (String.length !Config.seed = 64) then raise (Failure "Bad seed");
 	try
 	  set_genesis_stakemods !Config.seed
 	with

@@ -28,8 +28,44 @@ let maxblockdeltasize blkh = 250000 lsl (era blkh)
 
 let random_initialized : bool ref = ref false;;
 
+let hexchar_inv x =
+  match x with
+  | '0' -> 0
+  | '1' -> 1
+  | '2' -> 2
+  | '3' -> 3
+  | '4' -> 4
+  | '5' -> 5
+  | '6' -> 6
+  | '7' -> 7
+  | '8' -> 8
+  | '9' -> 9
+  | 'A' -> 10
+  | 'B' -> 11
+  | 'C' -> 12
+  | 'D' -> 13
+  | 'E' -> 14
+  | 'F' -> 15
+  | 'a' -> 10
+  | 'b' -> 11
+  | 'c' -> 12
+  | 'd' -> 13
+  | 'e' -> 14
+  | 'f' -> 15
+  | _ -> raise (Failure("not a hexit: " ^ (string_of_int (Char.code x))))
+
 let initialize_random_seed () =
-    if Sys.file_exists "/dev/random" then
+  match !Config.randomseed with
+  | Some(r) ->
+      if not (String.length r = 64) then raise (Failure "bad randomseed given, should be 32 bytes as 64 hex chars");
+      let a = Array.make 32 0 in
+      for i = 0 to 31 do
+	a.(i) <- 16 * hexchar_inv (r.[2*i]) + hexchar_inv (r.[2*i+1])
+      done;
+      Random.full_init a;
+      random_initialized := true
+  | None ->
+      if Sys.file_exists "/dev/random" then
 	let r = open_in_bin "/dev/random" in
 	let a = Array.make 32 0 in
 	Printf.printf "Computing random seed, this may take a while.\n"; flush stdout;

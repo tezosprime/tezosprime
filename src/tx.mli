@@ -21,7 +21,8 @@ val tx_outputs_valid : addr_preasset list -> bool
 val tx_valid : tx -> bool
 
 type gensignat_or_ref = GenSignatReal of gensignat | GenSignatRef of int
-type stx = tx * (gensignat_or_ref option list * gensignat_or_ref option list)
+type txsigs = gensignat_or_ref option list * gensignat_or_ref option list
+type stx = tx * txsigs
 
 exception BadOrMissingSignature
 
@@ -40,6 +41,8 @@ val seo_txsigs : (int -> int -> 'a -> 'a) -> gensignat_or_ref option list * gens
 val sei_txsigs : (int -> 'a -> int * 'a) -> 'a -> (gensignat_or_ref option list * gensignat_or_ref option list) * 'a
 val seo_stx : (int -> int -> 'a -> 'a) -> stx -> 'a -> 'a
 val sei_stx : (int -> 'a -> int * 'a) -> 'a -> stx * 'a
+
+val hashtxsigs : txsigs -> hashval
 
 module DbTx :
     sig

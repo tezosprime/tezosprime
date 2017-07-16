@@ -82,3 +82,5 @@ val seo_termaddr : (int -> int -> 'a -> 'a) -> termaddr -> 'a -> 'a
 val sei_termaddr : (int -> 'a -> int * 'a) -> 'a -> termaddr * 'a
 val seo_pubaddr : (int -> int -> 'a -> 'a) -> pubaddr -> 'a -> 'a
 val sei_pubaddr : (int -> 'a -> int * 'a) -> 'a -> pubaddr * 'a
+
+val merkle_root : hashval list -> hashval option

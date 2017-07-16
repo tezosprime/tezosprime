@@ -2347,3 +2347,8 @@ Hashtbl.add msgtype_handler CTreeElement
 	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed CTreeElement]\n"; flush !Utils.log)
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
 	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested CTreeElement]\n"; flush !Utils.log));;
+
+let hashctree c =
+  let s = Buffer.create 1000 in
+  seosbf (seo_ctree seosb c (s,None));
+  Sha256.sha256str (Buffer.contents s)

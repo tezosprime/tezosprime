@@ -47,7 +47,7 @@ type poburn =
   | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
 
 type blockheaderdata = {
-    prevblockhash : hashval option;
+    prevblockhash : (hashval * hashval) option;
     newtheoryroot : hashval option;
     newsignaroot : hashval option;
     newledgerroot : hashval;
@@ -58,6 +58,7 @@ type blockheaderdata = {
     deltatime : int32;
     tinfo : targetinfo;
     prevledger : ctree;
+    blockdeltaroot : hashval;
   }
 
 type blockheadersig = {
@@ -121,6 +122,8 @@ val check_hit_a : int64 -> int64 -> obligation -> int64
 val check_hit : int64 -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
 
 val hash_blockheaderdata : blockheaderdata -> hashval
+val hash_blockheadersig : blockheadersig -> hashval
+val blockdelta_hashroot : blockdelta -> hashval
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin

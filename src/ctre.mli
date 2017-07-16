@@ -107,3 +107,5 @@ val print_ctree : ctree -> unit
 val print_ctree_all : out_channel -> ctree -> unit
 
 val minimal_asset_supporting_ctree : ctree -> bool list -> hashval -> int -> bool
+
+val hashctree : ctree -> hashval

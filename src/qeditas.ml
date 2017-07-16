@@ -32,7 +32,7 @@ let rec pblockchain s n c lr m =
       | None -> ()
     end;
   match c with
-  | Some(h) ->
+  | Some(h,_) ->
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
       begin
 	match lr with
@@ -184,6 +184,11 @@ let maxburnnow tm =
   else
     0L
 
+let fstohash a =
+  match a with
+  | None -> None
+  | Some(h,_) -> Some(h)
+
 let compute_staking_chances n fromtm totm =
   let i = ref fromtm in
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,currpoburn,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
@@ -227,7 +232,7 @@ let compute_staking_chances n fromtm totm =
 	let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
 	let (_,_,tar) = currtinfo in
 	let csnew = cumul_stake prevcumulstk tar deltm in
-	Hashtbl.add nextstakechances prevblk (NextStake(i,stkaddr,h,bday,obl,v,toburn,csnew));
+	Hashtbl.add nextstakechances (fstohash prevblk) (NextStake(i,stkaddr,h,bday,obl,v,toburn,csnew));
 	raise Exit
       in
       try
@@ -259,7 +264,7 @@ let compute_staking_chances n fromtm totm =
 	    )
 	    !Commands.stakingassets
 	done;
-	Hashtbl.add nextstakechances prevblk (NoStakeUpTo(totm));
+	Hashtbl.add nextstakechances (fstohash prevblk) (NoStakeUpTo(totm));
       with
       | Exit -> ()
       | exn ->
@@ -283,8 +288,9 @@ let stakingthread () =
       end;
       try
 	let pbhh = node_prevblockhash best in
+	let pbhh1 = fstohash pbhh in
 	let blkh = node_blockheight best in
-        match Hashtbl.find nextstakechances pbhh with
+        match Hashtbl.find nextstakechances pbhh1 with
 	| NextStake(tm,alpha,aid,bday,obl,v,toburn,csnew) ->
 	    let nw = Unix.time() in
 	    if tm > Int64.of_float (nw +. 10.0) then
@@ -331,7 +337,7 @@ let stakingthread () =
 		in
 		let tar = retarget tar0 deltm in
 		let alpha2 = p2pkhaddr_addr alpha in
-		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_qedaddrstr alpha2) (hashval_hexstring aid) bday;
+		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_qedaddrstr alpha2) (hashval_hexstring aid) bday;
 		let obl2 =
 		  match obl with
 		  | None ->  (* if the staked asset had the default obligation it can be left as the default obligation or locked for some number of blocks to commit to staking; there should be a configurable policy for the node *)
@@ -440,7 +446,7 @@ let stakingthread () =
 		    seosbf (seo_list seo_tx seosb (coinstk::othertxs) (s,None));
 		    Printf.fprintf !log "txs: %s\n" (Hashaux.string_hexstring (Buffer.contents s));
 		    flush !log;
-		    Hashtbl.remove nextstakechances pbhh;
+		    Hashtbl.remove nextstakechances pbhh1;
 		    raise StakingProblemPause;
 		  end;
 		let (prevcforheader,cgr) = factor_inputs_ctree_cgraft [(alpha2,aid)] prevcforblock in
@@ -449,6 +455,15 @@ let stakingthread () =
 (*		    Hashtbl.add recentledgerroots newcr (blkh,newcr); *)
 		let newthtroot = ottree_hashroot !dyntht in
 		let newsigtroot = ostree_hashroot !dynsigt in
+(*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
+		let bdnew : blockdelta =
+		  { stakeoutput = stkoutl;
+		    forfeiture = None; (*** leave this as None for now; should check for double signing ***)
+		    prevledgergraft = cgr;
+		    blockdelta_stxl = !otherstxs
+		  }
+		in
+		let bdnewroot = blockdelta_hashroot bdnew in
 		let bhdnew : blockheaderdata
 		    = { prevblockhash = pbhh;
 			newtheoryroot = newthtroot;
@@ -460,7 +475,8 @@ let stakingthread () =
 			timestamp = tm;
 			deltatime = deltm;
 			tinfo = (csm,fsm,tar);
-			prevledger = prevcforheader
+			prevledger = prevcforheader;
+			blockdeltaroot = bdnewroot;
 		      }
 		in
 		let bhdnewh = hash_blockheaderdata bhdnew in
@@ -500,15 +516,8 @@ let stakingthread () =
 		    with Not_found ->
 		      raise (Failure("Was staking for " ^ Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 		in
-(*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
+		let bhsnewh = hash_blockheadersig bhsnew in
 		let bhnew = (bhdnew,bhsnew) in
-		let bdnew : blockdelta =
-		  { stakeoutput = stkoutl;
-		    forfeiture = None; (*** leave this as None for now; should check for double signing ***)
-		    prevledgergraft = cgr;
-		    blockdelta_stxl = !otherstxs
-		  }
-		in
 		begin
 		  let s = Buffer.create 10000 in
 		  seosbf (seo_blockdelta seosb bdnew (s,None));
@@ -518,18 +527,20 @@ let stakingthread () =
 		  if valid_blockheader blkh (csm0,fsm0,tar0) bhnew then
 		    () (* (Printf.fprintf !log "New block header is valid\n"; flush !log) *)
 		  else
-		    (Printf.fprintf !log "New block header is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate"); Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
+		    (Printf.fprintf !log "New block header is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate"); Hashtbl.remove nextstakechances pbhh1; raise StakingProblemPause);
 		  if not ((valid_block None None blkh (csm0,fsm0,tar0) (bhnew,bdnew)) = None) then
 		    () (* (Printf.fprintf !log "New block is valid\n"; flush stdout) *)
 		  else
-		    (Printf.fprintf !log "New block is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate"); Hashtbl.remove nextstakechances pbhh; raise StakingProblemPause);
-		  match pbhh with
+		    (Printf.fprintf !log "New block is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate"); Hashtbl.remove nextstakechances pbhh1; raise StakingProblemPause);
+		  match pbhh1 with
 		  | None -> if blkh > 1L then (Printf.fprintf !log "No previous block but block height not 1\n"; flush !log; Hashtbl.remove nextstakechances None; raise StakingProblemPause)
-		  | Some(pbhh) ->
-		      if blkh = 1L then (Printf.fprintf !log "Previous block indicated but block height is 1\n"; flush !log; Hashtbl.remove nextstakechances (Some(pbhh)); raise StakingProblemPause);
-		      let (pbhd,_) = get_blockheader pbhh in
-		      let tmpsucctest bhd1 bhd2 =
+		  | Some(pbhh1) ->
+		      if blkh = 1L then (Printf.fprintf !log "Previous block indicated but block height is 1\n"; flush !log; Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause);
+		      let (pbhd,pbhs) = get_blockheader pbhh1 in
+		      let tmpsucctest bhd1 bhs1 bhd2 =
 			bhd2.timestamp = Int64.add bhd1.timestamp (Int64.of_int32 bhd2.deltatime)
+			  &&
+			bhd2.prevblockhash = Some(hash_blockheaderdata bhd1,hash_blockheadersig bhs1)
 			  &&
 			let (csm1,fsm1,tar1) = bhd1.tinfo in
 			let (csm2,fsm2,tar2) = bhd2.tinfo in
@@ -546,10 +557,10 @@ let stakingthread () =
 			  &&
 			eq_big_int tar2 (retarget tar1 bhd2.deltatime)
 		      in
-		      if tmpsucctest pbhd bhdnew then
+		      if tmpsucctest pbhd pbhs bhdnew then
 			() (* (Printf.fprintf !log "Valid successor block\n"; flush !log) *)
 		      else
-			(Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh)); raise StakingProblemPause)
+			(Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause)
 		end;
 		let nw = Unix.time() in
 		let tmtopub = Int64.sub tm (Int64.of_float nw) in
@@ -557,7 +568,7 @@ let stakingthread () =
 		let publish_new_block () =
 		  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew);
 		  let newnode =
-		    BlocktreeNode(Some(best),ref [],Some(bhdnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
+		    BlocktreeNode(Some(best),ref [],Some(bhdnewh,bhsnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
 		  in
 		  Printf.fprintf !log "block at height %Ld: %s, deltm = %ld, timestamp %Ld, cumul stake %s\n" blkh (hashval_hexstring bhdnewh) bhdnew.deltatime tm (string_of_big_int csnew); 
 		  record_recent_staker alpha newnode 6;
@@ -860,7 +871,7 @@ let do_command oc l =
       let lr = node_ledgerroot node in
       begin
 	match h with
-	| Some(h) ->
+	| Some(h,_) ->
 	    Printf.fprintf oc "Height: %Ld\nBlock hash: %s\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring h) (hashval_hexstring lr);
 	    flush oc
 	| None ->

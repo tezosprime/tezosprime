@@ -211,7 +211,7 @@ let sei_poburn i c =
     (SincePoburn(Int32.to_int j),c)
 
 type blockheaderdata = {
-    prevblockhash : hashval option;
+    prevblockhash : (hashval * hashval) option;
     newtheoryroot : hashval option;
     newsignaroot : hashval option;
     newledgerroot : hashval;
@@ -222,6 +222,7 @@ type blockheaderdata = {
     deltatime : int32;
     tinfo : targetinfo;
     prevledger : ctree;
+    blockdeltaroot : hashval;
   }
 
 type blockheadersig = {
@@ -246,6 +247,7 @@ let fake_blockheader : blockheader =
      deltatime = 0l;
      tinfo = ((0L,0L,0L,0L),(0L,0L,0L,0L),zero_big_int);
      prevledger = CHash(0l,0l,0l,0l,0l,0l,0l,0l);
+     blockdeltaroot = (0l,0l,0l,0l,0l,0l,0l,0l);
    },
    { blocksignat = (zero_big_int,zero_big_int);
      blocksignatrecid = 0;
@@ -254,7 +256,7 @@ let fake_blockheader : blockheader =
    })
 
 let seo_blockheaderdata o bh c =
-  let c = seo_option seo_hashval o bh.prevblockhash c in
+  let c = seo_option (seo_prod seo_hashval seo_hashval) o bh.prevblockhash c in
   let c = seo_option seo_hashval o bh.newtheoryroot c in
   let c = seo_option seo_hashval o bh.newsignaroot c in
   let c = seo_hashval o bh.newledgerroot c in
@@ -265,10 +267,11 @@ let seo_blockheaderdata o bh c =
   let c = seo_int32 o bh.deltatime c in
   let c = seo_targetinfo o bh.tinfo c in
   let c = seo_ctree o bh.prevledger c in
+  let c = seo_hashval o bh.blockdeltaroot c in
   c
 
 let sei_blockheaderdata i c =
-  let (x0,c) = sei_option sei_hashval i c in
+  let (x0,c) = sei_option (sei_prod sei_hashval sei_hashval) i c in
   let (x1,c) = sei_option sei_hashval i c in
   let (x2,c) = sei_option sei_hashval i c in
   let (x3,c) = sei_hashval i c in
@@ -279,6 +282,7 @@ let sei_blockheaderdata i c =
   let (x8,c) = sei_int32 i c in
   let (x9,c) = sei_targetinfo i c in
   let (x10,c) = sei_ctree i c in
+  let (x11,c) = sei_hashval i c in
   let bhd : blockheaderdata =
       { prevblockhash = x0;
 	newtheoryroot = x1;
@@ -291,6 +295,7 @@ let sei_blockheaderdata i c =
 	deltatime = x8;
 	tinfo = x9;
 	prevledger = x10;
+	blockdeltaroot = x11;
       }
   in
   (bhd,c)
@@ -412,19 +417,39 @@ let coinstake b =
 
 let hash_blockheaderdata bh =
   hashtag
-    (hashopair2 bh.prevblockhash
-       (hashpair
-	  (hashopair2 bh.newtheoryroot
-	     (hashopair2 bh.newsignaroot
-		bh.newledgerroot))
-	  (hashpair
-	     (hashpair (hashaddr (p2pkhaddr_addr bh.stakeaddr)) bh.stakeassetid)
-	     (hashpair
-		(hashpoburn bh.announcedpoburn)
-		(hashpair
-		   (hashtargetinfo bh.tinfo)
-		   (hashpair (hashint64 bh.timestamp) (hashint32 bh.deltatime)))))))
+    (hashopair2
+       (match bh.prevblockhash with
+       | None -> None
+       | Some(h,k) -> Some(hashpair h k))
+       (hashlist
+	  [hashopair2 bh.newtheoryroot
+	     (hashopair2 bh.newsignaroot bh.newledgerroot);
+	   hashctree bh.prevledger;
+	   bh.blockdeltaroot;
+	   hashaddr (p2pkhaddr_addr bh.stakeaddr);
+	   bh.stakeassetid;
+	   hashpoburn bh.announcedpoburn;
+	   hashtargetinfo bh.tinfo;
+	   hashint64 bh.timestamp;
+	   hashint32 bh.deltatime]))
     1028l
+
+let hash_blockheadersig bhs =
+  hashopair1
+    (hashpair
+       (hashsignat bhs.blocksignat)
+       (hashtag
+	  (hashint32 (Int32.of_int bhs.blocksignatrecid))
+	  (if bhs.blocksignatfcomp then 1029l else 1030l)))
+    (match bhs.blocksignatendorsement with
+    | None -> None
+    | Some(alpha,i,b,s) ->
+	Some(hashtag
+	       (hashlist [hashaddr (p2pkhaddr_addr alpha);hashint32 (Int32.of_int i); hashsignat s])
+	       (if b then 1031l else 1032l)))
+
+let hash_blockheader (bhd,bhs) =
+  hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
 let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
   bhd.stakeassetid = aid
@@ -512,17 +537,41 @@ let txl_of_block b =
   let (_,bd) = b in
   (coinstake b,List.map (fun (tx,_) -> tx) bd.blockdelta_stxl)
 
-let rec check_bhl pbh bhl oth =
-  if pbh = Some(oth) then (*** if this happens, then it's not a genuine fork; one of the lists is a sublist of the other ***)
-    raise Not_found
-  else
-    match bhl with
-    | [] -> pbh
-    | (bhd::bhr) ->
-	if pbh = Some(hash_blockheaderdata bhd) then
-	  check_bhl bhd.prevblockhash bhr oth
-	else
-	  raise Not_found
+let rec stxl_hashroot stxl =
+  merkle_root (List.map (fun (tau,tausigs) -> hashpair (hashtx tau) (hashtxsigs tausigs)) stxl)
+
+let blockdelta_hashroot bd =
+  hashpair
+    (hashopair1
+       (hashlist (List.map hash_addr_preasset bd.stakeoutput))
+       (match bd.forfeiture with
+       | None -> None
+       | Some(bh1,bh2,bhdl1,bhdl2,i,hl) ->
+	   Some (hashpair
+		   (hashpair (hash_blockheader bh1) (hash_blockheader bh2))
+		   (hashpair
+		      (hashpair
+			 (hashlist (List.map hash_blockheaderdata bhdl1))
+			 (hashlist (List.map hash_blockheaderdata bhdl2)))
+		      (hashpair (hashint64 i) (hashlist hl))))))
+    (hashopair1
+       (hashcgraft bd.prevledgergraft)
+       (stxl_hashroot bd.blockdelta_stxl))
+
+let rec check_bhl pbhsh bhl oth =
+  match pbhsh with
+  | None -> raise Not_found
+  | Some(pbh,_) ->
+      if pbh = oth then (*** if this happens, then it's not a genuine fork; one of the lists is a sublist of the other ***)
+	raise Not_found
+      else
+	match bhl with
+	| [] -> pbh
+	| (bhd::bhr) ->
+	    if pbh = hash_blockheaderdata bhd then
+	      check_bhl bhd.prevblockhash bhr oth
+	    else
+	      raise Not_found
 
 let rec check_poforfeit_a blkh alpha alphabs v fal tr =
   match fal with
@@ -562,6 +611,8 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
   if (valid_blockheader_a blkh tinfo (bhd,bhs) (aid,bday,obl,u)
 	&&
       tx_outputs_valid bd.stakeoutput
+        &&
+      blockdelta_hashroot bd = bhd.blockdeltaroot (*** the header commits to the blockdelta (including all txs and their signatures) ***)
 	&&
       (*** ensure that if the stake has an explicit obligation (e.g., it is borrowed for staking), then the obligation isn't changed; otherwise the staker could steal the borrowed stake; unchanged copy should be first output ***)
       begin
@@ -850,7 +901,7 @@ let blockheader_succ_a prevledgerroot tmstamp1 announcedpoburn1 tinfo1 bh2 =
 let blockheader_succ bh1 bh2 =
   let (bhd1,bhs1) = bh1 in
   let (bhd2,bhs2) = bh2 in
-  bhd2.prevblockhash = Some (hash_blockheaderdata bhd1)
+  bhd2.prevblockhash = Some (hash_blockheaderdata bhd1,hash_blockheadersig bhs1) (*** the next block must also commit to the previous signature ***)
     &&
   blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.announcedpoburn bhd1.tinfo bh2
 

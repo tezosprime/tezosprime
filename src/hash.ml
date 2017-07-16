@@ -696,3 +696,21 @@ let seo_termaddr o alpha c = seo_md160 o alpha c
 let sei_termaddr i c = sei_md160 i c
 let seo_pubaddr o alpha c = seo_md160 o alpha c
 let sei_pubaddr i c = sei_md160 i c
+
+let merkle_root (l:hashval list) : hashval option =
+  match l with
+  | [] -> None
+  | (h::r) ->
+      let rec merkle_root_a h r =
+	match r with
+	| [] -> [hashpair h h]
+	| [h2] -> [hashpair h h2]
+	| (h2::h3::r2) -> (hashpair h h2)::merkle_root_a h3 r2
+      in
+      let rec merkle_root_b h r =
+	match merkle_root_a h r with
+	| [] -> raise (Failure "impossible")
+	| [h2] -> h2
+	| (h2::r2) -> merkle_root_b h2 r2
+      in
+      Some (merkle_root_b h r)

@@ -107,3 +107,6 @@ let factor_inputs_ctree_cgraft inpl c =
 
 let seo_cgraft o g c = seo_list (seo_prod seo_hashval seo_ctree) o g c
 let sei_cgraft i c = sei_list (sei_prod sei_hashval sei_ctree) i c
+
+let hashcgraft g =
+  hashlist (List.map (fun (h,c) -> hashpair h (hashctree c)) g)

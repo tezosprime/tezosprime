@@ -201,3 +201,5 @@ let verifybitcoinmessage_recover alpha recid fcomp (r,s) m =
 
 let seo_signat o rs c = seo_prod seo_big_int_256 seo_big_int_256 o rs c
 let sei_signat i c = sei_prod sei_big_int_256 sei_big_int_256 i c
+
+let hashsignat (r,s) = hashpair (big_int_hashval r) (big_int_hashval s)

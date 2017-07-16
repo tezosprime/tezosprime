@@ -85,7 +85,8 @@ let tx_outputs_valid (outpl: addr_preasset list) =
 let tx_valid tau = tx_inputs_valid (tx_inputs tau) && tx_outputs_valid (tx_outputs tau)
 
 type gensignat_or_ref = GenSignatReal of gensignat | GenSignatRef of int
-type stx = tx * (gensignat_or_ref option list * gensignat_or_ref option list)
+type txsigs = gensignat_or_ref option list * gensignat_or_ref option list
+type stx = tx * txsigs
 
 exception BadOrMissingSignature
 
@@ -271,6 +272,11 @@ let seo_txsigs o g c = seo_prod (seo_list (seo_option seo_gensignat_or_ref)) (se
 let sei_txsigs i c = sei_prod (sei_list (sei_option sei_gensignat_or_ref)) (sei_list (sei_option sei_gensignat_or_ref)) i c
 let seo_stx o g c = seo_prod seo_tx seo_txsigs o g c
 let sei_stx i c = sei_prod sei_tx sei_txsigs i c
+
+let hashtxsigs g =
+  let s = Buffer.create 1000 in
+  seosbf (seo_txsigs seosb g (s,None));
+  sha256str (Buffer.contents s)
 
 module DbTx = Dbbasic (struct type t = tx let basedir = "tx" let seival = sei_tx seic let seoval = seo_tx seoc end)
 

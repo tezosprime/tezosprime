@@ -46,13 +46,6 @@ type poburn =
   | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
   | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
 
-type postor =
-  | PostorTrm of hashval option * trm * stp * hashval
-  | PostorDoc of payaddr * hashval * hashval option * pdoc * hashval
-
-val seo_postor : (int -> int -> 'a -> 'a) -> postor -> 'a -> 'a
-val sei_postor : (int -> 'a -> int * 'a) -> 'a -> postor * 'a
-
 type blockheaderdata = {
     prevblockhash : hashval option;
     newtheoryroot : hashval option;
@@ -61,7 +54,6 @@ type blockheaderdata = {
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
     announcedpoburn : poburn;
-    stored : postor option;
     timestamp : int64;
     deltatime : int32;
     tinfo : targetinfo;
@@ -122,16 +114,10 @@ val get_blockdelta : hashval -> blockdelta
 
 val coinstake : block -> tx
 
-val incrstake : int64 -> int64
-
-exception InappropriatePostor
-val check_postor_tm_r : trm -> hashval
-val check_postor_pdoc_r : pdoc -> hashval
-
 val check_hit_b : int64 -> int64 -> obligation -> int64
-  -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> poburn -> postor option -> bool
+  -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> poburn -> bool
 val check_hit_a : int64 -> int64 -> obligation -> int64
-  -> targetinfo -> int64 -> hashval -> p2pkhaddr -> poburn -> postor option -> bool
+  -> targetinfo -> int64 -> hashval -> p2pkhaddr -> poburn -> bool
 val check_hit : int64 -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
 
 val hash_blockheaderdata : blockheaderdata -> hashval

@@ -242,8 +242,8 @@ let compute_staking_chances n fromtm totm =
 		begin
 		  let hv = hitval !i h csm1 in
 		  let mtar = mult_big_int tar1 caf in
-		  let minv = succ_big_int (div_big_int hv mtar) in (*** ignoring storage for now ***)
-		  if lt_big_int minv (big_int_of_int64 v) then (*** hit without burn or storage ***)
+		  let minv = succ_big_int (div_big_int hv mtar) in
+		  if lt_big_int minv (big_int_of_int64 v) then (*** hit without burn ***)
 		    if mustburn then
 		      if allowedburn !i then
 			nextstake !i stkaddr h bday obl v (Some(0L)) (*** burn nothing, but announce in the pow chain (ltc) ***)
@@ -253,7 +253,7 @@ let compute_staking_chances n fromtm totm =
 		      nextstake !i stkaddr h bday obl v None
 		  else if allowedburn !i then
 		    let toburn = succ_big_int (succ_big_int (div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 1000))) in
-		    if lt_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn, without storage ***)
+		    if lt_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn ***)
 		      nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
 		end
 	    )
@@ -457,7 +457,6 @@ let stakingthread () =
 			stakeaddr = alpha;
 			stakeassetid = aid;
 			announcedpoburn = apob;
-			stored = None;
 			timestamp = tm;
 			deltatime = deltm;
 			tinfo = (csm,fsm,tar);

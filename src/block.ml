@@ -210,55 +210,6 @@ let sei_poburn i c =
     let (j,c) = sei_int32 i c in
     (SincePoburn(Int32.to_int j),c)
 
-type postor =
-  | PostorTrm of hashval option * trm * stp * hashval
-  | PostorDoc of payaddr * hashval * hashval option * pdoc * hashval
-
-let hashpostor r =
-  match r with
-  | PostorTrm(th,m,a,h) -> hashtag (hashopair2 th (hashpair (hashpair (hashtm m) (hashtp a)) h)) 192l
-  | PostorDoc(gamma,nonce,th,d,h) ->
-      hashtag (hashpair (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (hashpdoc d)))) h) 193l
-
-let hashopostor r =
-  match r with
-  | Some(r) -> Some(hashpostor r)
-  | None -> None
-
-let seo_postor o po c =
-  match po with
-  | PostorTrm(th,m,a,h) -> 
-      let c = o 1 0 c in
-      let c = seo_option seo_hashval o th c in
-      let c = seo_tm o m c in
-      let c = seo_tp o a c in
-      let c = seo_hashval o h c in
-      c
-  | PostorDoc(gamma,nonce,th,d,h) ->
-      let c = o 1 1 c in
-      let c = seo_payaddr o gamma c in
-      let c = seo_hashval o nonce c in
-      let c = seo_option seo_hashval o th c in
-      let c = seo_pdoc o d c in
-      let c = seo_hashval o h c in
-      c
-
-let sei_postor i c =
-  let (x,c) = i 1 c in
-  if x = 0 then
-    let (th,c) = sei_option sei_hashval i c in
-    let (m,c) = sei_tm i c in
-    let (a,c) = sei_tp i c in
-    let (h,c) = sei_hashval i c in
-    (PostorTrm(th,m,a,h),c)
-  else
-    let (gamma,c) = sei_payaddr i c in
-    let (nonce,c) = sei_hashval i c in
-    let (th,c) = sei_option sei_hashval i c in
-    let (d,c) = sei_pdoc i c in
-    let (h,c) = sei_hashval i c in
-    (PostorDoc(gamma,nonce,th,d,h),c)
-
 type blockheaderdata = {
     prevblockhash : hashval option;
     newtheoryroot : hashval option;
@@ -267,7 +218,6 @@ type blockheaderdata = {
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
     announcedpoburn : poburn;
-    stored : postor option;
     timestamp : int64;
     deltatime : int32;
     tinfo : targetinfo;
@@ -292,7 +242,6 @@ let fake_blockheader : blockheader =
      stakeaddr = (0l,0l,0l,0l,0l);
      stakeassetid = (0l,0l,0l,0l,0l,0l,0l,0l);
      announcedpoburn = SincePoburn(0);
-     stored = None;
      timestamp = 0L;
      deltatime = 0l;
      tinfo = ((0L,0L,0L,0L),(0L,0L,0L,0L),zero_big_int);
@@ -312,7 +261,6 @@ let seo_blockheaderdata o bh c =
   let c = seo_md160 o bh.stakeaddr c in (*** p2pkh addresses are md160 ***)
   let c = seo_hashval o bh.stakeassetid c in
   let c = seo_poburn o bh.announcedpoburn c in
-  let c = seo_option seo_postor o bh.stored c in
   let c = seo_int64 o bh.timestamp c in
   let c = seo_int32 o bh.deltatime c in
   let c = seo_targetinfo o bh.tinfo c in
@@ -327,7 +275,6 @@ let sei_blockheaderdata i c =
   let (x4,c) = sei_md160 i c in (*** p2pkh addresses are md160 ***)
   let (x5,c) = sei_hashval i c in
   let (x6a,c) = sei_poburn i c in
-  let (x6,c) = sei_option sei_postor i c in
   let (x7,c) = sei_int64 i c in
   let (x8,c) = sei_int32 i c in
   let (x9,c) = sei_targetinfo i c in
@@ -340,7 +287,6 @@ let sei_blockheaderdata i c =
 	stakeaddr = x4;
 	stakeassetid = x5;
 	announcedpoburn = x6a;
-	stored = x6;
 	timestamp = x7;
 	deltatime = x8;
 	tinfo = x9;
@@ -435,138 +381,26 @@ let get_blockdelta h =
 (*** missing code to ask peers for data ***)
     raise GettingRemoteData
 
-(*** multiply stake by 1.25 ***)
-let incrstake s =
-  Int64.add s (Int64.shift_right s 2)
-
-exception InappropriatePostor
-
-(*** m should be a term abbreviated except for one leaf ***)
-let rec check_postor_tm_r m =
-  match m with
-  | TmH(h) -> raise InappropriatePostor
-  | DB(i) -> hashtm m
-  | Prim(i) -> hashtm m
-  | Ap(m,TmH(k)) -> check_postor_tm_r m
-  | Ap(TmH(h),m) -> check_postor_tm_r m
-  | Ap(_,_) -> raise InappropriatePostor
-  | Imp(m,TmH(k)) -> check_postor_tm_r m
-  | Imp(TmH(h),m) -> check_postor_tm_r m
-  | Imp(_,_) -> raise InappropriatePostor
-  | Lam(a,m) -> check_postor_tm_r m
-  | All(a,m) -> check_postor_tm_r m
-  | TTpAp(m,a) -> check_postor_tm_r m
-  | TTpLam(m) -> check_postor_tm_r m
-  | TTpAll(m) -> check_postor_tm_r m
-
-(*** alpha is a p2pkhaddr, oid is a hashval, and these types are both the same as hashval ***)
-let check_postor_tm tm csm mtar alpha oid m =
-  try
-    let h = check_postor_tm_r m in
-    let betah = hashpair oid h in
-    let (x,_,_,_,_,_,_,_) = hashpair (hashaddr (p2pkhaddr_addr alpha)) betah in
-    Int32.logand x 0xffffl  = 0l (*** one of every 65536 (beta,h) pairs can be used by each address alpha ***)
-      &&
-    lt_big_int (hitval tm betah csm) mtar
-  with InappropriatePostor -> false
-
-(*** d should be a proof with everything abbreviated except for one leaf ***)
-let rec check_postor_pf_r d =
-  match d with
-  | Hyp(i) -> hashpf d
-  | Known(h) -> hashpf d
-  | PrLa(TmH(_),d) -> check_postor_pf_r d
-  | PrLa(_,_) -> raise InappropriatePostor
-  | TmLa(_,d) -> check_postor_pf_r d
-  | TmAp(d,TmH(_)) -> check_postor_pf_r d
-  | TmAp(_,_) -> raise InappropriatePostor
-  | PrAp(_,_) -> raise InappropriatePostor
-  | TpAp(d,_) -> check_postor_pf_r d
-  | TpLa(d) -> check_postor_pf_r d
-
-(*** ensure there's no extra information: nil or hash of the rest ***)
-let check_postor_pdoc_e d =
-  match d with
-  | PDocNil -> ()
-  | PDocHash(_) -> ()
-  | _ -> raise InappropriatePostor
-
-(*** d should be a partial doc abbreviated except for one leaf ***)
-let rec check_postor_pdoc_r d =
-  match d with
-  | PDocNil -> raise InappropriatePostor
-  | PDocHash(_) -> raise InappropriatePostor
-  | PDocSigna(h,dr) -> check_postor_pdoc_r dr
-  | PDocParam(h,a,dr) ->
-      check_postor_pdoc_e dr;
-      hashpair h (hashtp a)
-  | PDocParamHash(h,dr) -> check_postor_pdoc_r dr
-  | PDocDef(_,m,dr) ->
-      check_postor_pdoc_e dr;
-      check_postor_tm_r m
-  | PDocDefHash(h,dr) -> check_postor_pdoc_r dr
-  | PDocKnown(TmH(h),dr) -> check_postor_pdoc_r dr
-  | PDocKnown(m,dr) ->
-      check_postor_pdoc_e dr;
-      check_postor_tm_r m
-  | PDocConj(TmH(h),dr) -> check_postor_pdoc_r dr
-  | PDocConj(m,dr) ->
-      check_postor_pdoc_e dr;
-      check_postor_tm_r m
-  | PDocPfOf(TmH(_),d,dr) ->
-      check_postor_pdoc_e dr;
-      check_postor_pf_r d
-  | PDocPfOf(_,_,dr) -> raise InappropriatePostor
-  | PDocPfOfHash(h,dr) -> check_postor_pdoc_r dr
-
-(*** alpha is a p2pkhaddr, pubid is publication id (hashval), and these types are both the same as hashval ***)
-let check_postor_pdoc tm csm mtar alpha pubid m =
-  try
-    let h = check_postor_pdoc_r m in
-    let betah = hashpair pubid h in
-    let (_,_,_,_,_,_,_,x) = hashpair (hashaddr (p2pkhaddr_addr alpha)) betah in
-    Int32.logand x 0xffffl  = 0l (*** one of every 65536 (pubid,h) pairs can be used by each address alpha ***)
-      &&
-    lt_big_int (hitval tm betah csm) mtar
-  with InappropriatePostor -> false
-
 (***
  hitval computes a big_int by hashing the timestamp (in seconds), the stake's asset id and the current stake modifier.
  If there is no proof of burn or proof of storage, then there's a hit if the hitval is less than the target times the stake.
  If there is proof of burn, the number of litecoin satoshis * 10000 is added to the stake.
  With a proof of storage, the stake is multiplied by 1.25 before the comparison is made.
- A proof of storage is either a term or partial document which abbreviates everything except one
- leaf. That leaf hashed with the hash of the root of the term/pdoc should hash with the stake address
- in a way that has 16 0 bits as the least significant bits.
- That is, for each stake address there are 0.0015% of proofs-of-storage that can be used by that address.
 ***)
-let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd =
+let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn =
   let (v,sincepow) =
     match brn with
     | Poburn(_,_,u) -> (Int64.add v (Int64.mul u 1000L),0)
     | SincePoburn(j) -> (v,j)
   in
-  match strd with
-  | None -> lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
-  | Some(PostorTrm(th,m,a,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
-      let oid = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
-      let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
-      lt_big_int (hitval tmstmp stkid csm) mtar
-	&&
-      check_postor_tm tmstmp csm mtar stkaddr oid m
-  | Some(PostorDoc(gamma,nonce,th,d,h)) -> (*** h is not relevant here; it is the asset id to look it up in the ctree ***)
-      let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
-      let mtar = (mult_big_int tar (coinage blkh bday obl sincepow (incrstake v))) in
-      lt_big_int (hitval tmstmp stkid csm) mtar
-	&&
-      check_postor_pdoc tmstmp csm mtar stkaddr prebeta d
+  lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
 
-let check_hit_a blkh bday obl v tinf tmstmp stkid stkaddr brn strd =
+let check_hit_a blkh bday obl v tinf tmstmp stkid stkaddr brn =
   let (csm,fsm,tar) = tinf in
-  check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn strd
+  check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn
 
 let check_hit blkh tinf bh bday obl v =
-  check_hit_a blkh bday obl v tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn bh.stored
+  check_hit_a blkh bday obl v tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
@@ -587,11 +421,9 @@ let hash_blockheaderdata bh =
 	     (hashpair (hashaddr (p2pkhaddr_addr bh.stakeaddr)) bh.stakeassetid)
 	     (hashpair
 		(hashpoburn bh.announcedpoburn)
-		(hashopair2
-		   (hashopostor bh.stored)
-		   (hashpair
-		      (hashtargetinfo bh.tinfo)
-		      (hashpair (hashint64 bh.timestamp) (hashint32 bh.deltatime))))))))
+		(hashpair
+		   (hashtargetinfo bh.tinfo)
+		   (hashpair (hashint64 bh.timestamp) (hashint32 bh.deltatime)))))))
     1028l
 
 let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
@@ -608,27 +440,6 @@ let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
 	  match bhd.announcedpoburn with
 	  | Poburn(_,_,_) -> true
 	  | SincePoburn(i) -> i < 256 (*** insist on poburn at least every 256 blocks ***)
-	end
-	  &&
-	begin
-	  match bhd.stored with
-	  | None -> true
-	  | Some(PostorTrm(th,m,a,h)) ->
-	      let oid = hashopair2 th (hashpair (tm_hashroot m) (hashtp a)) in
-	      let beta = hashval_md160 oid in
-	      begin
-		match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq (termaddr_addr beta)) with
-		| Some(_,_,_,OwnsObj(oid2,_,_)) when oid = oid2 -> true
-		| _ -> false
-	      end
-	  | Some(PostorDoc(gamma,nonce,th,d,h)) ->
-	      let prebeta = hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (pdoc_hashroot d))) in
-	      let beta = hashval_pub_addr prebeta in
-	      begin
-		match ctree_lookup_asset false false h bhd.prevledger (addr_bitseq beta) with
-		| Some(_,_,_,DocPublication(_,_,_,_)) -> true
-		| _ -> false
-	      end
 	end
       end
   | _ -> false

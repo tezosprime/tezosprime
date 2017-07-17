@@ -174,7 +174,7 @@ let fallbacknodes = [
 ]
 
 let testnetfallbacknodes = [
-"45.76.18.38:20804"
+"87.121.52.180:20804"
 (* ":20804" *)
 ]
 

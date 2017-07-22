@@ -50,7 +50,7 @@ val lookup_thytree : hashval option -> Mathdata.ttree option
 val lookup_sigtree : hashval option -> Mathdata.stree option
 
 val publish_stx : hashval -> stx -> unit
-val publish_block : int64 -> hashval -> block -> unit
+val publish_block : int64 -> hashval -> block -> big_int -> unit
 
 val send_inv : int -> out_channel -> connstate -> unit
 

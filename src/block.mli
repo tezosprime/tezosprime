@@ -91,6 +91,16 @@ val sei_blockdelta : (int -> 'a -> int * 'a) -> 'a -> blockdelta * 'a
 val seo_block : (int -> int -> 'a -> 'a) -> block -> 'a -> 'a
 val sei_block : (int -> 'a -> int * 'a) -> 'a -> block * 'a
 
+module DbRecentHeaders :
+    sig
+      val dbinit : unit -> unit
+      val dbget : Hash.hashval -> big_int
+      val dbexists : Hash.hashval -> bool
+      val dbput : Hash.hashval -> big_int -> unit
+      val dbdelete : Hash.hashval -> unit
+      val dbkeyiter : (Hash.hashval -> unit) -> unit
+    end
+
 module DbBlockHeader :
     sig
       val dbinit : unit -> unit
@@ -98,7 +108,6 @@ module DbBlockHeader :
       val dbexists : Hash.hashval -> bool
       val dbput : Hash.hashval -> blockheader -> unit
       val dbdelete : Hash.hashval -> unit
-      val dbkeyiter : (Hash.hashval -> unit) -> unit
     end
 
 module DbBlockDelta :
@@ -109,6 +118,15 @@ module DbBlockDelta :
       val dbput : Hash.hashval -> blockdelta -> unit
       val dbdelete : Hash.hashval -> unit
     end
+
+module DbInvalidatedBlocks :
+  sig
+    val dbinit : unit -> unit
+    val dbget : hashval -> bool
+    val dbexists : hashval -> bool
+    val dbput : hashval -> bool -> unit
+    val dbdelete : hashval -> unit
+  end
 
 val get_blockheader : hashval -> blockheader
 val get_blockdelta : hashval -> blockdelta

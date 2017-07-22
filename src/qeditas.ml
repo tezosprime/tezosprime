@@ -566,7 +566,7 @@ let stakingthread () =
 		let tmtopub = Int64.sub tm (Int64.of_float nw) in
 		if tmtopub > 1L then Unix.sleep (Int64.to_int tmtopub);
 		let publish_new_block () =
-		  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew);
+		  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;
 		  let newnode =
 		    BlocktreeNode(Some(best),ref [],Some(bhdnewh,bhsnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
 		  in
@@ -733,6 +733,18 @@ let do_command oc l =
       let (tm,skew) = network_time() in
       Printf.fprintf oc "network time %Ld (median skew of %d)\n" tm skew;
       flush oc;
+  | "invalidateblock" ->
+      begin
+	match al with
+	| [h] -> DbInvalidatedBlocks.dbput (hexstring_hashval h) true
+	| _ -> raise (Failure "invalidateblock <blockhash>")
+      end
+  | "revalidateblock" ->
+      begin
+	match al with
+	| [h] -> DbInvalidatedBlocks.dbdelete (hexstring_hashval h)
+	| _ -> raise (Failure "revalidateblock <blockhash>")
+      end
   | "printassets" when al = [] -> Commands.printassets oc
   | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger oc (hexstring_hashval h)) al
   | "printtx" -> List.iter (fun h -> Commands.printtx (hexstring_hashval h)) al
@@ -924,8 +936,10 @@ let initialize () =
     DbTxSignatures.dbinit();
     DbHConsElt.dbinit();
     DbCTreeElt.dbinit();
+    DbRecentHeaders.dbinit();
     DbBlockHeader.dbinit();
     DbBlockDelta.dbinit();
+    DbInvalidatedBlocks.dbinit();
     Printf.printf "Initialized.\n"; flush stdout;
     openlog(); (*** Don't open the log until the config vars are set, so if we know whether or not it's testnet. ***)
     if !Config.seed = "" && !Config.lastcheckpoint = "" then

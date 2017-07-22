@@ -219,23 +219,7 @@ let rec prev_nth_node i n =
 let update_bestnode n =
   Printf.fprintf !log "New best blockheader %s\n" (match node_prevblockhash n with Some(h,_) -> hashval_hexstring h | None -> "(genesis)"); flush !log;
   bestnode := n;
-  netblkh := node_blockheight n;
-  match !checkpointsprivkeyk with
-  | None -> ()
-  | Some(k) ->
-      match prev_nth_node 36 n with
-      | None -> () ; (** no block is deep enough to be a checkpoint **)
-      | Some(p) ->
-	  match node_prevblockhash p with
-	  | None -> () (** genesis block is the default checkpoint; ignore **)
-	  | Some(h,_) ->
-	      Printf.fprintf !log "Creating new checkpoint %Ld %s\n" (node_blockheight p) (hashval_hexstring h);
-	      lastcheckpointnode := p;
-	      let pblkh = node_blockheight p in
-	      let r = rand_256() in
-	      let sg : signat = signat_hashval h k r in
-	      Hashtbl.add checkpoints h (pblkh,sg);
-	      broadcast_inv [(int_of_msgtype Checkpoint,pblkh,h)]
+  netblkh := node_blockheight n
 
 let rec processdelayednodes tm btnl =
   match btnl with
@@ -325,6 +309,31 @@ let rec validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs 
   else
     raise (Failure("parent was validated but thyroot and/or sigroot is not known"));;
 
+let recent_header_count = ref 0;;
+
+let add_to_recent_headers hnew csnew =
+  incr recent_header_count;
+  if !recent_header_count < 512 then
+    begin
+      recent_header_count := 0;
+      let all = ref [] in
+      DbRecentHeaders.dbkeyiter
+	(fun h ->
+	  let cs = DbRecentHeaders.dbget h in
+	  all := (h,cs)::!all);
+      all := List.sort (fun (_,n) (_,m) -> compare_big_int m n) !all;
+      DbRecentHeaders.dbput hnew csnew;
+      let m = ref 0 in
+      List.iter
+	(fun (h,cs) ->
+	  incr m;
+	  if !m > 255 then
+	    DbRecentHeaders.dbdelete h)
+	!all
+    end
+  else
+    DbRecentHeaders.dbput hnew csnew
+
 let fstohash a =
   match a with
   | None -> None
@@ -368,12 +377,11 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 a initialization knownvalid 
 	    blockheader_succ_a ledgerroot tmstamp currpoburn currtinfo blkh1
 	  then
 	    begin
-	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currpoburn currtinfo blkh1);
-	      if not (DbBlockHeader.dbexists h) then DbBlockHeader.dbput h blkh1;
-	      Hashtbl.add blkheaders h ();
-	      broadcast_inv [(int_of_msgtype Headers,blkhght,h)];
 	      let (csm1,fsm1,tar1) = currtinfo in
 	      let newcumulstake = cumul_stake prevcumulstk tar1 blkhd1.deltatime in
+	      if not (DbBlockHeader.dbexists h) then (DbBlockHeader.dbput h blkh1; if not initialization then add_to_recent_headers h newcumulstake);
+	      Hashtbl.add blkheaders h ();
+	      broadcast_inv [(int_of_msgtype Headers,blkhght,h)];
 	      let validated = ref (if knownvalid then ValidBlock else Waiting(Unix.time(),None)) in
 	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,blkhs1h),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,blkhd1.announcedpoburn,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
@@ -459,12 +467,31 @@ and process_new_header h hh initialization knownvalid =
   if not (Hashtbl.mem blkheaders h) then
     process_new_header_b h hh initialization knownvalid
 
+let rec init_headers_to h =
+  let blkh1 = DbBlockHeader.dbget h in
+  let (blkhd1,blkhs1) = blkh1 in
+  begin
+    match blkhd1.prevblockhash with
+    | Some(ph,_) -> init_headers_to ph
+    | None -> ()
+  end;
+  process_new_header_a h (hashval_hexstring h) (hash_blockheadersig blkhs1) blkh1 blkhd1 true false
+
 let init_headers () =
-  DbBlockHeader.dbkeyiter
+  let bestheader = ref None in
+  DbRecentHeaders.dbkeyiter
     (fun h ->
-      let hs = hashval_hexstring h in
-      Printf.printf "processing header %s\n" hs; flush stdout;
-      process_new_header h hs true false)
+      let cs = DbRecentHeaders.dbget h in
+      match !bestheader with
+      | None -> bestheader := Some(h,cs)
+      | Some(h1,cs1) ->
+	  if gt_big_int cs cs1 then bestheader := Some(h,cs));
+  match !bestheader with
+  | None -> () (*** no recent headers; starting from genesis ***)
+  | Some(h,cs) ->
+      Printf.printf "Initializing headers from last best header %s\n" (hashval_hexstring h); flush stdout;
+      init_headers_to h;
+      Printf.printf "Initialized headers up to %s\n" (hashval_hexstring h); flush stdout
 
 let initblocktree () =
   genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,SincePoburn(0),(!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget),!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);
@@ -509,10 +536,11 @@ let publish_stx txh stx1 =
   Hashtbl.add published_stx txh ();
   broadcast_inv [(int_of_msgtype STx,0L,txh)]
 
-let publish_block blkh bhh (bh,bd) =
+let publish_block blkh bhh (bh,bd) cs =
   Printf.fprintf !log "publishing block %s\n" (hashval_hexstring bhh); flush !log;
   DbBlockHeader.dbput bhh bh;
   DbBlockDelta.dbput bhh bd;
+  add_to_recent_headers bhh cs;
   broadcast_inv [(int_of_msgtype Headers,blkh,bhh);(int_of_msgtype Blockdelta,blkh,bhh)];;
 
 Hashtbl.add msgtype_handler GetHeader

@@ -755,7 +755,7 @@ let tryconnectpeer n =
 	| Some(5) ->
 	    raise (Failure "socks5 is not yet supported")
 	| Some(z) ->
-	    raise (Failure ("socks" ^ (string_of_int z) ^ " is not yet supported"))
+	    raise (Failure ("do not know what socks" ^ (string_of_int z) ^ " means"))
       with
       | RequestRejected ->
 	  Printf.fprintf !log "RequestRejected\n"; flush !log;

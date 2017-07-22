@@ -573,7 +573,7 @@ Hashtbl.add msgtype_handler Headers
       begin (*** excessive logging while testing ***)
 	let s = Buffer.create 10000 in
 	seosbf (seo_blockheader seosb bh (s,None));
-	Printf.fprintf !log "got blockheader %s:\n%s\n" (hashval_hexstring h) (Hashaux.string_hexstring (Buffer.contents s));
+	Printf.fprintf !log "got blockheader %s:\n" (hashval_hexstring h)
       end;
       if not (DbBlockHeader.dbexists h) && List.mem (i,h) cs.invreq then
 	let (bhd,bhs) = bh in
@@ -619,14 +619,10 @@ let req_headers sout cs m nw =
       let co = ref (seo_int8 seosb m (s,None)) in
       List.iter (fun h -> co := seo_hashval seosb h !co) nw;
       seosbf !co;
-      Printf.fprintf !log "req_headers requesting:";
-      List.iter (fun h -> Printf.fprintf !log " %s" (hashval_hexstring h)) nw;
-      Printf.fprintf !log "\n";
       ignore (queue_msg cs GetHeaders (Buffer.contents s))
     end;;
 
 let rec req_header_batches sout cs m hl nw =
-  Printf.fprintf !log "rhb %d\n" m;
   if m = 255 then
     (req_headers sout cs m nw; req_header_batches sout cs 0 hl [])
   else
@@ -642,11 +638,9 @@ Hashtbl.add msgtype_handler Inv
     let c = ref (ms,String.length ms,None,0,0) in
     let hl = ref [] in
     let (n,cn) = sei_int32 seis !c in
-    Printf.fprintf !log "Inv %ld\n" n;
     c := cn;
     for j = 1 to Int32.to_int n do
       let ((i,blkh,h),cn) = sei_prod3 sei_int8 sei_int64 sei_hashval seis !c in
-      Printf.fprintf !log "%d %Ld %s\n" i blkh (hashval_hexstring h);
       c := cn;
       cs.rinv <- (i,h)::cs.rinv;
       if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeader.dbexists h) (DbArchived.dbexists h);
@@ -658,9 +652,7 @@ Hashtbl.add msgtype_handler Inv
 	      let (bhd,bhs) = bh in
 	      process_new_header_a h (hashval_hexstring h) (hash_blockheadersig bhs) bh bhd false false
 	  with Not_found ->
-	    hl := List.merge (fun (blkh1,_) (blkh2,_) -> compare blkh2 blkh1) !hl [(blkh,h)]; (*** reverse order because they will be reversed again when requested ***)
-	    Printf.fprintf !log "i %d blkh %Ld h %s hl:\n" i blkh (hashval_hexstring h);
-	    List.iter (fun (blkh1,h1) -> Printf.fprintf !log "%Ld %s\n" blkh1 (hashval_hexstring h)) !hl
+	    hl := List.merge (fun (blkh1,_) (blkh2,_) -> compare blkh2 blkh1) !hl [(blkh,h)] (*** reverse order because they will be reversed again when requested ***)
 	end
       else if i = int_of_msgtype Blockdelta && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && Hashtbl.mem tovalidate h then
 	begin
@@ -717,9 +709,7 @@ Hashtbl.add msgtype_handler Inv
 
 Hashtbl.add msgtype_handler GetBlockdelta
     (fun (sin,sout,cs,ms) ->
-      Printf.fprintf !log "Processing GetBlockdelta\n";
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      Printf.fprintf !log "Processing GetBlockdelta %s\n" (hashval_hexstring h);
       let i = int_of_msgtype GetBlockdelta in
       if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
 	try
@@ -727,7 +717,6 @@ Hashtbl.add msgtype_handler GetBlockdelta
 	  let bdsb = Buffer.create 100 in
 	  seosbf (seo_blockdelta seosb blkdel (seo_hashval seosb h (bdsb,None)));
 	  let bdser = Buffer.contents bdsb in
-	  Printf.fprintf !log "Sending Block Delta (from db) %s\n" (hashval_hexstring h);
 	  ignore (queue_msg cs Blockdelta bdser);
 	  cs.sentinv <- (i,h)::cs.sentinv
 	with Not_found ->
@@ -751,8 +740,7 @@ Hashtbl.add msgtype_handler Blockdelta
 		      let (blkdel,_) = sei_blockdelta seis r in
 		      begin (*** excessive logging while testing ***)
 			let s = Buffer.create 10000 in
-			seosbf (seo_blockdelta seosb blkdel (s,None));
-			Printf.fprintf !log "got blockdelta %s:\n%s\n" (hashval_hexstring h) (Hashaux.string_hexstring (Buffer.contents s));
+			seosbf (seo_blockdelta seosb blkdel (s,None))
 		      end;
 		      validate_block_of_node newnode None None (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) 1L h blkdel cs
 		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,_,tinf,_,_,blkhght,vsp,_,_)) ->
@@ -783,9 +771,7 @@ Hashtbl.add msgtype_handler Blockdelta
 
 Hashtbl.add msgtype_handler GetTx
     (fun (sin,sout,cs,ms) ->
-      Printf.fprintf !log "Processing GetTx\n";
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      Printf.fprintf !log "Processing GetTx %s\n" (hashval_hexstring h);
       let i = int_of_msgtype GetTx in
       if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
 	try
@@ -982,7 +968,6 @@ Hashtbl.add msgtype_handler GetCheckpoint
 	  let sb = Buffer.create 100 in
 	  seosbf (seo_signat seosb chsg (seo_int64 seosb chblkh (seo_hashval seosb h (sb,None))));
 	  let ser = Buffer.contents sb in
-	  Printf.fprintf !log "Sending Checkpoint %s\n" (hashval_hexstring h);
 	  ignore (queue_msg cs Checkpoint ser);
 	  cs.sentinv <- (i,h)::cs.sentinv
 	with Not_found ->

@@ -369,7 +369,7 @@ type connstate = {
 let send_inv_fn : (int -> out_channel -> connstate -> unit) ref = ref (fun _ _ _ -> ())
 let msgtype_handler : (msgtype,in_channel * out_channel * connstate * string -> unit) Hashtbl.t = Hashtbl.create 50
 
-let send_msg c mh replyto mt ms =
+let send_msg_real c mh replyto mt ms =
   let magic = if !Config.testnet then 0x51656454l else 0x5165644dl in (*** Magic Number for testnet: QedT and for mainnet: QedM ***)
   let msl = String.length ms in
   seocf (seo_int32 seoc magic (c,None));
@@ -388,6 +388,12 @@ let send_msg c mh replyto mt ms =
     output_byte c (Char.code ms.[j])
   done;
   flush c
+
+let send_msg c mh replyto mt ms =
+  send_msg_real c mh replyto mt ms;
+  let f = open_out_gen [Open_wronly;Open_creat;Open_append] 0o644 (!Config.datadir ^ (if !Config.testnet then "/testnet/sentlog" else "/sentlog")) in
+  send_msg_real f mh replyto mt ms;
+  close_out f
 
 let queue_msg_real cs replyto mt m =
   let mh = sha256str m in
@@ -578,6 +584,11 @@ let connlistener (s,sin,sout,gcs) =
 	match !gcs with
 	| Some(cs) ->
 	    let tm = Unix.time() in
+            let f = open_out_gen [Open_wronly;Open_creat;Open_append] 0o644
+                            (!Config.datadir ^ (if !Config.testnet then "/testnet/reclog_" else "/reclog_") ^ (string_hexstring cs.addrfrom)) in
+            output_value f tm;
+            output_value f (replyto,mh,mt,m);
+            close_out f;
 	    cs.lastmsgtm <- tm;
 	    if Hashtbl.mem knownpeers cs.addrfrom then Hashtbl.replace knownpeers cs.addrfrom (Int64.of_float tm);
 	    Printf.fprintf !log "about to call handle_msg with msg %s %s\n" (string_of_msgtype mt) (hashval_hexstring mh);

@@ -392,6 +392,7 @@ let send_msg_real c mh replyto mt ms =
 let send_msg c mh replyto mt ms =
   send_msg_real c mh replyto mt ms;
   let f = open_out_gen [Open_wronly;Open_creat;Open_append] 0o644 (!Config.datadir ^ (if !Config.testnet then "/testnet/sentlog" else "/sentlog")) in
+  seocf (seo_int64 seoc (Int64.of_float (Unix.time())) (f,None));
   send_msg_real f mh replyto mt ms;
   close_out f
 

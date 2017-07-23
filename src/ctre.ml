@@ -904,21 +904,19 @@ let get_nehlist_element h =
   | (ah,Some(k)) -> NehConsH(ah,HHash(k))
   | (ah,None) -> NehConsH(ah,HNil)
 
+(** this should never request information from the database or remote nodes; if an asset to spend is not found, raise Not_found **)
 let rec remove_assets_hlist hl spent =
-  match hl with
-  | HCons((h,bh,obl,u) as a,hr) ->
-      if List.mem h spent then
-	remove_assets_hlist hr spent
-      else
-	HCons(a,remove_assets_hlist hr spent)
-  | HConsH(h,hr) ->
-      let ((aid,bh,obl,u) as a) = get_asset h in
-      if List.mem aid spent then
-	remove_assets_hlist hr spent
-      else
-	HConsH(h,remove_assets_hlist hr spent)
-  | HHash(h) -> remove_assets_hlist (get_hlist_element h) spent
-  | _ -> hl
+  if spent = [] then (** if spent is empty, then we have finished removing (we assume asset ids are unique so one removal is enough) **)
+    hl
+  else
+    match hl with
+    | HCons((h,bh,obl,u) as a,hr) ->
+	if List.mem h spent then
+	  remove_assets_hlist hr (List.filter (fun k -> not (k = h)) spent) (** remember it has been removed **)
+	else
+	  HCons(a,remove_assets_hlist hr spent)
+    | HConsH(h,hr) -> HConsH(h,remove_assets_hlist hr spent)
+    | _ -> raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
 
 let rec ctree_super_element_a tr i =
   if i > 0 then

@@ -933,10 +933,10 @@ let rec remove_assets_hlist exp req hl spent =
 	if exp then
 	  if req then
 	    let (h1,h2) = get_hcons_element h in
-	    remove_assets_hlist exp req (HConsH(h,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
 	  else
 	    let (h1,h2) = DbHConsElt.dbget h in
-	    remove_assets_hlist exp req (HConsH(h,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
 	else
 	  raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
     | _ ->
@@ -982,10 +982,17 @@ let get_ctree_element h =
     broadcast_requestdata GetCTreeElement h;
     raise GettingRemoteData
 
-let rec octree_S_inv c =
+let rec octree_S_inv exp req c =
   match c with
   | None -> (None,None)
-  | Some(CHash(h)) -> octree_S_inv (Some(get_ctree_element h))
+  | Some(CHash(h)) ->
+      if exp then
+	if req then
+	  octree_S_inv exp req (Some(get_ctree_element h))
+	else
+	  octree_S_inv exp req (Some(DbCTreeElt.dbget h))
+      else
+	raise Not_found
   | Some(CLeaf([],hl)) ->
       raise Not_found
   | Some(CLeaf(false::bl,hl)) -> (Some(CLeaf(bl,hl)),None)
@@ -999,7 +1006,7 @@ let rec tx_octree_trans_ exp req n inpl outpl c =
     c
   else if n > 0 then
     begin
-      match octree_S_inv c with
+      match octree_S_inv exp req c with
       | (c0,c1) ->
 	  match
 	    tx_octree_trans_ exp req (n-1) (strip_bitseq_false inpl) (strip_bitseq_false outpl) c0,

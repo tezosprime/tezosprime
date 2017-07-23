@@ -383,7 +383,7 @@ let stakingthread () =
 				let bytesestimate = 2048 * List.length tauin + 2048 * List.length tauout in (*** simple 2K per input and output (since must include relevant parts of ctree) ***)
 				if bytesestimate < !rembytesestimate then
 				  begin
-				    let c = octree_ctree (tx_octree_trans blkh (tauin,tauout) (Some(!dync))) in
+				    let c = octree_ctree (tx_octree_trans true false blkh (tauin,tauout) (Some(!dync))) in
 				    otherstxs := (h,((tauin,tauout),sg))::!otherstxs;
 				    fees := Int64.sub !fees nfee;
 				    dync := c;
@@ -425,7 +425,7 @@ let stakingthread () =
 		let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
 		let stkoutl = [(alpha2,(obl2,Currency(v)));(alpha2,(Some(p2pkhaddr_payaddr alpha,Int64.add blkh (reward_locktime blkh),true),Currency(Int64.add !fees (rewfn blkh))))] in
 		let coinstk : tx = ([(alpha2,aid)],stkoutl) in
-		dync := octree_ctree (tx_octree_trans blkh coinstk (Some(!dync)));
+		dync := octree_ctree (tx_octree_trans true false blkh coinstk (Some(!dync)));
 		let prevcforblock =
 		  match
 		    get_txl_supporting_octree (coinstk::othertxs) prevc

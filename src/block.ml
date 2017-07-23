@@ -813,7 +813,7 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 	   ***)
 	  begin
 	    let (cstk,txl) = txl_of_block b in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	    match tx_octree_trans blkh cstk (txl_octree_trans blkh txl (Some(tr))) with
+	    match tx_octree_trans false false blkh cstk (txl_octree_trans false false blkh txl (Some(tr))) with (*** "false false" disallows database lookups and remote requests ***)
 	    | Some(tr2) ->
 		bhd.newledgerroot = ctree_hashroot tr2
 	    | None -> false

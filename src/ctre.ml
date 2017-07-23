@@ -904,19 +904,43 @@ let get_nehlist_element h =
   | (ah,Some(k)) -> NehConsH(ah,HHash(k))
   | (ah,None) -> NehConsH(ah,HNil)
 
-(** this should never request information from the database or remote nodes; if an asset to spend is not found, raise Not_found **)
-let rec remove_assets_hlist hl spent =
+(**
+  if exp is true, then allow loading from database.
+  if req is true, then allow remote requests.
+  if exp and req are false (as should be the case when validating blocks): this should never request information from the database or remote nodes; if an asset to spend is not found, raise Not_found
+**)
+let rec remove_assets_hlist exp req hl spent =
   if spent = [] then (** if spent is empty, then we have finished removing (we assume asset ids are unique so one removal is enough) **)
     hl
   else
     match hl with
     | HCons((h,bh,obl,u) as a,hr) ->
 	if List.mem h spent then
-	  remove_assets_hlist hr (List.filter (fun k -> not (k = h)) spent) (** remember it has been removed **)
+	  remove_assets_hlist exp req hr (List.filter (fun k -> not (k = h)) spent) (** remember it has been removed **)
 	else
-	  HCons(a,remove_assets_hlist hr spent)
-    | HConsH(h,hr) -> HConsH(h,remove_assets_hlist hr spent)
-    | _ -> raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
+	  HCons(a,remove_assets_hlist exp req hr spent)
+    | HConsH(h,hr) ->
+	if exp then
+	  if req then
+	    let a = get_asset h in
+	    remove_assets_hlist exp req (HCons(a,hr)) spent
+	  else
+	    let a = DbAsset.dbget h in
+	    remove_assets_hlist exp req (HCons(a,hr)) spent
+	else (** assume h is not an asset to be removed (if it is, spent will be nonempty when we get to the end) **)
+	  HConsH(h,remove_assets_hlist exp req hr spent)
+    | HHash(h) ->
+	if exp then
+	  if req then
+	    let (h1,h2) = get_hcons_element h in
+	    remove_assets_hlist exp req (HConsH(h,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	  else
+	    let (h1,h2) = DbHConsElt.dbget h in
+	    remove_assets_hlist exp req (HConsH(h,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	else
+	  raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
+    | _ ->
+	raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
 
 let rec ctree_super_element_a tr i =
   if i > 0 then
@@ -970,7 +994,7 @@ let rec octree_S_inv c =
   | Some(CRight(c1)) -> (None,Some(c1))
   | Some(CBin(c0,c1)) -> (Some(c0),Some(c1))
 
-let rec tx_octree_trans_ n inpl outpl c =
+let rec tx_octree_trans_ exp req n inpl outpl c =
   if inpl = [] && outpl = [] then
     c
   else if n > 0 then
@@ -978,8 +1002,8 @@ let rec tx_octree_trans_ n inpl outpl c =
       match octree_S_inv c with
       | (c0,c1) ->
 	  match
-	    tx_octree_trans_ (n-1) (strip_bitseq_false inpl) (strip_bitseq_false outpl) c0,
-	    tx_octree_trans_ (n-1) (strip_bitseq_true inpl) (strip_bitseq_true outpl) c1
+	    tx_octree_trans_ exp req (n-1) (strip_bitseq_false inpl) (strip_bitseq_false outpl) c0,
+	    tx_octree_trans_ exp req (n-1) (strip_bitseq_true inpl) (strip_bitseq_true outpl) c1
 	  with
 	  | None,None -> None
 	  | Some(CLeaf(bl,hl)),None -> Some(CLeaf(false::bl,hl))
@@ -998,7 +1022,7 @@ let rec tx_octree_trans_ n inpl outpl c =
 	  | _ -> raise (Failure "not a ctree 0")
 	end
       in
-      let hl2 = hlist_new_assets (List.map (fun (x,y) -> y) outpl) (remove_assets_hlist hl (List.map (fun (x,y) -> y) inpl)) in
+      let hl2 = hlist_new_assets (List.map (fun (x,y) -> y) outpl) (remove_assets_hlist exp req hl (List.map (fun (x,y) -> y) inpl)) in
       match hl2 with
       | HNil -> None
       | HHash(h) -> Some(CLeaf([],NehHash(h)))
@@ -1017,16 +1041,16 @@ let add_vout bh txh outpl =
     outpl;
   !r
 
-let tx_octree_trans bh tx c =
+let tx_octree_trans exp req bh tx c =
   let (inpl,outpl) = tx in
-  tx_octree_trans_ 162
+  tx_octree_trans_ exp req 162
     (List.map (fun (alpha,h) -> (addr_bitseq alpha,h)) inpl)
     (add_vout bh (hashtx tx) outpl)
     c
 
-let rec txl_octree_trans bh txl c =
+let rec txl_octree_trans exp req bh txl c =
   match txl with
-  | (tx::txr) -> txl_octree_trans bh txr (tx_octree_trans bh tx c)
+  | (tx::txr) -> txl_octree_trans exp req bh txr (tx_octree_trans exp req bh tx c)
   | [] -> c
 
 let rec expand_hlist req hl z =

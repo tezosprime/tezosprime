@@ -79,8 +79,8 @@ val ctree_lookup_input_assets : bool -> bool -> addr_assetid list -> ctree -> (a
 val ctree_supports_tx : bool -> bool -> ttree option -> stree option -> int64 -> tx -> ctree -> int64
 val ctree_supports_tx_2 : bool -> bool -> ttree option -> stree option -> int64 -> tx -> (addr * asset) list -> asset list -> ctree -> int64
 
-val tx_octree_trans : int64 -> tx -> ctree option -> ctree option
-val txl_octree_trans : int64 -> tx list -> ctree option -> ctree option
+val tx_octree_trans : bool -> bool -> int64 -> tx -> ctree option -> ctree option
+val txl_octree_trans : bool -> bool -> int64 -> tx list -> ctree option -> ctree option
 
 val octree_lub : ctree option -> ctree option -> ctree option
 

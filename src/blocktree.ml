@@ -288,7 +288,7 @@ let rec validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs 
 	  begin
 	    let prevc = load_expanded_ctree (ctree_of_block blk) in
 	    let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	    match tx_octree_trans blkhght cstk (txl_octree_trans blkhght txl (Some(prevc))) with
+	    match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
 	    | Some(newc) -> ignore (save_ctree_elements newc)
 	    | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
 	  end;

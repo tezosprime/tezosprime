@@ -423,7 +423,7 @@ let stakingthread () =
 		    otherstxs := stau::!otherstxs)
 		  ostxs;
 		let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
-		let stkoutl = [(alpha2,(obl2,Currency(v)));(alpha2,(Some(p2pkhaddr_payaddr alpha,Int64.add blkh (reward_locktime blkh),true),Currency(Int64.add !fees (rewfn blkh))))] in
+		let stkoutl = [(alpha2,(obl2,Currency(v)));(alpha2,(Some(p2pkhaddr_payaddr alpha,Int64.add blkh reward_locktime,true),Currency(Int64.add !fees (rewfn blkh))))] in
 		let coinstk : tx = ([(alpha2,aid)],stkoutl) in
 		dync := octree_ctree (tx_octree_trans true false blkh coinstk (Some(!dync)));
 		let prevcforblock =

@@ -17,35 +17,19 @@ open Config
 
 let datadir () = if !testnet then (Filename.concat !datadir "testnet") else !datadir
 
-let intention_minage = 144L
+let intention_minage = 4L (** one day, at 6 hour block times **)
 
 let sqr512 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 9)) in mult_big_int y y
 
 let maximum_age = 16384L
 let maximum_age_sqr = sqr512 maximum_age
-let reward_maturation = 512L (*** rewards become stakable after 512 blocks ***)
-let close_to_unlocked = 32L
+let reward_maturation = 32L (*** rewards become stakable after 32 blocks, about 8 days ***)
+let close_to_unlocked = 8L
 
-(*** make reward locktime start at a very big number of 16384
-  (so that initial rewards must be locked for at least 16384 blocks, about 4 months)
-  but over time reduces to being locked for 128 blocks (about a day).
-  It reduces by half each roughly 4 months until it reaches 128 after roughly 2 years.
-  For block heights < 16384, the reward locktime is 16384.
-  For block heights in [16384,32767], the reward locktime is 8192.
-  For block heights in [32768,49151], the reward locktime is 4096.
-  For block heights in [49152,65535], the reward locktime is 2048.
-  For block heights in [65536,81919], the reward locktime is 1024.
-  For block heights in [81920,98303], the reward locktime is 512.
-  For block heights in [98304,114687], the reward locktime is 256.
-  For block heights >= 114688, the reward locktime is 128
+(***
+  adjustment to account for slow block times, just use 32 blocks independent of the block height.
  ***)
-let reward_locktime blkh =
-  let a = Int64.shift_right blkh 14 in
-  if a >= 7L then
-    128L
-  else
-    let b = Int64.to_int a in
-    Int64.shift_right 16384L b
+let reward_locktime = 32L
 
 let coinagefactor blkh bday obl sincepob =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)

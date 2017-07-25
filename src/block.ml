@@ -639,7 +639,7 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 		    &&
 		  begin
 		    try (*** all other outputs must be marked as rewards and are subject to forfeiture; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
-		      ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh (reward_locktime blkh) -> false | _ -> true) remouts);
+		      ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh reward_locktime -> false | _ -> true) remouts);
 		      false
 		    with Not_found -> true
 		  end
@@ -656,13 +656,13 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
 		    v2 = v
 		      &&
 		    try
-		      ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh (reward_locktime blkh) -> false | _ -> true) remouts);
+		      ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh reward_locktime -> false | _ -> true) remouts);
 		      false
 		    with Not_found -> true
 		  end
 	      | _ ->
 		  try
-		    ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh (reward_locktime blkh) -> false | _ -> true) bd.stakeoutput);
+		    ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh reward_locktime -> false | _ -> true) bd.stakeoutput);
 		    false
 		  with Not_found -> true
 	    end
@@ -864,14 +864,14 @@ let ledgerroot_of_blockchain bc =
   let (((bhd,bhs),bd),bl) = bc in
   bhd.newledgerroot
 
-(*** retargeting at each step ***)
+(*** retargeting at each step (July 2017, changed to very slow block time target of 6 hours, 21600 seconds) ***)
 let retarget tar deltm =
   min_big_int
     !max_target
     (div_big_int
        (mult_big_int tar
-	  (big_int_of_int32 (Int32.add 9000l deltm)))
-       (big_int_of_int 9600))
+	  (big_int_of_int32 (Int32.add 10000l deltm)))
+       (big_int_of_int (10000 + 21600)))
 
 (*** cumulative stake ***)
 let cumul_stake cs tar deltm =

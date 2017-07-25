@@ -17,7 +17,8 @@ let intconfigvars = [
 ("socksport",fun x -> Config.socksport := x);
 ("rpcport",fun x -> Config.rpcport := x);
 ("maxconns",fun x -> Config.maxconns := x);
-("burnifleq",fun x -> Config.burnifleq := x)
+("burnifleq",fun x -> Config.burnifleq := x);
+("minconnstostake",fun x -> Config.minconnstostake := x)
 ];;
 let int64configvars = [
 ("genesistime",fun x -> Config.genesistimestamp := x);

@@ -566,17 +566,22 @@ let stakingthread () =
 		let tmtopub = Int64.sub tm (Int64.of_float nw) in
 		if tmtopub > 1L then Unix.sleep (Int64.to_int tmtopub);
 		let publish_new_block () =
-		  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;
-		  let newnode =
-		    BlocktreeNode(Some(best),ref [],Some(bhdnewh,bhsnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
-		  in
-		  Printf.fprintf !log "block at height %Ld: %s, deltm = %ld, timestamp %Ld, cumul stake %s\n" blkh (hashval_hexstring bhdnewh) bhdnew.deltatime tm (string_of_big_int csnew); 
-		  record_recent_staker alpha newnode 6;
-		  Hashtbl.add blkheadernode (Some(bhdnewh)) newnode;
-		  update_bestnode newnode;
-		  netblkh := node_blockheight newnode;
-		  let children_ref = node_children_ref best in
-		  children_ref := (bhdnewh,newnode)::!children_ref;
+		  if List.length !netconns < !Config.minconnstostake then
+		    Printf.fprintf !log "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns)
+		  else
+		    begin
+		      publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;
+		      let newnode =
+			BlocktreeNode(Some(best),ref [],Some(bhdnewh,bhsnewh),newthtroot,newsigtroot,newcr,bhdnew.announcedpoburn,bhdnew.tinfo,tm,csnew,Int64.add 1L blkh,ref ValidBlock,ref false,ref [])
+		      in
+		      Printf.fprintf !log "block at height %Ld: %s, deltm = %ld, timestamp %Ld, cumul stake %s\n" blkh (hashval_hexstring bhdnewh) bhdnew.deltatime tm (string_of_big_int csnew); 
+		      record_recent_staker alpha newnode 6;
+		      Hashtbl.add blkheadernode (Some(bhdnewh)) newnode;
+		      update_bestnode newnode;
+		      netblkh := node_blockheight newnode;
+		      let children_ref = node_children_ref best in
+		      children_ref := (bhdnewh,newnode)::!children_ref
+		    end
 		in
 		if node_validationstatus best = ValidBlock then (*** Don't publish a successor unless the previous block has been fully validated ***)
 		  let currbestnode = !bestnode in (*** in case it has changed ***)

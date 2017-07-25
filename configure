@@ -80,6 +80,7 @@ else
     echo let randomseed = ref None >> src/config.ml
 fi
 echo let checkpointskey = ref None >> src/config.ml
+echo let minconnstostake = ref 2 >> src/config.ml
 if [ $BYTECODE ]; then
     if [ $INSTALLDIR ]; then
 	echo "bytecode cannot be installed"

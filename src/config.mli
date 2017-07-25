@@ -23,3 +23,4 @@ val burnifleq : int ref
 val seed : string ref
 val randomseed : string option ref
 val checkpointskey : string option ref
+val minconnstostake : int ref

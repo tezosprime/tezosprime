@@ -567,7 +567,10 @@ let stakingthread () =
 		if tmtopub > 1L then Unix.sleep (Int64.to_int tmtopub);
 		let publish_new_block () =
 		  if List.length !netconns < !Config.minconnstostake then
-		    Printf.fprintf !log "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns)
+		    begin
+		      Printf.fprintf !log "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns);
+		      Unix.sleep 600 (*** delay for 10 minutes before continuing trying to stake to see if more connections arrive by then ***)
+		    end
 		  else
 		    begin
 		      publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;

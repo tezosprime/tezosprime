@@ -256,6 +256,7 @@ exception RequestRejected
 exception IllformedMsg
 exception ProtocolViolation of string
 exception SelfConnection
+exception DupConnection
 
 let openlistener ip port numconns =
   let s = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
@@ -350,6 +351,7 @@ type connstate = {
     connmutex : Mutex.t;
     sendqueue : (hashval * hashval option * msgtype * string) Queue.t;
     sendqueuenonempty : Condition.t;
+    mutable nonce : int64 option;
     mutable handshakestep : int;
     mutable peertimeskew : int;
     mutable protvers : int32;
@@ -505,7 +507,10 @@ let handle_msg replyto mt sin sout cs mh m =
 	      begin
 		if n = !this_nodes_nonce then
 		  raise SelfConnection
+		else if (try ignore (List.find (fun (_,_,(_,_,_,gcs)) -> match !gcs with Some(cs) -> cs.nonce = Some(n) | None -> false) !netconns); true with Not_found -> false) then
+		  raise DupConnection
 		else
+		  cs.nonce = Some(n); (** remember the nonce to prevent duplicate connections to the same node **)
 		  let minvers = if vers > Version.protocolversion then Version.protocolversion else 0l in
 		  let mytm = Int64.of_float (Unix.time()) in
 		  let tmskew = Int64.sub tm mytm in
@@ -618,6 +623,11 @@ let connlistener (s,sin,sout,gcs) =
 	  flush !log;
 	  Unix.close s;
 	  raise Exit
+      | DupConnection -> (*** detected a duplicate connection attempt, close ***)
+	  Printf.fprintf !log "Stopping potential duplicate connection\n";
+	  flush !log;
+	  Unix.close s;
+	  raise Exit
       | exc -> (*** report but ignore all other exceptions ***)
 	  Printf.fprintf !log "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc);
 	  flush !log;
@@ -686,7 +696,7 @@ let initialize_conn_accept ra s =
       set_binary_mode_in sin true;
       set_binary_mode_out sout true;
       let tm = Unix.time() in
-      let cs = { conntime = tm; realaddr = ra; connmutex = Mutex.create(); sendqueue = Queue.create(); sendqueuenonempty = Condition.create(); handshakestep = 1; peertimeskew = 0; protvers = Version.protocolversion; useragent = ""; addrfrom = ""; banned = false; lastmsgtm = tm; pending = []; sentinv = []; rinv = []; invreq = []; first_header_height = 0L; first_full_height = 0L; last_height = 0L } in
+      let cs = { conntime = tm; realaddr = ra; connmutex = Mutex.create(); sendqueue = Queue.create(); sendqueuenonempty = Condition.create(); nonce = None; handshakestep = 1; peertimeskew = 0; protvers = Version.protocolversion; useragent = ""; addrfrom = ""; banned = false; lastmsgtm = tm; pending = []; sentinv = []; rinv = []; invreq = []; first_header_height = 0L; first_full_height = 0L; last_height = 0L } in
       let sgcs = (s,sin,sout,ref (Some(cs))) in
       let clth = Thread.create connlistener sgcs in
       let csth = Thread.create connsender sgcs in
@@ -719,7 +729,7 @@ let initialize_conn_2 n s sin sout =
        ((vers,srvs,Int64.of_float tm,n,myaddr(),!this_nodes_nonce),
 	(Version.useragent,fhh,ffh,lh,relay,lastchkpt))
        (vm,None));
-  let cs = { conntime = tm; realaddr = n; connmutex = Mutex.create(); sendqueue = Queue.create(); sendqueuenonempty = Condition.create(); handshakestep = 2; peertimeskew = 0; protvers = Version.protocolversion; useragent = ""; addrfrom = ""; banned = false; lastmsgtm = tm; pending = []; sentinv = []; rinv = []; invreq = []; first_header_height = fhh; first_full_height = ffh; last_height = lh } in
+  let cs = { conntime = tm; realaddr = n; connmutex = Mutex.create(); sendqueue = Queue.create(); sendqueuenonempty = Condition.create(); nonce = None; handshakestep = 2; peertimeskew = 0; protvers = Version.protocolversion; useragent = ""; addrfrom = ""; banned = false; lastmsgtm = tm; pending = []; sentinv = []; rinv = []; invreq = []; first_header_height = fhh; first_full_height = ffh; last_height = lh } in
   queue_msg cs Version (Buffer.contents vm);
   let sgcs = (s,sin,sout,ref (Some(cs))) in
   let clth = Thread.create connlistener sgcs in

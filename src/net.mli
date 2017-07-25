@@ -61,6 +61,7 @@ type connstate = {
     connmutex : Mutex.t;
     sendqueue : (hashval * hashval option * msgtype * string) Queue.t;
     sendqueuenonempty : Condition.t;
+    mutable nonce : int64 option;
     mutable handshakestep : int;
     mutable peertimeskew : int;
     mutable protvers : int32;

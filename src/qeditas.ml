@@ -979,6 +979,35 @@ initialize();;
 initnetwork();;
 if !Config.staking then stkth := Some(Thread.create stakingthread ());;
 
+let last_failure = ref None;;
+let failure_count = ref 0;;
+let failure_delay() =
+  let tm = Unix.time() in
+  match !last_failure with
+  | Some(tm0) ->
+      let d = tm -. tm0 in
+      if d > 21600.0 then (** first failure in 6 hours, reset failure count to 1 and only delay 1 second **)
+	begin
+	  failure_count := 1;
+	  last_failure := Some(tm);
+	  Unix.sleep 1
+	end
+      else if !failure_count > 100 then (** after 100 regular failures, just exit **)
+	begin
+	  closelog();
+	  !exitfn 1
+	end
+      else
+	begin
+	  incr failure_count;
+	  last_failure := Some(tm);
+	  Unix.sleep !failure_count (** with each new failure, delay for longer **)
+	end
+  | None ->
+      incr failure_count;
+      last_failure := Some(tm);
+      Unix.sleep 1
+
 let readevalloop () =
   while true do
     try
@@ -992,9 +1021,11 @@ let readevalloop () =
 	Printf.printf "Shutting down threads. Please be patient.\n"; flush stdout;
 	!exitfn 0
     | Failure(x) ->
-	Printf.fprintf stdout "Ignoring Uncaught Failure: %s\n" x; flush stdout
+	Printf.fprintf stdout "Ignoring Uncaught Failure: %s\n" x; flush stdout;
+	failure_delay()
     | exn -> (*** unexpected ***)
-	Printf.fprintf stdout "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush stdout
+	Printf.fprintf stdout "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush stdout;
+	failure_delay()
   done;;
 
 let daemon_readevalloop () =
@@ -1017,9 +1048,11 @@ let daemon_readevalloop () =
 	closelog();
 	!exitfn 0
     | Failure(x) ->
-	Printf.fprintf !log "Ignoring Uncaught Failure: %s\n" x; flush !log
+	Printf.fprintf !log "Ignoring Uncaught Failure: %s\n" x; flush !log;
+	failure_delay()
     | exn -> (*** unexpected ***)
-	Printf.fprintf !log "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush !log
+	Printf.fprintf !log "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush !log;
+	failure_delay()
   done;;
     
 

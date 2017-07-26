@@ -397,7 +397,7 @@ let get_blockdelta h =
 let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn =
   let (v,sincepow) =
     match brn with
-    | Poburn(_,_,u) -> (Int64.add v (Int64.mul u 1000L),0)
+    | Poburn(_,_,u) -> (Int64.add v (Int64.mul (min u 100000000000L) 1000000L),0) (*** burning more than 1000 ltc still counts as only 1000 ***)
     | SincePoburn(j) -> (v,j)
   in
   lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
@@ -466,7 +466,7 @@ let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
 	begin
 	  match bhd.announcedpoburn with
 	  | Poburn(_,_,_) -> true
-	  | SincePoburn(i) -> i < 256 (*** insist on poburn at least every 256 blocks ***)
+	  | SincePoburn(i) -> i < 1 (*** insist on poburn every block ***)
 	end
       end
   | _ -> false

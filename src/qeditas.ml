@@ -192,12 +192,7 @@ let fstohash a =
 let compute_staking_chances n fromtm totm =
   let i = ref fromtm in
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,currpoburn,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
-  let (mustburn,sincepob) =
-    match currpoburn with
-    | SincePoburn(j) when j+1 >= 256 -> (true,j+1) (*** burn is required for next block ***)
-    | SincePoburn(j) -> (false,j+1)
-    | _ -> (false,1)
-  in
+  let (mustburn,sincepob) = (true,1) in (*** require a burn every block ***)
   if !Config.maxburn < 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
     ()
   else

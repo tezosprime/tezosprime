@@ -449,9 +449,7 @@ let rec_msg blkh c =
       Buffer.add_char sb (Char.chr by)
     done;
     let ms = Buffer.contents sb in
-    Printf.fprintf !log "Got msg %s\n" (string_of_msgtype mt);
     if not (mh = sha256str ms) then raise IllformedMsg;
-    Printf.fprintf !log "msg hash correct\n";
     (replyto,mh,mt,ms)
   with
   | _ -> (*** consider it an IllformedMsg no matter what the exception raised was ***)
@@ -597,9 +595,7 @@ let connlistener (s,sin,sout,gcs) =
             close_out f;
 	    cs.lastmsgtm <- tm;
 	    if Hashtbl.mem knownpeers cs.addrfrom then Hashtbl.replace knownpeers cs.addrfrom (Int64.of_float tm);
-	    Printf.fprintf !log "about to call handle_msg with msg %s %s\n" (string_of_msgtype mt) (hashval_hexstring mh);
 	    handle_msg replyto mt sin sout cs mh m;
-	    Printf.fprintf !log "handle_msg returned normally %s %s\n" (string_of_msgtype mt) (hashval_hexstring mh);
 	    if cs.banned then raise (ProtocolViolation("banned"))
 	| None -> raise End_of_file (*** connection died; this probably shouldn't happen, as we should have left this thread when it died ***)
       with

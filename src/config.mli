@@ -11,6 +11,8 @@ val ipv6 : bool ref
 val port : int ref
 val socks : int option ref
 val socksport : int ref
+val rpcuser : string ref
+val rpcpass : string ref
 val rpcport : int ref
 val maxconns : int ref
 val lastcheckpoint : string ref

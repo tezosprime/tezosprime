@@ -713,6 +713,22 @@ let do_command oc l =
   | "clearbanned" -> clearbanned()
   | "listbanned" -> Hashtbl.iter (fun n () -> Printf.printf "%s\n" n) bannedpeers
   | "bannode" -> List.iter (fun n -> banpeer n) al
+  | "getinfo" ->
+      remove_dead_conns();
+      let ll = List.length !netconns in
+      Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
+      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = !bestnode in
+      begin
+	match pbh with
+	| Some(h,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
+	| None -> Printf.fprintf oc "No blocks yet\n"
+      end;
+      let (bal1,bal2,bal3,bal4) = Commands.get_cants_balances_in_ledger oc ledgerroot in
+      Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants bal1);
+      Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants bal2);
+      Printf.fprintf oc "Total via endorsement: %s fraenks\n" (fraenks_of_cants bal3);
+      Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants bal4);
+      Printf.fprintf oc "Sum of all: %s fraenks\n" (fraenks_of_cants (Int64.add bal1 (Int64.add bal2 (Int64.add bal3 bal4))))
   | "getpeerinfo" ->
       remove_dead_conns();
       let ll = List.length !netconns in

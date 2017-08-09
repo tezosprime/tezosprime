@@ -1,11 +1,19 @@
-opt: bin/qeditas
-bytecode: bin/qeditasbc
+all: opt bytecode
+
+opt: bin/qeditas bin/qeditascli
+bytecode: bin/qeditasbc bin/qeditasbccli
 
 bin/qeditas: bin/qeditas.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditas unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx blocktree.cmx setconfig.cmx commands.cmx qeditas.cmx
 
+bin/qeditascli: bin/qeditascli.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditascli unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx blocktree.cmx setconfig.cmx commands.cmx qeditascli.cmx
+
 bin/qeditasbc: bin/qeditas.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/qeditasbc unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo blocktree.cmo setconfig.cmo commands.cmo qeditas.cmo
+
+bin/qeditasbccli: bin/qeditascli.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/qeditasbccli unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo blocktree.cmo setconfig.cmo commands.cmo qeditascli.cmo
 
 bin/version.cmi: src/version.mli
 	$(OCAMLC) -I bin -o bin/version.cmi -c src/version.mli
@@ -172,6 +180,9 @@ bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bi
 bin/qeditas.cmx: src/qeditas.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditas.cmx -c src/qeditas.ml
 
+bin/qeditascli.cmx: src/qeditascli.ml bin/setconfig.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditascli.cmx -c src/qeditascli.ml
+
 bin/tmp.cmx: src/tmp.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tmp.cmx -c src/tmp.ml
 
@@ -261,6 +272,9 @@ bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bi
 
 bin/qeditas.cmo: src/qeditas.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/qeditas.cmo -c src/qeditas.ml
+
+bin/qeditascli.cmo: src/qeditascli.ml bin/setconfig.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/qeditascli.cmo -c src/qeditascli.ml
 
 bin/tmp.cmo: src/tmp.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/tmp.cmo -c src/tmp.ml

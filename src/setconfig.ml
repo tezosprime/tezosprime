@@ -5,7 +5,9 @@
 let stringconfigvars = [
 ("seed",fun x -> Config.seed := x);
 ("lastcheckpoint",fun x -> Config.lastcheckpoint := x);
-("prompt",fun x -> Config.prompt := x)
+("prompt",fun x -> Config.prompt := x);
+("rpcuser",fun x -> Config.rpcuser := x);
+("rpcpass",fun x -> Config.rpcpass := x)
 ];;
 let boolconfigvars = [
 ("daemon",fun x -> Config.daemon := x);

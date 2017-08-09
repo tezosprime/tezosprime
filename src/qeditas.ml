@@ -1028,20 +1028,66 @@ let readevalloop () =
 	failure_delay()
   done;;
 
+
+exception Timeout
+
+let run_with_timeout timeout f x =
+  let old_handler = Sys.signal Sys.sigalrm
+    (Sys.Signal_handle (fun _ -> raise Timeout)) in
+  let finish () =
+    ignore (Unix.alarm 0);
+    ignore (Sys.signal Sys.sigalrm old_handler) in
+  try
+    ignore (Unix.alarm timeout);
+    ignore (f x);
+    finish ()
+  with Timeout -> finish ()
+  | exn -> finish (); raise exn
+
+exception Timeout
+
 let daemon_readevalloop () =
   let lst = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   let ia = Unix.inet_addr_of_string "127.0.0.1" in
-  Unix.bind lst (Unix.ADDR_INET(ia,!Config.rpcport));
+  begin
+    try
+      Unix.bind lst (Unix.ADDR_INET(ia,!Config.rpcport));
+    with _ ->
+      Printf.printf "Cannot bind to rpcport. Quitting.\n";
+      !exitfn 1
+  end;
+  let efn = !exitfn in
+  exitfn := (fun n -> Unix.close lst; efn n);
   Unix.listen lst 1;
   while true do
     try
       let (s,a) = Unix.accept lst in
       let sin = Unix.in_channel_of_descr s in
       let sout = Unix.out_channel_of_descr s in
-      let l = input_line sin in
-      do_command sout l;
-      close_in sin;
-      close_out sout
+      let alrmh = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> raise Timeout)) in
+      try
+	ignore (Unix.alarm 2);
+	let l = input_line sin in
+	if not (l = !Config.rpcuser) then raise (Failure "bad rpcuser");
+	let l = input_line sin in
+	if not (l = !Config.rpcpass) then raise (Failure "bad rpcpass");
+	let l = input_line sin in
+	ignore (Unix.alarm 60);
+	do_command sout l;
+	flush sout;
+	ignore (Unix.alarm 0);
+	ignore (Sys.signal Sys.sigalrm alrmh);
+	Unix.close s
+      with
+      | Timeout -> 
+	  flush sout;
+	  ignore (Sys.signal Sys.sigalrm alrmh);
+	  Unix.close s
+      | exn ->
+	  flush sout;
+	  ignore (Sys.signal Sys.sigalrm alrmh);
+	  Unix.close s;
+	  raise exn
     with
     | Exit -> () (*** silently ignore ***)
     | End_of_file ->

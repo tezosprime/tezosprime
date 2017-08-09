@@ -873,6 +873,9 @@ let retarget tar deltm =
 	  (big_int_of_int32 (Int32.add 10000l deltm)))
        (big_int_of_int (10000 + 21600)))
 
+let difficulty tar =
+  div_big_int !max_target tar
+
 (*** cumulative stake ***)
 let cumul_stake cs tar deltm =
   add_big_int

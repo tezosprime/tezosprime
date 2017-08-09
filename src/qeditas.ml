@@ -32,6 +32,7 @@ let rec pblockchain s n c lr m =
       | None -> ()
     end;
   Printf.fprintf s "Target: %s\n" (string_of_big_int tar);
+  Printf.fprintf s "Difficulty: %s\n" (string_of_big_int (difficulty tar));
   match c with
   | Some(h,_) ->
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
@@ -725,6 +726,7 @@ let do_command oc l =
 	| None -> Printf.fprintf oc "No blocks yet\n"
       end;
       Printf.fprintf oc "Target: %s\n" (string_of_big_int tar);
+      Printf.fprintf oc "Difficulty: %s\n" (string_of_big_int (difficulty tar));
       let (bal1,bal2,bal3,bal4) = Commands.get_cants_balances_in_ledger oc ledgerroot in
       Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants bal1);
       Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants bal2);

@@ -157,6 +157,7 @@ val ctree_of_block : block -> ctree
 val txl_of_block : block -> tx * tx list
 
 val retarget : big_int -> int32 -> big_int
+val difficulty : big_int -> big_int
 val cumul_stake : big_int -> big_int -> int32 -> big_int
 
 val valid_block : ttree option -> stree option -> int64 -> targetinfo -> block -> (ttree option * stree option) option

@@ -24,13 +24,14 @@ open Blocktree;;
 open Setconfig;;
 
 let rec pblockchain s n c lr m =
-  let BlocktreeNode(par,_,pbh,_,_,plr,_,_,_,_,blkh,_,_,chl) = n in
+  let BlocktreeNode(par,_,pbh,_,_,plr,_,(csm,fsm,tar),_,_,blkh,_,_,chl) = n in
   if m > 0 then
     begin
       match par with
       | Some(p) -> pblockchain s p pbh (Some(plr)) (m-1)
       | None -> ()
     end;
+  Printf.printf "Target: %s\n" (string_of_big_int tar);
   match c with
   | Some(h,_) ->
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
@@ -40,7 +41,7 @@ let rec pblockchain s n c lr m =
 	    Printf.fprintf s "block %Ld %s (post block ledger %s)\n" blkh (hashval_hexstring h) (hashval_hexstring lr)
 	| None ->
 	    Printf.fprintf s "block %Ld %s\n" blkh (hashval_hexstring h)
-      end
+      end;
   | None ->
       List.iter (fun (k,_) -> Printf.fprintf s "[extra child, not yet considered best %s]\n" (hashval_hexstring k)) !chl
 
@@ -717,12 +718,13 @@ let do_command oc l =
       remove_dead_conns();
       let ll = List.length !netconns in
       Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
-      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = !bestnode in
+      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,(csm,fsm,tar),_,_,blkh,_,_,_) = !bestnode in
       begin
 	match pbh with
 	| Some(h,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
 	| None -> Printf.fprintf oc "No blocks yet\n"
       end;
+      Printf.printf "Target: %s\n" (string_of_big_int tar);
       let (bal1,bal2,bal3,bal4) = Commands.get_cants_balances_in_ledger oc ledgerroot in
       Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants bal1);
       Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants bal2);
@@ -1116,7 +1118,6 @@ let daemon_readevalloop () =
 	Printf.fprintf !log "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush !log;
 	failure_delay()
   done;;
-    
 
 if !Config.daemon then
   daemon_readevalloop ()

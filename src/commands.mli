@@ -24,6 +24,8 @@ val storagetrmassets : (hashval option * trm * stp * hashval * hashval) list ref
 val storagedocassets : (pubaddr * hashval * hashval option * pdoc * hashval * hashval) list ref
 val unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t
 
+val get_cants_balances_in_ledger : out_channel -> hashval -> int64 * int64 * int64 * int64
+
 val add_to_txpool : hashval -> Tx.stx -> unit
 val remove_from_txpool : hashval -> unit
 

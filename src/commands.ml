@@ -26,6 +26,8 @@ let stakingassets = ref []
 let storagetrmassets = ref []
 let storagedocassets = ref []
 
+let cants_balances_in_ledger : (hashval,int64 * int64 * int64 * int64) Hashtbl.t = Hashtbl.create 100
+
 let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100
 
 let add_to_txpool txid stau =
@@ -472,11 +474,111 @@ let printassets_in_ledger oc ledgerroot =
   Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants !tot1);
   Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants !tot2);
   Printf.fprintf oc "Total via endorsement: %s fraenks\n" (fraenks_of_cants !tot3);
-  Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants !tot4)
+  Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants !tot4);
+  Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
   let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = !bestnode in
   printassets_in_ledger oc ledgerroot
+
+let get_cants_balances_in_ledger oc ledgerroot =
+  try
+    Hashtbl.find cants_balances_in_ledger ledgerroot
+  with Not_found ->
+    let ctr = Ctre.CHash(ledgerroot) in
+    let warned = ref false in
+    let waitprinted = ref false in
+    let tot1 = ref 0L in
+    let tot2 = ref 0L in
+    let tot3 = ref 0L in
+    let tot4 = ref 0L in
+    let numtrys = ref 11 in
+    let handler f =
+      try
+	if !numtrys > 1 then decr numtrys;
+	for i = 1 to !numtrys do
+	  try
+	    f();
+	    raise Exit
+	  with GettingRemoteData ->
+	    if !netconns = [] then
+	      begin (** ignore if there are no connections **)
+		if not !warned then
+		  begin
+		    Printf.fprintf oc "Warning: The complete ledger is not in the local database and there are no connections to request missing data.\n";
+		    Printf.fprintf oc "Some displayed balances may be too small.\n";
+		    warned := true
+		  end;
+		raise Exit
+	      end
+	    else
+	      begin
+		if not !waitprinted then (Printf.fprintf oc "Some data is being requested from remote nodes...please wait a minute or two...\n"; flush oc; waitprinted := true);
+		Unix.sleep 2;
+	      end
+	done;
+	if not !warned then
+	  begin
+	    Printf.fprintf oc "Warning: The complete ledger is not in the local database.\n";
+	    Printf.fprintf oc "Remote data is being requested, but is taking too long.\n";
+	    Printf.fprintf oc "Some assets in the ledger might not be displayed.\n";
+	    warned := true
+	  end
+      with Exit -> ()
+    in
+    let asset_sumcurr tot a =
+      match a with
+      | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
+      | _ -> ()
+    in
+    let rec hlist_sumcurr tot (hl:hlist) =
+      match hl with
+      | HNil -> ()
+      | HConsH(ah,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot (get_asset ah)
+      | HCons(a,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot a
+      | HHash(hh) -> hlist_sumcurr tot (get_hlist_element hh)
+    in
+    let rec nehlist_sumcurr tot (hl:nehlist) =
+      match hl with
+      | NehConsH(ah,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot (get_asset ah)
+      | NehCons(a,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot a
+      | NehHash(hh) -> nehlist_sumcurr tot (get_nehlist_element hh)
+    in
+    List.iter
+      (fun (k,b,(x,y),w,h,z) ->
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot1 hl
+	    | _ -> ()))
+      !walletkeys;
+    List.iter
+      (fun (h,z,scr) ->
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true (p2shaddr_addr h) ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot2 hl
+	    | _ -> ()))
+      !walletp2shs;
+    List.iter
+      (fun (alpha,beta,(x,y),recid,fcomp,esg) -> 
+	let alpha2 = payaddr_addr alpha in
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true alpha2 ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot3 hl
+	    | _ -> ()))
+      !walletendorsements;
+    List.iter
+      (fun alpha ->
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true alpha ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot4 hl
+	    | _ -> ()))
+      !walletwatchaddrs;
+    Hashtbl.add cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4);
+    (!tot1,!tot2,!tot3,!tot4)
 
 let printasset h =
   try

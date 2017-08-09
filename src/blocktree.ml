@@ -468,14 +468,17 @@ and process_new_header h hh initialization knownvalid =
     process_new_header_b h hh initialization knownvalid
 
 let rec init_headers_to h =
-  let blkh1 = DbBlockHeader.dbget h in
-  let (blkhd1,blkhs1) = blkh1 in
-  begin
-    match blkhd1.prevblockhash with
-    | Some(ph,_) -> init_headers_to ph
-    | None -> ()
-  end;
-  process_new_header_a h (hashval_hexstring h) (hash_blockheadersig blkhs1) blkh1 blkhd1 true false
+  try
+    let blkh1 = DbBlockHeader.dbget h in
+    let (blkhd1,blkhs1) = blkh1 in
+    begin
+      match blkhd1.prevblockhash with
+      | Some(ph,_) -> init_headers_to ph
+      | None -> ()
+    end;
+    process_new_header_a h (hashval_hexstring h) (hash_blockheadersig blkhs1) blkh1 blkhd1 true false
+  with Not_found ->
+    Printf.printf "Could not find header %s\nStarting node without initializing headers.\n" (hashval_hexstring h)
 
 let init_headers () =
   let bestheader = ref None in

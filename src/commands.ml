@@ -737,7 +737,6 @@ let createtx inpj outpj =
 			    begin
 			      let beta2 = qedaddrstr_addr beta in
 			      let v = cants_of_fraenks x in
-			      Printf.printf "saw %s computed %Ld cants which is %s fraenks\n" x v (fraenks_of_cants v);
 			      try
 				let lockj = List.assoc "lock" al in
 				match lockj with

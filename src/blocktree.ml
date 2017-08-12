@@ -601,11 +601,6 @@ Hashtbl.add msgtype_handler Headers
       let (h,cn) = sei_hashval seis !c in
       let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
       c := cn;
-      begin (*** excessive logging while testing ***)
-	let s = Buffer.create 10000 in
-	seosbf (seo_blockheader seosb bh (s,None));
-	Printf.fprintf !log "got blockheader %s:\n" (hashval_hexstring h)
-      end;
       if not (DbBlockHeader.dbexists h) && List.mem (i,h) cs.invreq then
 	let (bhd,bhs) = bh in
 	let bhsh = hash_blockheadersig bhs in
@@ -769,30 +764,16 @@ Hashtbl.add msgtype_handler Blockdelta
 		  match par with
 		  | None -> (*** genesis node, parent implicitly valid ***)
 		      let (blkdel,_) = sei_blockdelta seis r in
-		      begin (*** excessive logging while testing ***)
-			let s = Buffer.create 10000 in
-			seosbf (seo_blockdelta seosb blkdel (s,None))
-		      end;
 		      validate_block_of_node newnode None None (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) 1L h blkdel cs
 		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,_,tinf,_,_,blkhght,vsp,_,_)) ->
 		      match !vsp with
 		      | InvalidBlock -> raise Not_found (*** questionable if this can happen ***)
 		      | Waiting(_,_) ->
 			  let (blkdel,_) = sei_blockdelta seis r in
-			  begin (*** excessive logging while testing ***)
-			    let s = Buffer.create 10000 in
-			    seosbf (seo_blockdelta seosb blkdel (s,None));
-			    Printf.fprintf !log "got blockdelta %s, waiting for parent block to be validated:\n%s\n" (hashval_hexstring h) (Hashaux.string_hexstring (Buffer.contents s));
-			  end;
 			  vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
 		      | ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
 			  begin
 			    let (blkdel,_) = sei_blockdelta seis r in
-			    begin (*** excessive logging while testing ***)
-			      let s = Buffer.create 10000 in
-			      seosbf (seo_blockdelta seosb blkdel (s,None));
-			      Printf.fprintf !log "got blockdelta %s:\n%s\n" (hashval_hexstring h) (Hashaux.string_hexstring (Buffer.contents s));
-			    end;
 			    validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs
 			  end
 		end

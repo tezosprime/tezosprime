@@ -817,7 +817,7 @@ let netseeker_loop () =
 	    (fun n -> ignore (tryconnectpeer n))
 	    (if !Config.testnet then testnetfallbacknodes else fallbacknodes)
 	end;
-      Unix.sleep 600;
+      Thread.delay 600.
     with
     | _ -> ()
   done

@@ -274,7 +274,7 @@ let stakingthread () =
   while true do
     try
       let sleeplen = !sleepuntil -. (Unix.time()) in
-      if sleeplen > 1.0 then Unix.sleep (int_of_float sleeplen);
+      if sleeplen > 1.0 then Thread.delay sleeplen;
       let best = !bestnode in
       begin
 	match node_validationstatus best with
@@ -560,13 +560,13 @@ let stakingthread () =
 			(Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause)
 		end;
 		let nw = Unix.time() in
-		let tmtopub = Int64.sub tm (Int64.of_float nw) in
-		if tmtopub > 1L then Unix.sleep (Int64.to_int tmtopub);
+		let tmtopub = Int64.to_float tm -. nw in
+		if tmtopub > 1.0 then Thread.delay tmtopub;
 		let publish_new_block () =
 		  if List.length !netconns < !Config.minconnstostake then
 		    begin
 		      Printf.fprintf !log "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns);
-		      Unix.sleep 600 (*** delay for 10 minutes before continuing trying to stake to see if more connections arrive by then ***)
+		      Thread.delay 600.0 (*** delay for 10 minutes before continuing trying to stake to see if more connections arrive by then ***)
 		    end
 		  else
 		    begin
@@ -596,15 +596,15 @@ let stakingthread () =
 	    if tm < ftm then
 	      compute_staking_chances best tm ftm
 	    else
-	      Unix.sleep 60
+	      Thread.delay 60.
       with
       | Not_found ->
-	Unix.sleep 10;
+	Thread.delay 10.0;
 	compute_staking_chances best (node_timestamp best) (Int64.add (Int64.of_float (Unix.time())) 7200L)
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
 	Printf.fprintf !log "Pausing due to a staking bug; will retry staking in about an hour.\n";
 	flush !log;
-	Unix.sleep 3600;
+	Thread.delay 3600.0;
 	Printf.fprintf !log "Continuing staking.\n";
 	compute_staking_chances best (node_timestamp best) (Int64.add (Int64.of_float (Unix.time())) 7200L)
     with _ -> ()
@@ -696,7 +696,7 @@ let do_command oc l =
 	      match !gcs with
 	      | None -> raise (Failure "Problem adding node")
 	      | Some(cs) ->
-		  if cs.addrfrom = "" then Unix.sleep 1;
+		  if cs.addrfrom = "" then Thread.delay 1.0;
 		  addknownpeer (Int64.of_float cs.conntime) cs.addrfrom
 	in
 	match al with
@@ -1005,7 +1005,7 @@ let failure_delay() =
 	begin
 	  failure_count := 1;
 	  last_failure := Some(tm);
-	  Unix.sleep 1
+	  Thread.delay 1.0
 	end
       else if !failure_count > 100 then (** after 100 regular failures, just exit **)
 	begin
@@ -1016,12 +1016,12 @@ let failure_delay() =
 	begin
 	  incr failure_count;
 	  last_failure := Some(tm);
-	  Unix.sleep !failure_count (** with each new failure, delay for longer **)
+	  Thread.delay (float_of_int !failure_count) (** with each new failure, delay for longer **)
 	end
   | None ->
       incr failure_count;
       last_failure := Some(tm);
-      Unix.sleep 1
+      Thread.delay 1.0
 
 let readevalloop () =
   while true do
@@ -1042,7 +1042,6 @@ let readevalloop () =
 	Printf.fprintf stdout "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush stdout;
 	failure_delay()
   done;;
-
 
 exception Timeout
 

@@ -175,19 +175,13 @@ bin/setconfig.cmx: src/setconfig.ml bin/setconfig.cmi bin/config.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/setconfig.cmx -c src/setconfig.ml
 
 bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bin/hash.cmx bin/signat.cmx bin/net.cmx bin/ctre.cmx bin/cryptocurr.cmx bin/ctre.cmx bin/blocktree.cmx bin/json.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/commands.cmx -c src/commands.ml
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/commands.cmx -c src/commands.ml
 
 bin/qeditas.cmx: src/qeditas.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditas.cmx -c src/qeditas.ml
 
 bin/qeditascli.cmx: src/qeditascli.ml bin/setconfig.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/qeditascli.cmx -c src/qeditascli.ml
-
-bin/tmp.cmx: src/tmp.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tmp.cmx -c src/tmp.ml
-
-bin/fixinitledger.cmx: src/fixinitledger.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/fixinitledger.cmx -c src/fixinitledger.ml
 
 bin/version.cmo: src/version.ml bin/version.cmi
 	$(OCAMLC) -I bin -o bin/version.cmo -c src/version.ml
@@ -268,7 +262,7 @@ bin/setconfig.cmo: src/setconfig.ml bin/setconfig.cmi bin/config.cmo
 	$(OCAMLC) -I bin -o bin/setconfig.cmo -c src/setconfig.ml
 
 bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bin/hash.cmo bin/signat.cmo bin/net.cmo bin/ctre.cmo bin/cryptocurr.cmo bin/ctre.cmo bin/blocktree.cmo bin/json.cmo
-	$(OCAMLC) -I bin -o bin/commands.cmo -c src/commands.ml
+	$(OCAMLC) -I bin -I +threads -o bin/commands.cmo -c src/commands.ml
 
 bin/qeditas.cmo: src/qeditas.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/qeditas.cmo -c src/qeditas.ml

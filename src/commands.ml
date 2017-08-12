@@ -384,7 +384,7 @@ let printassets_in_ledger oc ledgerroot =
 	  else
 	    begin
 	      if not !waitprinted then (Printf.fprintf oc "Some data is being requested from remote nodes...please wait a minute or two...\n"; flush oc; waitprinted := true);
-	      Unix.sleep 2;
+              Thread.delay 2.0
 	    end
       done;
       if not !warned then
@@ -514,7 +514,7 @@ let get_cants_balances_in_ledger oc ledgerroot =
 	    else
 	      begin
 		if not !waitprinted then (Printf.fprintf oc "Some data is being requested from remote nodes...please wait a minute or two...\n"; flush oc; waitprinted := true);
-		Unix.sleep 2;
+                Thread.delay 2.0
 	      end
 	done;
 	if not !warned then

@@ -13,26 +13,13 @@ open Tx
 open Ctre
 open Ctregraft
 
-type stakemod = int64 * int64 * int64 * int64
-
-val stakemod_string : stakemod -> string
-
-val seo_stakemod : (int -> int -> 'a -> 'a) -> stakemod -> 'a -> 'a
-val sei_stakemod :(int -> 'a -> int * 'a) -> 'a -> stakemod * 'a
-
-val compute_stakemods : hashval -> stakemod * stakemod
-val set_genesis_stakemods : string -> unit
-val genesiscurrentstakemod : stakemod ref
-val genesisfuturestakemod : stakemod ref
+type stakemod = hashval
+val genesisstakemod : stakemod ref
 val genesisledgerroot : hashval ref
 val genesistarget : big_int ref
 val max_target : big_int ref
 
-val stakemod_pushbit : bool -> stakemod -> stakemod
-val stakemod_lastbit : stakemod -> bool
-val stakemod_firstbit : stakemod -> bool
-
-type targetinfo = stakemod * stakemod * big_int
+type targetinfo = big_int
 
 val targetinfo_string : targetinfo -> string
 
@@ -44,7 +31,8 @@ val hitval : int64 -> hashval -> stakemod -> big_int
 
 type poburn =
   | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
-  | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
+
+val poburn_stakemod : poburn -> stakemod
 
 type blockheaderdata = {
     prevblockhash : (hashval * hashval) option;
@@ -135,9 +123,7 @@ val coinstake : block -> tx
 
 val check_hit_b : int64 -> int64 -> obligation -> int64
   -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> poburn -> bool
-val check_hit_a : int64 -> int64 -> obligation -> int64
-  -> targetinfo -> int64 -> hashval -> p2pkhaddr -> poburn -> bool
-val check_hit : int64 -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
+val check_hit : int64 -> stakemod -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
 
 val hash_blockheaderdata : blockheaderdata -> hashval
 val hash_blockheadersig : blockheadersig -> hashval
@@ -147,10 +133,10 @@ exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
 val blockheader_stakeasset : blockheaderdata -> asset
 
-val valid_blockheader_allbutsignat : int64 -> targetinfo -> blockheaderdata -> asset -> bool
+val valid_blockheader_allbutsignat : int64 -> stakemod -> targetinfo -> blockheaderdata -> asset -> bool
 val valid_blockheader_signat : blockheader -> asset -> bool
 
-val valid_blockheader : int64 -> targetinfo -> blockheader -> bool
+val valid_blockheader : int64 -> stakemod -> targetinfo -> blockheader -> bool
 
 val ctree_of_block : block -> ctree
 
@@ -160,9 +146,9 @@ val retarget : big_int -> int32 -> big_int
 val difficulty : big_int -> big_int
 val cumul_stake : big_int -> big_int -> int32 -> big_int
 
-val valid_block : ttree option -> stree option -> int64 -> targetinfo -> block -> (ttree option * stree option) option
+val valid_block : ttree option -> stree option -> int64 -> stakemod -> targetinfo -> block -> (ttree option * stree option) option
 
-val blockheader_succ_a : hashval -> int64 -> poburn -> targetinfo -> blockheader -> bool
+val blockheader_succ_a : hashval -> int64 -> targetinfo -> blockheader -> bool
 val blockheader_succ : blockheader -> blockheader -> bool
 
 type blockchain = block * block list

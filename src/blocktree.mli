@@ -18,7 +18,7 @@ val stxpool : (hashval,stx) Hashtbl.t
 
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock
 
-type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * hashval) option * hashval option * hashval option * hashval * poburn * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
+type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * hashval) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
 
 val genesisblocktreenode : blocktree ref
 val lastcheckpointnode : blocktree ref
@@ -31,7 +31,7 @@ val node_prevblockhash : blocktree -> (hashval * hashval) option
 val node_theoryroot : blocktree -> hashval option
 val node_signaroot : blocktree -> hashval option
 val node_ledgerroot : blocktree -> hashval
-val node_poburn : blocktree -> poburn
+val node_stakemod : blocktree -> stakemod
 val node_targetinfo : blocktree -> targetinfo
 val node_timestamp : blocktree -> int64
 val node_cumulstk : blocktree -> big_int

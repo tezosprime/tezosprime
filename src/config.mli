@@ -19,6 +19,7 @@ val lastcheckpoint : string ref
 val prompt : string ref
 val genesistimestamp : int64 ref
 val maxburn : int64 ref
+val maxburnrate : int64 ref
 val ltctxfee : int64 ref
 val mintimebetweenburns : int64 ref
 val burnifleq : int ref

@@ -25,6 +25,7 @@ let intconfigvars = [
 let int64configvars = [
 ("genesistime",fun x -> Config.genesistimestamp := x);
 ("maxburn",fun x -> Config.maxburn := x);
+("maxburnrate",fun x -> Config.maxburnrate := x);
 ("ltctxfee",fun x -> Config.ltctxfee := x);
 ("mintimebetweenburns",fun x -> Config.mintimebetweenburns := x)
 ];;

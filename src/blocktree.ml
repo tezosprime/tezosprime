@@ -29,9 +29,9 @@ let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
 
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock (*** It isn't clear if there are any circumstances when it is safe to say the header is not the header for a valid block. InvalidBlock may be unused. ***)
 
-type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * hashval) option * hashval option * hashval option * hashval * poburn * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
+type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * hashval) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
 
-let genesisblocktreenode = ref (BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,SincePoburn(0),(!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget),!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []));;
+let genesisblocktreenode = ref (BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []));;
 
 let lastcheckpointnode = ref !genesisblocktreenode;;
 
@@ -57,9 +57,9 @@ let node_ledgerroot n =
   let BlocktreeNode(_,_,_,_,_,lr,_,_,_,_,_,_,_,_) = n in
   lr
 
-let node_poburn n =
-  let BlocktreeNode(_,_,_,_,_,_,p,_,_,_,_,_,_,_) = n in
-  p
+let node_stakemod n =
+  let BlocktreeNode(_,_,_,_,_,_,sm,_,_,_,_,_,_,_) = n in
+  sm
 
 let node_targetinfo n =
   let BlocktreeNode(_,_,_,_,_,_,_,ti,_,_,_,_,_,_) = n in
@@ -267,14 +267,14 @@ let rec record_recent_staker stkaddr n i =
 let equ_tinfo (x,(y3,y2,y1,y0),z) (u,(v3,v2,v1,v0),w) =
    x = u && y3 = v3 && y2 = v2 && y1 = v1 && Int64.logand y0 (Int64.lognot 1L) = Int64.logand v0 (Int64.lognot 1L) && eq_big_int z w
 
-let rec validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs =
+let rec validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs =
   let (blkhd,_) as blkh = DbBlockHeader.dbget h in
   let blk = (blkh,blkdel) in
   if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
-    let BlocktreeNode(_,_,_,tr2,sr2,_,_,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
+    let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
     Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
     begin
-      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght tinf blk with
+      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk with
       | Some(tht2,sigt2) ->
 	  vs := ValidBlock;
 	  Hashtbl.remove tovalidate h;
@@ -296,7 +296,7 @@ let rec validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs 
 	    (fun (h,n) ->
 	      let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
 	      match !vs with
-	      | Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n tr2 sr2 tinf2 blkhght2 h blkdel cs
+	      | Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n tr2 sr2 csm2 tinf2 blkhght2 h blkdel cs
 	      | _ -> ())
 	    !chlr
       | None -> (*** We can't mark it as invalid because the peer may be misbehaving and sending a blockdelta that does not correspond to the header. In this case, ban the peer, drop the connection, and request it from someone else. ***)
@@ -364,7 +364,7 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 a initialization knownvalid 
       let prevnode = Hashtbl.find blkheadernode prevblkh in
       begin
 	try
-	  let BlocktreeNode(_,_,prevh,thyroot,sigroot,ledgerroot,currpoburn,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = prevnode in
+	  let BlocktreeNode(_,_,prevh,thyroot,sigroot,ledgerroot,csm,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = prevnode in
 	  if !blacklisted then (*** child of a blacklisted node, drop and blacklist it ***)
             begin
 	      Printf.fprintf !log "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh;
@@ -372,18 +372,18 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 a initialization knownvalid 
 	      DbBlockHeader.dbdelete h;
             end
 	  else if
-	    valid_blockheader blkhght currtinfo blkh1
+	    valid_blockheader blkhght csm currtinfo blkh1
               && 
-	    blockheader_succ_a ledgerroot tmstamp currpoburn currtinfo blkh1
+	    blockheader_succ_a ledgerroot tmstamp currtinfo blkh1
 	  then
 	    begin
-	      let (csm1,fsm1,tar1) = currtinfo in
-	      let newcumulstake = cumul_stake prevcumulstk tar1 blkhd1.deltatime in
+	      let newcumulstake = cumul_stake prevcumulstk currtinfo blkhd1.deltatime in
 	      if not (DbBlockHeader.dbexists h) then (DbBlockHeader.dbput h blkh1; if not initialization then add_to_recent_headers h newcumulstake);
 	      Hashtbl.add blkheaders h ();
 	      broadcast_inv [(int_of_msgtype Headers,blkhght,h)];
 	      let validated = ref (if knownvalid then ValidBlock else Waiting(Unix.time(),None)) in
-	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,blkhs1h),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,blkhd1.announcedpoburn,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
+	      let csm = poburn_stakemod blkhd1.announcedpoburn in
+	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,blkhs1h),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,csm,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      succl := (h,newnode)::!succl;
@@ -394,7 +394,7 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 a initialization knownvalid 
 		  let blk = (blkh1,blkdel) in
 		  if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
 		    begin
-		      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght currtinfo blk with
+		      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm currtinfo blk with
 		      | Some(_,_) ->
 			  validated := ValidBlock
 		      | None -> (*** should not have happened, delete it from the database and request it again. ***)
@@ -425,11 +425,12 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 a initialization knownvalid 
 		Hashtbl.remove orphanblkheaders (Some(h))
 	    end
 	  else
+	    let csm = poburn_stakemod blkhd1.announcedpoburn in
 	    begin (*** if it's wrong, delete it and blacklist it so it won't look new in the future [note: signature is assumed to have been checked to be valid by now] ***)
 	      Printf.fprintf !log "Header %s was invalid, deleting and blacklisting it.\n" hh;
-	      Printf.fprintf !log "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght currtinfo blkh1);
-	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currpoburn currtinfo blkh1);
-              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,blkhs1h),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,blkhd1.announcedpoburn,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
+	      Printf.fprintf !log "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght csm currtinfo blkh1);
+	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
+              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,blkhs1h),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,csm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
               DbBlacklist.dbput h true;
 	      DbBlockHeader.dbdelete h;
@@ -497,7 +498,7 @@ let init_headers () =
       Printf.printf "Initialized headers up to %s\n" (hashval_hexstring h); flush stdout
 
 let initblocktree () =
-  genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,SincePoburn(0),(!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget),!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);
+  genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);
   lastcheckpointnode := !genesisblocktreenode;
   update_bestnode !genesisblocktreenode;
   Hashtbl.add blkheadernode None !genesisblocktreenode;
@@ -764,8 +765,8 @@ Hashtbl.add msgtype_handler Blockdelta
 		  match par with
 		  | None -> (*** genesis node, parent implicitly valid ***)
 		      let (blkdel,_) = sei_blockdelta seis r in
-		      validate_block_of_node newnode None None (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) 1L h blkdel cs
-		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,_,tinf,_,_,blkhght,vsp,_,_)) ->
+		      validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
+		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
 		      match !vsp with
 		      | InvalidBlock -> raise Not_found (*** questionable if this can happen ***)
 		      | Waiting(_,_) ->
@@ -774,7 +775,7 @@ Hashtbl.add msgtype_handler Blockdelta
 		      | ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
 			  begin
 			    let (blkdel,_) = sei_blockdelta seis r in
-			    validate_block_of_node newnode thyroot sigroot tinf blkhght h blkdel cs
+			    validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
 			  end
 		end
 	    | _ -> ()
@@ -918,7 +919,7 @@ let dumpblocktreestate sa =
     blkheaders;
   Printf.fprintf sa "=========\nblkheadernode:\n";
   Hashtbl.iter
-    (fun h (BlocktreeNode(_,rs,pbh,tr,sr,lr,pb,((csm3,csm2,csm1,csm0),(fsm3,fsm2,fsm1,fsm0),tar),tm,cs,blkh,vs,bl,chr)) ->
+    (fun h (BlocktreeNode(_,rs,pbh,tr,sr,lr,csm,tar,tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "- blk %s node:\n" (match h with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "recentstakers:\n";
       List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
@@ -926,7 +927,7 @@ let dumpblocktreestate sa =
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "ledger tree root: %s\n" (hashval_hexstring lr);
-      Printf.fprintf sa "targetinfo:\ncsm %Lx %Lx %Lx %Lx\nfsm %Lx %Lx %Lx %Lx\ntar %s\n" csm3 csm2 csm1 csm0 fsm3 fsm2 fsm1 fsm0 (string_of_big_int tar);
+      Printf.fprintf sa "targetinfo:\ncsm %s\ntar %s\n" (hashval_hexstring csm) (string_of_big_int tar);
       Printf.fprintf sa "timestamp: %Ld\n" tm;
       Printf.fprintf sa "cumulative stake: %s\n" (string_of_big_int cs);
       Printf.fprintf sa "block height: %Ld\n" blkh;
@@ -946,7 +947,7 @@ let dumpblocktreestate sa =
     orphanblkheaders;
   Printf.fprintf sa "=========\nearlyblocktreenodes:\n";
   List.iter
-    (fun (futuretm,BlocktreeNode(_,rs,pbh,tr,sr,lr,pb,((csm3,csm2,csm1,csm0),(fsm3,fsm2,fsm1,fsm0),tar),tm,cs,blkh,vs,bl,chr)) ->
+    (fun (futuretm,BlocktreeNode(_,rs,pbh,tr,sr,lr,csm,tar,tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "future timestamp: %Ld\n" futuretm;
       Printf.fprintf sa "recentstakers:\n";
       List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
@@ -954,7 +955,7 @@ let dumpblocktreestate sa =
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "ledger tree root: %s\n" (hashval_hexstring lr);
-      Printf.fprintf sa "targetinfo:\ncsm %Lx %Lx %Lx %Lx\nfsm %Lx %Lx %Lx %Lx\ntar %s\n" csm3 csm2 csm1 csm0 fsm3 fsm2 fsm1 fsm0 (string_of_big_int tar);
+      Printf.fprintf sa "targetinfo:\ncsm %s\ntar %s\n" (hashval_hexstring csm) (string_of_big_int tar);
       Printf.fprintf sa "timestamp: %Ld\n" tm;
       Printf.fprintf sa "cumulative stake: %s\n" (string_of_big_int cs);
       Printf.fprintf sa "block height: %Ld\n" blkh;
@@ -1025,7 +1026,8 @@ Hashtbl.add msgtype_handler Checkpoint
 	      let bh = DbBlockHeader.dbget h in
 	      let (bhd,bhs) = bh in
 	      let bhsh = hash_blockheadersig bhs in
-	      let fnode = BlocktreeNode(None,ref [],Some(h,bhsh),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,bhd.announcedpoburn,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in (*** just drop the cumul stake back to zero because I don't know it here ***)
+	      let csm = poburn_stakemod bhd.announcedpoburn in
+	      let fnode = BlocktreeNode(None,ref [],Some(h,bhsh),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,csm,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in (*** just drop the cumul stake back to zero because I don't know it here ***)
 	      Hashtbl.add blkheadernode (Some(h)) fnode;
 	      Hashtbl.remove orphanblkheaders (Some(h));
 	      lastcheckpointnode := fnode;

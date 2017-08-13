@@ -19,68 +19,11 @@ open Ctre
 open Ctregraft
 
 (*** 256 bits ***)
-type stakemod = int64 * int64 * int64 * int64
+type stakemod = hashval
 
-let genesiscurrentstakemod : stakemod ref = ref (0L,0L,0L,0L)
-let genesisfuturestakemod : stakemod ref = ref (0L,0L,0L,0L)
-
-let stakemod_string (x3,x2,x1,x0) = (Int64.to_string x3) ^ " " ^ (Int64.to_string x2) ^ " " ^ (Int64.to_string x1) ^ " " ^ (Int64.to_string x0)
-
-let compute_stakemods (x7,x6,x5,x4,x3,x2,x1,x0) =
-  Mutex.lock sha256mutex;
-  sha256init();
-  currblock.(0) <- x7;
-  currblock.(1) <- x6;
-  currblock.(2) <- x5;
-  currblock.(3) <- x4;
-  currblock.(4) <- x3;
-  currblock.(5) <- x2;
-  currblock.(6) <- x1;
-  currblock.(7) <- x0;
-  currblock.(8) <- 0x80000000l;
-  for i = 9 to 14 do
-    currblock.(i) <- 0l;
-  done;
-  currblock.(15) <- 256l;
-  sha256round();
-  let (y0,y1,y2,y3,y4,y5,y6,y7) = getcurrmd256() in
-  sha256init();
-  currblock.(0) <- y0;
-  currblock.(1) <- y1;
-  currblock.(2) <- y2;
-  currblock.(3) <- y3;
-  currblock.(4) <- y4;
-  currblock.(5) <- y5;
-  currblock.(6) <- y6;
-  currblock.(7) <- y7;
-  currblock.(8) <- 0x80000000l;
-  for i = 9 to 14 do
-    currblock.(i) <- 0l;
-  done;
-  currblock.(15) <- 256l;
-  sha256round();
-  let (z0,z1,z2,z3,z4,z5,z6,z7) = getcurrmd256() in
-  Mutex.unlock sha256mutex;
-  let c a b =
-    Int64.logor
-      (Int64.shift_left (Int64.of_int32 (Int32.logand (Int32.shift_right_logical a 16) 0xffl)) 48)
-      (Int64.logor
-	 (Int64.shift_left (Int64.of_int32 (Int32.logand a 0xffl)) 32)
-	 (Int64.logor
-	    (Int64.shift_left (Int64.of_int32 (Int32.logand (Int32.shift_right_logical b 16) 0xffl)) 16)
-	    (Int64.of_int32 (Int32.logand b 0xffl))))
-  in
-  ((c y0 y1,c y2 y3,c y4 y5,c y6 y7),(c z0 z1,c z2 z3,c z4 z5,c z6 z7));;
-  
-let set_genesis_stakemods x =
-  let (csm,fsm) = compute_stakemods (hexstring_hashval x) in
-  genesiscurrentstakemod := csm;
-  genesisfuturestakemod := fsm;;
-
-(*** Here the 32 bytes (64 hex chars) of the block hash for a particular litecoin block should be included.
- sha256 is used to extract 512 bits to set the genesis current and future stake modifiers.
+(*** The genesis stakemod should be the 32 bytes (64 hex chars) of the block hash for a particular litecoin block with height preannounced.
  ***)
-set_genesis_stakemods "0000000000000000000000000000000000000000000000000000000000000000"
+let genesisstakemod : stakemod ref = ref (hexstring_hashval "0000000000000000000000000000000000000000000000000000000000000000")
 
 (*** max target/min difficulty: 2^200 (for mainnet) ***)
 let max_target = ref (shift_left_big_int unit_big_int 200)
@@ -93,122 +36,54 @@ let basereward = 5000000000000L
 (*** the block reward begins at 25 fraenks and halves with each era until era 43 when it is 0 ***)
 let rewfn blkh = Int64.shift_right basereward (Utils.era blkh)
 
-let hashstakemod sm =
-  let (m3,m2,m1,m0) = sm in
-  hashtag (hashlist [hashint64 m3;hashint64 m2;hashint64 m1;hashint64 m0]) 240l
+let seo_stakemod o sm c = seo_hashval o sm c
 
-let seo_stakemod o sm c =
-  seo_prod4 seo_int64 seo_int64 seo_int64 seo_int64 o sm c
-
-let sei_stakemod i c =
-  sei_prod4 sei_int64 sei_int64 sei_int64 sei_int64 i c
-
-(*** drop most significant bit of m3, shift everything, b is the new least siginificant bit of m0 ***)
-let stakemod_pushbit b sm =
-  let (m3,m2,m1,m0) = sm in
-  let z3 = Int64.shift_left m3 1 in
-  let z2 = Int64.shift_left m2 1 in
-  let z1 = Int64.shift_left m1 1 in
-  let z0 = Int64.shift_left m0 1 in
-  ((if m2 < 0L then Int64.logor z3 1L else z3),
-   (if m1 < 0L then Int64.logor z2 1L else z2),
-   (if m0 < 0L then Int64.logor z1 1L else z1),
-   (if b then Int64.logor z0 1L else z0))
-
-let stakemod_lastbit sm =
-  let (m3,_,_,_) = sm in
-  m3 < 0L
-
-let stakemod_firstbit sm =
-  let (_,_,_,m0) = sm in
-  Int64.logand m0 1L = 1L
+let sei_stakemod i c = sei_hashval i c
 
 (*** one round of sha256 combining the timestamp (least significant 32 bits only), the hash value of the stake's assetid and the stake modifier, then converted to a big_int to do arithmetic ***)
 let hitval tm h sm =
-  let (x0,x1,x2,x3,x4,x5,x6,x7) = h in
-  let (m3,m2,m1,m0) = sm in
-  Mutex.lock sha256mutex;
-  sha256init();
-  currblock.(0) <- Int64.to_int32 tm;
-  currblock.(1) <- x0;
-  currblock.(2) <- x1;
-  currblock.(3) <- x2;
-  currblock.(4) <- x3;
-  currblock.(5) <- x4;
-  currblock.(6) <- x5;
-  currblock.(7) <- x6;
-  currblock.(8) <- x7;
-  currblock.(9) <- Int64.to_int32 (Int64.shift_right_logical m3 32);
-  currblock.(10) <- Int64.to_int32 m3;
-  currblock.(11) <- Int64.to_int32 (Int64.shift_right_logical m2 32);
-  currblock.(12) <- Int64.to_int32 m2;
-  currblock.(13) <- Int64.to_int32 (Int64.shift_right_logical m1 32);
-  currblock.(14) <- Int64.to_int32 m1;
-  currblock.(15) <- Int64.to_int32 (Int64.shift_right_logical m0 32);
-  sha256round();
-  currblock.(0) <- Int64.to_int32 m0;
-  currblock.(1) <- 0x80000000l;
-  for j = 2 to 14 do
-    currblock.(j) <- 0l;
-  done;
-  currblock.(15) <- 544l;
-  sha256round();
-  let d = getcurrmd256() in
-  Mutex.unlock sha256mutex;
+  let d = hashpair (hashtag sm (Int64.to_int32 tm)) h in
   md256_big_int d
 
-(*** current stake modifier, future stake modifier, target (big_int, but assumed to be at most 256 bits ***)
-type targetinfo = stakemod * stakemod * big_int
+(*** target (big_int, but assumed to be at most 256 bits ***)
+type targetinfo = big_int
 
-let targetinfo_string (csm,fsm,tar) = stakemod_string csm ^ ";" ^ stakemod_string fsm ^ ";" ^ string_of_big_int tar
+let targetinfo_string tar = string_of_big_int tar
 
-let eq_tinfo (x,y,z) (u,v,w) =
-  x = u && y = v && eq_big_int z w
+let eq_tinfo z w = eq_big_int z w
 
-let hashtargetinfo ti =
-  let (csm,fsm,tar) = ti in
-  hashpair (hashstakemod csm)
-    (hashpair (hashstakemod fsm)
-       (big_int_hashval tar))
+let hashtargetinfo tar = big_int_hashval tar
 
 let seo_targetinfo o ti c =
-  seo_prod3 seo_stakemod seo_stakemod seo_big_int_256 o ti c
+  seo_big_int_256 o ti c
 
 let sei_targetinfo i c =
-  sei_prod3 sei_stakemod sei_stakemod sei_big_int_256 i c
+  sei_big_int_256 i c
 
 type poburn =
-  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
-  | SincePoburn of int (** how many blocks have passed since the last poburn; should be < 256 ***)
+  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
 
 let hashpoburn p =
   match p with
   | Poburn(h,k,x) -> hashtag (hashpair (hashpair h k) (hashint64 x)) 194l
-  | SincePoburn(i) -> hashtag (hashint32 (Int32.of_int i)) 195l
 
 let seo_poburn o p c =
   match p with
   | Poburn(h,k,x) ->
-      let c = o 1 0 c in
       let c = seo_md256 o h c in
       let c = seo_md256 o k c in
       let c = seo_int64 o x c in
       c
-  | SincePoburn(i) ->
-      let c = o 1 1 c in
-      let c = seo_int32 o (Int32.of_int i) c in
-      c
 
 let sei_poburn i c =
-  let (y,c) = i 1 c in
-  if y = 0 then
-    let (h,c) = sei_md256 i c in
-    let (k,c) = sei_md256 i c in
-    let (x,c) = sei_int64 i c in
-    (Poburn(h,k,x),c)
-  else
-    let (j,c) = sei_int32 i c in
-    (SincePoburn(Int32.to_int j),c)
+  let (h,c) = sei_md256 i c in
+  let (k,c) = sei_md256 i c in
+  let (x,c) = sei_int64 i c in
+  (Poburn(h,k,x),c)
+
+let poburn_stakemod p =
+  match p with
+  | Poburn(h,k,x) -> hashpair h k
 
 type blockheaderdata = {
     prevblockhash : (hashval * hashval) option;
@@ -242,10 +117,10 @@ let fake_blockheader : blockheader =
      newledgerroot = (0l,0l,0l,0l,0l,0l,0l,0l);
      stakeaddr = (0l,0l,0l,0l,0l);
      stakeassetid = (0l,0l,0l,0l,0l,0l,0l,0l);
-     announcedpoburn = SincePoburn(0);
+     announcedpoburn = Poburn((0l,0l,0l,0l,0l,0l,0l,0l),(0l,0l,0l,0l,0l,0l,0l,0l),0L);
      timestamp = 0L;
      deltatime = 0l;
-     tinfo = ((0L,0L,0L,0L),(0L,0L,0L,0L),zero_big_int);
+     tinfo = zero_big_int;
      prevledger = CHash(0l,0l,0l,0l,0l,0l,0l,0l);
      blockdeltaroot = (0l,0l,0l,0l,0l,0l,0l,0l);
    },
@@ -395,19 +270,14 @@ let get_blockdelta h =
  With a proof of storage, the stake is multiplied by 1.25 before the comparison is made.
 ***)
 let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn =
-  let (v,sincepow) =
+  let v =
     match brn with
-    | Poburn(_,_,u) -> (Int64.add v (Int64.mul (min u 100000000000L) 1000000L),0) (*** burning more than 1000 ltc still counts as only 1000 ***)
-    | SincePoburn(j) -> (v,j)
+    | Poburn(_,_,u) -> Int64.add v (Int64.mul (min u 100000000000L) 1000000L) (*** burning more than 1000 ltc still counts as only 1000 ***)
   in
-  lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl sincepow v))
+  lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl v))
 
-let check_hit_a blkh bday obl v tinf tmstmp stkid stkaddr brn =
-  let (csm,fsm,tar) = tinf in
-  check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn
-
-let check_hit blkh tinf bh bday obl v =
-  check_hit_a blkh bday obl v tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn
+let check_hit blkh csm tinf bh bday obl v =
+  check_hit_b blkh bday obl v csm tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
@@ -453,21 +323,15 @@ let hash_blockheadersig bhs =
 let hash_blockheader (bhd,bhs) =
   hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
-let valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,u) =
+let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) =
   bhd.stakeassetid = aid
     &&
   match u with
   | Currency(v) ->
       begin
-	check_hit blkh tinfo bhd bday obl v
+	check_hit blkh csm tinfo bhd bday obl v
 	  &&
 	bhd.deltatime > 0l
-	  &&
-	begin
-	  match bhd.announcedpoburn with
-	  | Poburn(_,_,_) -> true
-	  | SincePoburn(i) -> i < 1 (*** insist on poburn every block ***)
-	end
       end
   | _ -> false
 
@@ -492,10 +356,10 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
 	  end
     end
 
-let valid_blockheader_a blkh tinfo (bhd,bhs) (aid,bday,obl,v) =
+let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) =
   valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v)
     &&
-  valid_blockheader_allbutsignat blkh tinfo bhd (aid,bday,obl,v)
+  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v)
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
@@ -512,9 +376,9 @@ let blockheader_stakeasset bhd =
   | _ -> 
       raise HeaderNoStakedAsset
 	
-let valid_blockheader blkh tinfo (bhd,bhs) =
+let valid_blockheader blkh csm tinfo (bhd,bhs) =
   try
-    valid_blockheader_a blkh tinfo (bhd,bhs) (blockheader_stakeasset bhd)
+    valid_blockheader_a blkh csm tinfo (bhd,bhs) (blockheader_stakeasset bhd)
   with
   | HeaderStakedAssetNotMin -> false
   | HeaderNoStakedAsset -> false
@@ -611,10 +475,10 @@ let check_poforfeit blkh ((bhd1,bhs1),(bhd2,bhs2),bhl1,bhl2,v,fal) tr =
     else
       false
 
-let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
+let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr =
   let ((bhd,bhs),bd) = b in
   (*** The header is valid. ***)
-  if (valid_blockheader_a blkh tinfo (bhd,bhs) (aid,bday,obl,u)
+  if (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u)
 	&&
       tx_outputs_valid bd.stakeoutput
         &&
@@ -844,11 +708,11 @@ let valid_block_a tht sigt blkh tinfo b ((aid,bday,obl,u) as a) stkaddr =
   else
     None
 
-let valid_block tht sigt blkh tinfo (b:block) =
+let valid_block tht sigt blkh csm tinfo (b:block) =
   let ((bhd,_),_) = b in
   let stkaddr = p2pkhaddr_addr bhd.stakeaddr in
   try
-    valid_block_a tht sigt blkh tinfo b (blockheader_stakeasset bhd) stkaddr
+    valid_block_a tht sigt blkh csm tinfo b (blockheader_stakeasset bhd) stkaddr
   with
   | HeaderStakedAssetNotMin -> None
   | HeaderNoStakedAsset -> None
@@ -882,37 +746,20 @@ let cumul_stake cs tar deltm =
     cs
     (max_big_int unit_big_int (div_big_int !max_target (shift_right_towards_zero_big_int (mult_big_int tar (big_int_of_int32 deltm)) 20)))
 
-let blockheader_succ_a prevledgerroot tmstamp1 announcedpoburn1 tinfo1 bh2 =
+let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
   let (bhd2,bhs2) = bh2 in
   ctree_hashroot bhd2.prevledger = prevledgerroot
     &&
   bhd2.timestamp = Int64.add tmstamp1 (Int64.of_int32 bhd2.deltatime)
     &&
-  let (csm1,fsm1,tar1) = tinfo1 in
-  let (csm2,fsm2,tar2) = bhd2.tinfo in
-  begin
-    match bhd2.announcedpoburn with
-    | Poburn(h,k,x) -> (*** If proof of burn, then the new csm2 and fsm2 are determined by h and k (where h was the ltc block hash, which is unpredictable) ***)
-	let (csm,fsm) = compute_stakemods (hashpair h k) in
-	csm2 = csm && fsm2 = fsm
-    | SincePoburn(i) ->
-	stakemod_pushbit (stakemod_lastbit fsm1) csm1 = csm2 (*** new stake modifier is old one shifted with one new bit from the future stake modifier ***)
-	  &&
-	stakemod_pushbit (stakemod_firstbit fsm2) fsm1 = fsm2 (*** the new bit of the new future stake modifier fsm2 is freely chosen by the staker ***)
-	  &&
-	match announcedpoburn1 with (*** ensure that we are counting the number of blocks since the last poburn ***)
-	| Poburn(_,_,_) -> i = 1
-	| SincePoburn(j) -> i = j + 1
-  end
-    &&
-  eq_big_int tar2 (retarget tar1 bhd2.deltatime)
+  eq_big_int bhd2.tinfo (retarget tinfo1 bhd2.deltatime)
 
 let blockheader_succ bh1 bh2 =
   let (bhd1,bhs1) = bh1 in
   let (bhd2,bhs2) = bh2 in
   bhd2.prevblockhash = Some (hash_blockheaderdata bhd1,hash_blockheadersig bhs1) (*** the next block must also commit to the previous signature ***)
     &&
-  blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.announcedpoburn bhd1.tinfo bh2
+  blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.tinfo bh2
 
 let rec valid_blockchain_aux blkh bl =
   match bl with
@@ -920,9 +767,10 @@ let rec valid_blockchain_aux blkh bl =
       if blkh > 1L then
 	let (pbhd,_) = pbh in
 	let (tht,sigt) = valid_blockchain_aux (Int64.sub blkh 1L) ((pbh,pbd)::br) in
+	let csm = poburn_stakemod pbhd.announcedpoburn in
 	if blockheader_succ pbh bh then
 	  begin
-	    match valid_block tht sigt blkh pbhd.tinfo (bh,bd) with
+	    match valid_block tht sigt blkh csm pbhd.tinfo (bh,bd) with
 	    | Some(tht2,sigt2) -> (tht2,sigt2)
 	    | None -> raise NotSupported
 	  end
@@ -933,10 +781,10 @@ let rec valid_blockchain_aux blkh bl =
   | [(bh,bd)] ->
       let (bhd,bhs) = bh in
       if blkh = 1L && bhd.prevblockhash = None
-	  && blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (SincePoburn(0)) (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) bh
+	  && blockheader_succ_a !genesisledgerroot !Config.genesistimestamp !genesistarget bh
       then
 	begin
-	  match valid_block None None blkh (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bh,bd) with
+	  match valid_block None None blkh !genesisstakemod !genesistarget (bh,bd) with
 	  | Some(tht2,sigt2) -> (tht2,sigt2)
 	  | None -> raise NotSupported
 	end
@@ -956,21 +804,22 @@ let rec valid_blockheaderchain_aux blkh bhl =
   | (bh::pbh::bhr) ->
       if blkh > 1L then
 	let (pbhd,_) = pbh in
+	let csm = poburn_stakemod pbhd.announcedpoburn in
 	valid_blockheaderchain_aux (Int64.sub blkh 1L) (pbh::bhr)
 	  && blockheader_succ pbh bh
-	  && valid_blockheader blkh pbhd.tinfo bh
+	  && valid_blockheader blkh csm pbhd.tinfo bh
       else
 	false
   | [(bhd,bhs)] ->
       blkh = 1L
 	&&
-      valid_blockheader blkh (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bhd,bhs)
+      valid_blockheader blkh !genesisstakemod !genesistarget (bhd,bhs)
 	&&
       bhd.prevblockhash = None
 	&&
       ctree_hashroot bhd.prevledger = !genesisledgerroot
 	&&
-      blockheader_succ_a !genesisledgerroot !Config.genesistimestamp (SincePoburn(0)) (!genesiscurrentstakemod,!genesisfuturestakemod,!genesistarget) (bhd,bhs)
+      blockheader_succ_a !genesisledgerroot !Config.genesistimestamp !genesistarget (bhd,bhs)
   | [] -> false
 
 let valid_blockheaderchain blkh bhc =

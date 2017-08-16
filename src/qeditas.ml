@@ -652,6 +652,11 @@ let do_command oc l =
       closelog();
       Printf.fprintf oc "Shutting down threads. Please be patient.\n"; flush oc;
       !exitfn 0
+  | "stop" ->
+      (*** Could call Thread.kill on netth and stkth, but Thread.kill is not always implemented. ***)
+      closelog();
+      Printf.fprintf oc "Shutting down threads. Please be patient.\n"; flush oc;
+      !exitfn 0
   | "dumpstate" -> (*** dump state to a file for debugging ***)
       begin
 	match al with

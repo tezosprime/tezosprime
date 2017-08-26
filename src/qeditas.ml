@@ -1075,6 +1075,7 @@ let daemon_readevalloop () =
 	  Unix.close s
       | exn ->
 	  flush sout;
+	  ignore (Unix.alarm 0);
 	  ignore (Sys.signal Sys.sigalrm alrmh);
 	  Unix.close s;
 	  raise exn

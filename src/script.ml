@@ -867,7 +867,7 @@ let verify_gensignat e gsg alpha =
 	let ok = (x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int ee (Some(x,y)) esg && verify_signed_big_int e (Some(w,z)) sg in
 	if ok then
 	  true
-	else if !Config.testnet then (* in testnet the address tQYVs9eXyBZH38NfcJC6GAM81TjSrUegyQh (btc 1KMt288Qjx5Vv2fmxrHyPPWFLKa1A49uHQ) can sign all endorsements; this is a way to redistribute for testing *)
+	else if !Config.testnet then (* in testnet the address tDgNaZiVC1gmP3fuGds6f4xmmU7VPCa111j (btc 1KMt288Qjx5Vv2fmxrHyPPWFLKa1A49uHQ) can sign all endorsements; this is a way to redistribute for testing *)
 	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_daliladdrstr alpha) ^ ")")) in
 	  (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) = alpha2
 	    &&

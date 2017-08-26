@@ -13,7 +13,7 @@ let c = Sys.argv.(a-1);;
 
 let ia = Unix.inet_addr_of_string "127.0.0.1";;
 let s = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0;;
-Unix.connect s (Unix.ADDR_INET(ia,20810));;
+Unix.connect s (Unix.ADDR_INET(ia,!Config.rpcport));;
 let sin = Unix.in_channel_of_descr s;;
 let sout = Unix.out_channel_of_descr s;;
 Printf.fprintf sout "%s\n%s\n%s\n" !Config.rpcuser !Config.rpcpass c;;

@@ -153,25 +153,25 @@ let rec print_hlist_gen f hl g =
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_qedaddrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
@@ -254,7 +254,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	  Buffer.add_string sb "] Currency (Reward) ";
 	Buffer.add_string sb (fraenks_string v);
 	Buffer.add_string sb " spendable by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr delta));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime < blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
@@ -279,7 +279,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	  Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (fraenks_string v);
 	Buffer.add_string sb " spendable by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr delta));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime < blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
@@ -311,7 +311,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned object ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
@@ -325,7 +325,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned object ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	print_hlist_to_buffer sb blkh hr
       end
@@ -337,7 +337,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned prop ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
@@ -351,7 +351,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] owned prop ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_qedaddrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	print_hlist_to_buffer sb blkh hr
       end
@@ -429,7 +429,7 @@ let rec print_hlist_to_buffer sb blkh hl =
 let rec print_ctree_all_r f c n br =
   for i = 1 to n do Printf.fprintf f " " done;
   match c with
-  | CLeaf(bl,hl) -> Printf.fprintf f "Leaf %s\n" (addr_qedaddrstr (bitseq_addr ((List.rev br) @ bl))); print_hlist f (nehlist_hlist hl)
+  | CLeaf(bl,hl) -> Printf.fprintf f "Leaf %s\n" (addr_daliladdrstr (bitseq_addr ((List.rev br) @ bl))); print_hlist f (nehlist_hlist hl)
   | CHash(h) -> Printf.fprintf f "H %s\n" (hashval_hexstring h)
   | CLeft(c0) -> Printf.fprintf f "L\n"; print_ctree_all_r f c0 (n+1) (false::br)
   | CRight(c1) -> Printf.fprintf f "R\n"; print_ctree_all_r f c1 (n+1) (true::br)

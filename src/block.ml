@@ -345,12 +345,12 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
       | None -> verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) bhd.stakeaddr bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp
       | Some(beta,recid,fcomp,esg) -> (*** signature via endorsement ***)
 	  begin
-	    (verifybitcoinmessage bhd.stakeaddr recid fcomp esg ("endorse " ^ (addr_qedaddrstr (p2pkhaddr_addr beta)))
+	    (verifybitcoinmessage bhd.stakeaddr recid fcomp esg ("endorse " ^ (addr_daliladdrstr (p2pkhaddr_addr beta)))
 	       &&
 	     verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	  || (!Config.testnet (*** allow fake endorsements in testnet ***)
 		&&
-	      verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_qedaddrstr (p2pkhaddr_addr beta)) ^ " (" ^ (addr_qedaddrstr (p2pkhaddr_addr bhd.stakeaddr)) ^ ")")
+	      verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_daliladdrstr (p2pkhaddr_addr beta)) ^ " (" ^ (addr_daliladdrstr (p2pkhaddr_addr bhd.stakeaddr)) ^ ")")
 		&&
 	      verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	  end

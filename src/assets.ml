@@ -33,23 +33,23 @@ let obligation_string o =
   match o with
   | None -> "default obligation"
   | Some(beta,lkh,r) ->
-      "obligation: controlled by " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ ";locked until height " ^ (Int64.to_string lkh) ^ ";" ^ (if r then "reward" else "not a reward")
+      "obligation: controlled by " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ ";locked until height " ^ (Int64.to_string lkh) ^ ";" ^ (if r then "reward" else "not a reward")
 
 let preasset_string u =
   match u with
   | Currency(v) -> fraenks_of_cants v ^ " fraenks"
   | Bounty(v) -> "bounty of " ^ fraenks_of_cants v ^ " fraenks"
-  | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
-  | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_qedaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
   | OwnsNegProp -> "neg prop ownership"
   | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
   | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
   | Marker -> "marker"
-  | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_qedaddrstr (payaddr_addr beta)
-  | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_qedaddrstr (payaddr_addr beta)
-  | DocPublication(beta,_,_,_) -> "document published by " ^ addr_qedaddrstr (payaddr_addr beta)
+  | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_daliladdrstr (payaddr_addr beta)
+  | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_daliladdrstr (payaddr_addr beta)
+  | DocPublication(beta,_,_,_) -> "document published by " ^ addr_daliladdrstr (payaddr_addr beta)
 
 
 (*** asset is (assetid,birthday,obligation,preasset) ***)

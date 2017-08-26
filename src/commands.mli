@@ -41,7 +41,7 @@ val printhconselt : hashval -> unit
 val printasset : hashval -> unit
 val printtx : hashval -> unit
 
-val btctoqedaddr : string -> unit
+val btctodaliladdr : string -> unit
 val importprivkey : string -> unit
 val importbtcprivkey : string -> unit
 val importendorsement : string -> string -> string -> unit

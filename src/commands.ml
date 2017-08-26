@@ -81,8 +81,8 @@ let load_wallet () =
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
 		  let alpha1 = hashval_md160 h in
-		  let alpha = addr_qedaddrstr (p2pkhaddr_addr alpha1) in
-		  (k,b,(x,y),qedwif k b,alpha1,alpha)
+		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys
@@ -90,7 +90,7 @@ let load_wallet () =
 	    let (scr,_) = sei_list sei_int8 seic (s,None) in
 	    walletp2shs :=
 	      (let h = hash160_bytelist scr in
-	      let a = addr_qedaddrstr (p2shaddr_addr h) in
+	      let a = addr_daliladdrstr (p2shaddr_addr h) in
 	      (h,a,scr))::!walletp2shs
 	| 2 ->
 	    let (endors,_) = sei_prod6 sei_payaddr sei_payaddr (sei_prod sei_big_int_256 sei_big_int_256) sei_varintb sei_bool sei_signat seic (s,None) in (*** For each (alpha,beta,esg) beta can use esg to justify signing for alpha; endorsements can be used for spending/moving, but not for staking. ***)
@@ -246,20 +246,20 @@ let bytelist_of_hexstring h =
   done;
   !bl
 
-let btctoqedaddr a =
+let btctodaliladdr a =
   let alpha = btcaddrstr_addr a in
-  let a2 = addr_qedaddrstr alpha in
-  Printf.printf "Qeditas address %s corresponds to Bitcoin address %s\n" a2 a
+  let a2 = addr_daliladdrstr alpha in
+  Printf.printf "Dalilcoin address %s corresponds to Bitcoin address %s\n" a2 a
 
 let importprivkey_real (k,b) =
   match Secp256k1.smulp k Secp256k1._g with
   | Some(x,y) ->
       let h = hashval_md160 (pubkey_hashval (x,y) b) in
       let alpha = p2pkhaddr_addr h in
-      let a = addr_qedaddrstr alpha in
+      let a = addr_daliladdrstr alpha in
       let replwall = ref false in
       if privkey_in_wallet_p alpha then raise (Failure "Private key already in wallet.");
-      walletkeys := (k,b,(x,y),qedwif k b,h,a)::!walletkeys;
+      walletkeys := (k,b,(x,y),dalilwif k b,h,a)::!walletkeys;
       walletendorsements := (*** remove endorsements if the wallet has the private key for the address, since it can now sign directly ***)
 	List.filter
 	  (fun (alpha2,beta,(x,y),recid,fcomp,esg) -> if alpha = payaddr_addr alpha2 then (replwall := true; false) else true)
@@ -282,8 +282,8 @@ let importprivkey_real (k,b) =
 
 let importprivkey w =
   let (k,b) = privkey_from_wif w in
-  let w2 = qedwif k b in
-  if not (w2 = w) then raise (Failure (w ^ " is not a valid Qeditas wif"));
+  let w2 = dalilwif k b in
+  if not (w2 = w) then raise (Failure (w ^ " is not a valid Dalilcoin wif"));
   importprivkey_real (k,b)
 
 let importbtcprivkey w =
@@ -291,8 +291,8 @@ let importbtcprivkey w =
   importprivkey_real (k,b)
 
 let importendorsement a b s =
-  let alpha = qedaddrstr_addr a in
-  let beta = qedaddrstr_addr b in
+  let alpha = daliladdrstr_addr a in
+  let beta = daliladdrstr_addr b in
   if endorsement_in_wallet_2_p alpha beta then raise (Failure ("An endorsement from " ^ a ^ " to " ^ b ^ " is already in the wallet."));
   let (q,y4,y3,y2,y1,y0) = beta in
   if q = 0 && not (privkey_in_wallet_p beta) then raise (Failure ("The private key for " ^ b ^ " must be in the wallet before an endorsement to it can be added."));
@@ -307,7 +307,7 @@ let importendorsement a b s =
       | None ->
 	  if !Config.testnet then
 	    begin
-	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_qedaddrstr alpha) ^ ")") with
+	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_daliladdrstr alpha) ^ ")") with
 	      | None ->
 		  raise (Failure "endorsement signature verification failed; not adding endorsement to wallet")
 	      | Some(x,y) ->
@@ -328,12 +328,12 @@ let importendorsement a b s =
       raise (Failure "Code for importing endorsements by a p2sh addresses has not yet been written.")
     end
   else
-    raise (Failure (a ^ " expected to be a p2pkh or p2sh Qeditas address."))
+    raise (Failure (a ^ " expected to be a p2pkh or p2sh Dalilcoin address."))
 
 let importwatchaddr a =
-  let alpha = qedaddrstr_addr a in
-  let a2 = addr_qedaddrstr alpha in
-  if not (a2 = a) then raise (Failure (a ^ " is not a valid Qeditas address"));
+  let alpha = daliladdrstr_addr a in
+  let a2 = addr_daliladdrstr alpha in
+  if not (a2 = a) then raise (Failure (a ^ " is not a valid Dalilcoin address"));
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
@@ -342,8 +342,8 @@ let importwatchaddr a =
 
 let importwatchbtcaddr a =
   let alpha = btcaddrstr_addr a in
-  let a2 = addr_qedaddrstr alpha in
-  Printf.printf "Importing as Qeditas address %s\n" a2;
+  let a2 = addr_daliladdrstr alpha in
+  Printf.printf "Importing as Dalilcoin address %s\n" a2;
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
@@ -450,12 +450,12 @@ let printassets_in_ledger oc ledgerroot =
     (fun (alpha2,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.fprintf oc "%s:\n" (addr_qedaddrstr alpha2);
+	  Printf.fprintf oc "%s:\n" (addr_daliladdrstr alpha2);
 	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot3)
       | (None,_) ->
-	  Printf.fprintf oc "%s: empty\n" (addr_qedaddrstr alpha2);
+	  Printf.fprintf oc "%s: empty\n" (addr_daliladdrstr alpha2);
       | _ ->
-	  Printf.fprintf oc "%s: no information\n" (addr_qedaddrstr alpha2);
+	  Printf.fprintf oc "%s: no information\n" (addr_daliladdrstr alpha2);
     )
     !al3;
   Printf.fprintf oc "Watched assets:\n";
@@ -463,12 +463,12 @@ let printassets_in_ledger oc ledgerroot =
     (fun (alpha,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.fprintf oc "%s:\n" (addr_qedaddrstr alpha);
+	  Printf.fprintf oc "%s:\n" (addr_daliladdrstr alpha);
 	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot4)
       | (None,_) ->
-	  Printf.fprintf oc "%s: empty\n" (addr_qedaddrstr alpha);
+	  Printf.fprintf oc "%s: empty\n" (addr_daliladdrstr alpha);
       | _ ->
-	  Printf.fprintf oc "%s: no information\n" (addr_qedaddrstr alpha);
+	  Printf.fprintf oc "%s: no information\n" (addr_daliladdrstr alpha);
     )
     !al4;
   Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants !tot1);
@@ -686,14 +686,14 @@ let printtx_a (tauin,tauout) =
   Printf.printf "Inputs (%d):\n" (List.length tauin);
   List.iter
     (fun (alpha,aid) ->
-      Printf.printf "Input %d:%s %s\n" !i (addr_qedaddrstr alpha) (hashval_hexstring aid);
+      Printf.printf "Input %d:%s %s\n" !i (addr_daliladdrstr alpha) (hashval_hexstring aid);
       incr i)
     tauin;      
   i := 0;
   Printf.printf "Outputs (%d):\n" (List.length tauout);
   List.iter
     (fun (alpha,(obl,u)) ->
-      Printf.printf "Output %d:%s %s %s\n" !i (addr_qedaddrstr alpha) (preasset_string u) (obligation_string obl);
+      Printf.printf "Output %d:%s %s %s\n" !i (addr_daliladdrstr alpha) (preasset_string u) (obligation_string obl);
       incr i)
     tauout
 
@@ -719,7 +719,7 @@ let createtx inpj outpj =
 	    (fun inp ->
 	      match inp with
 	      | JsonObj([(alpha,JsonStr(aidhex))]) ->
-		  (qedaddrstr_addr alpha,hexstring_hashval aidhex)
+		  (daliladdrstr_addr alpha,hexstring_hashval aidhex)
 	      | _ -> raise Exit)
 	    inpl
 	in
@@ -735,7 +735,7 @@ let createtx inpj outpj =
 			match (betaj,valj) with
 			| (JsonStr(beta),JsonNum(x)) ->
 			    begin
-			      let beta2 = qedaddrstr_addr beta in
+			      let beta2 = daliladdrstr_addr beta in
 			      let v = cants_of_fraenks x in
 			      try
 				let lockj = List.assoc "lock" al in
@@ -747,7 +747,7 @@ let createtx inpj outpj =
 					let obladdrj = List.assoc "obligationaddr" al in
 					match obladdrj with
 					| JsonStr(obladdr) ->
-					    let gamma2 = qedaddrstr_addr obladdr in
+					    let gamma2 = daliladdrstr_addr obladdr in
 					    if not (payaddr_p gamma2) then raise (Failure (Printf.sprintf "obligation address %s must be a payaddr (p2pkh or p2sh)" obladdr));
 					    let (i,c4,c3,c2,c1,c0) = gamma2 in
 					    let gamma_as_payaddr = (i=1,c4,c3,c2,c1,c0) in
@@ -780,7 +780,7 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
   let alpha2 = payaddr_addr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   match ctree_lookup_asset true false aid ctr (addr_bitseq alpha2) with
-  | None -> Printf.printf "Could not find asset %s at %s\n" (hashval_hexstring aid) (addr_qedaddrstr alpha2); flush stdout
+  | None -> Printf.printf "Could not find asset %s at %s\n" (hashval_hexstring aid) (addr_daliladdrstr alpha2); flush stdout
   | Some(_,bday,obl,Currency(v)) ->
       if v > fee then
 	begin

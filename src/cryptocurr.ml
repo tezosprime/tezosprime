@@ -99,10 +99,10 @@ let frombase58 s = frombase58_rec s 0 (String.length s) zero_big_int
 
 (* Computation of Wallet Import Formats for Private Keys *)
 
-(* wifs for qeditas private keys use two prefix bytes 1288 (for compressed, start with k) or 542 (for uncompressed, start with K) *)
+(* wifs for dalilcoin private keys use two prefix bytes 1288 (for compressed, start with k) or 542 (for uncompressed, start with K) *)
 (* k : private key, big_int *)
 (* return string, base58 btc wif *)
-let qedwif k compr =
+let dalilwif k compr =
   let (pc1,pc2,pre) = if compr then ('\005','\008',1288) else ('\002','\030',542) in
   let s = Buffer.create 34 in
   Buffer.add_char s pc1;
@@ -112,7 +112,7 @@ let qedwif k compr =
   let (sh20,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   base58 (or_big_int (shift_left_big_int (or_big_int k (shift_left_big_int (big_int_of_int pre) 256)) 32) (int32_big_int_bits sh20 0))
 
-(* w : Qeditas wif base58 string *)
+(* w : Dalilcoin wif base58 string *)
 (* return private key, big_int and a bool indicating if it's for the compressed pubkey *)
 (* Note: This doesn't check the checksum. *)
 let privkey_from_wif w =
@@ -126,7 +126,7 @@ let privkey_from_wif w =
   else if pre = 542 then
     (k,false)
   else
-    raise (Failure "Invalid Qeditas WIF")
+    raise (Failure "Invalid Dalilcoin WIF")
 
 (* w : Bitcoin wif base58 string *)
 (* return private key, big_int and a bool indicating if it's for the compressed pubkey *)
@@ -201,28 +201,28 @@ let calc_checksum pre rm1 =
   let (sh30,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   sh30
 
-let qedaddrstr_addr b =
+let daliladdrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
-  if p < 0l || p > 8000l then raise (Failure "Not a valid Qeditas address (bad prefix)");
-  if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Qeditas address (checksum incorrect)");
-  if p = 58l then
-    if !Config.testnet then raise (Failure "Qeditas mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 120l then
-    if !Config.testnet then raise (Failure "Qeditas mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
-  else if p = 66l then
-    if !Config.testnet then raise (Failure "Qeditas mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
-  else if p = 56l then
-    if !Config.testnet then raise (Failure "Qeditas mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
-  else if p = 7409l then
-    if not !Config.testnet then raise (Failure "Qeditas testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 7471l then
-    if not !Config.testnet then raise (Failure "Qeditas testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
-  else if p = 7416l then
-    if not !Config.testnet then raise (Failure "Qeditas testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
-  else if p = 7406l then
-    if not !Config.testnet then raise (Failure "Qeditas testnet address given while using mainnet") else (3,x0,x1,x2,x3,x4)
+  if p < 0l || p > 8000l then raise (Failure "Not a valid Dalilcoin address (bad prefix)");
+  if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Dalilcoin address (checksum incorrect)");
+  if p = 31l then
+    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
+  else if p = 90l then
+    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
+  else if p = 65l then
+    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
+  else if p = 55l then
+    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
+  else if p = 7382l then
+    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
+  else if p = 7442l then
+    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
+  else if p = 7417l then
+    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
+  else if p = 7407l then
+    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (3,x0,x1,x2,x3,x4)
   else
-    raise (Failure "Not a Qeditas address")
+    raise (Failure "Not a Dalilcoin address")
 
 let btcaddrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,_) = big_int_md256 (frombase58 b) in
@@ -250,13 +250,13 @@ let hashval_gen_addrstr pre rm1 =
   let a = md256_big_int (0l,Int32.of_int pre,rm10,rm11,rm12,rm13,rm14,sh30) in
   base58 a
 
-let addr_qedaddrstr alpha =
+let addr_daliladdrstr alpha =
   let (p,x0,x1,x2,x3,x4) = alpha in
   let pre =
     if !Config.testnet then
-      if p = 0 then 7409 else if p = 1 then 7471 else if p = 2 then 7416 else 7406
+      if p = 0 then 7382 else if p = 1 then 7442 else if p = 2 then 7417 else 7407
     else
-      if p = 0 then 58 else if p = 1 then 120 else if p = 2 then 66 else 56
+      if p = 0 then 31 else if p = 1 then 90 else if p = 2 then 65 else 55
   in
   hashval_gen_addrstr pre (x0,x1,x2,x3,x4)
 

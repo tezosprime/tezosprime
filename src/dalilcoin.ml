@@ -315,7 +315,7 @@ let stakingthread () =
 		in
 		let tar = retarget tar0 deltm in
 		let alpha2 = p2pkhaddr_addr alpha in
-		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_qedaddrstr alpha2) (hashval_hexstring aid) bday;
+		Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_daliladdrstr alpha2) (hashval_hexstring aid) bday;
 		let obl2 =
 		  match obl with
 		  | None ->  (* if the staked asset had the default obligation it can be left as the default obligation or locked for some number of blocks to commit to staking; there should be a configurable policy for the node *)
@@ -492,7 +492,7 @@ let stakingthread () =
 			blocksignatendorsement = Some(betah,recid,fcomp,esg)
 		      }
 		    with Not_found ->
-		      raise (Failure("Was staking for " ^ Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
+		      raise (Failure("Was staking for " ^ Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 		in
 		let bhsnewh = hash_blockheadersig bhsnew in
 		let bhnew = (bhdnew,bhsnew) in
@@ -757,7 +757,7 @@ let do_command oc l =
 	| [a;b;s] -> Commands.importendorsement a b s
 	| _ -> raise (Failure "importendorsement should be given three arguments: a b s where s is a signature made with the private key for address a endorsing to address b")
       end
-  | "btctoqedaddr" -> List.iter Commands.btctoqedaddr al
+  | "btctodaliladdr" -> List.iter Commands.btctodaliladdr al
   | "printasset" ->
       begin
 	match al with
@@ -807,7 +807,7 @@ let do_command oc l =
 	match al with
 	| (alp::aid::n::lkh::fee::r) ->
 	    begin
-	      let alpha2 = qedaddrstr_addr alp in
+	      let alpha2 = daliladdrstr_addr alp in
 	      if not (payaddr_p alpha2) then raise (Failure (alp ^ " is not a pay address"));
 	      let (p,a4,a3,a2,a1,a0) = alpha2 in
 	      let alpha = (p=1,a4,a3,a2,a1,a0) in
@@ -824,7 +824,7 @@ let do_command oc l =
 		  let lr = node_ledgerroot !bestnode in
 		  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 	      | (gam::r) ->
-		  let gamma = qedaddrstr_addr gam in
+		  let gamma = daliladdrstr_addr gam in
 		  if not (payaddr_p gamma) then raise (Failure (gam ^ " is not a pay address"));
 		  match r with
 		  | [] ->
@@ -832,7 +832,7 @@ let do_command oc l =
 		      let lr = node_ledgerroot !bestnode in
 		      Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		  | (bet::r) ->
-		      let beta2 = qedaddrstr_addr bet in
+		      let beta2 = daliladdrstr_addr bet in
 		      if not (payaddr_p beta2) then raise (Failure (bet ^ " is not a pay address"));
 		      let (p,b4,b3,b2,b1,b0) = beta2 in
 		      let beta = (p=1,b4,b3,b2,b1,b0) in

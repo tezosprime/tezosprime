@@ -886,13 +886,13 @@ let dumpblocktreestate sa =
       let c = ref 0 in
       List.iter
 	(fun (alpha,aid) ->
-	  Printf.fprintf sa "%d. %s %s\n" !c (Cryptocurr.addr_qedaddrstr alpha) (hashval_hexstring aid);
+	  Printf.fprintf sa "%d. %s %s\n" !c (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring aid);
 	  incr c)
 	tauin;
       Printf.fprintf sa "outputs %d\n" (List.length tauin);
       c := 0;
       List.iter (fun (alpha,(obl,u)) ->
-	Printf.fprintf sa "%d. %s %s %s\n" !c (Cryptocurr.addr_qedaddrstr alpha) (obligation_string obl) (preasset_string u);
+	Printf.fprintf sa "%d. %s %s %s\n" !c (Cryptocurr.addr_daliladdrstr alpha) (obligation_string obl) (preasset_string u);
 	incr c)
 	tauout;
       let sb = Buffer.create 100 in
@@ -922,7 +922,7 @@ let dumpblocktreestate sa =
     (fun h (BlocktreeNode(_,rs,pbh,tr,sr,lr,csm,tar,tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "- blk %s node:\n" (match h with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "recentstakers:\n";
-      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
+      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr k))) !rs;
       Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h,_) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");
@@ -950,7 +950,7 @@ let dumpblocktreestate sa =
     (fun (futuretm,BlocktreeNode(_,rs,pbh,tr,sr,lr,csm,tar,tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "future timestamp: %Ld\n" futuretm;
       Printf.fprintf sa "recentstakers:\n";
-      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_qedaddrstr (p2pkhaddr_addr k))) !rs;
+      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr k))) !rs;
       Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h,_) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");

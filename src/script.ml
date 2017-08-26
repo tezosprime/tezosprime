@@ -769,7 +769,7 @@ and checksig tosign gsg pubkey =
 			hashval_md160 (hashpubkeyc c x2m)
 		    in
 		    (*** alpha signs that beta can sign ***)
-		    let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
+		    let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)))) in
 		    verify_signed_big_int ee q (r,s) && verify_signed_big_int tosign q2 (r2,s2)
 		| None -> false
 	      end
@@ -781,7 +781,7 @@ and checksig tosign gsg pubkey =
 	let (r,esg) = next_inum_be 32 esg in
 	let (s,scr2) = next_inum_be 32 esg in
 	(*** alpha signs that beta can sign ***)
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2sh_addr beta)))) in
 	verify_signed_big_int ee q (r,s) && check_p2sh tosign beta scr2
     | _ -> false
   with Failure(x) -> false
@@ -863,12 +863,12 @@ let verify_gensignat e gsg alpha =
 	let zm = big_int_md256 z in
 	let alpha2 = hashval_md160 (if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym) in
 	let beta = hashval_md160 (if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm) in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)))) in
 	let ok = (x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int ee (Some(x,y)) esg && verify_signed_big_int e (Some(w,z)) sg in
 	if ok then
 	  true
 	else if !Config.testnet then (* in testnet the address tQYVs9eXyBZH38NfcJC6GAM81TjSrUegyQh (btc 1KMt288Qjx5Vv2fmxrHyPPWFLKa1A49uHQ) can sign all endorsements; this is a way to redistribute for testing *)
-	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
+	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_daliladdrstr alpha) ^ ")")) in
 	  (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) = alpha2
 	    &&
 	  verify_signed_big_int ee (Some(x,y)) esg && verify_signed_big_int e (Some(w,z)) sg
@@ -882,12 +882,12 @@ let verify_gensignat e gsg alpha =
 	let xm = big_int_md256 x in
 	let ym = big_int_md256 y in
 	let alpha2 = hashval_md160 (if c then (if evenp y then hashpubkeyc 2 xm else hashpubkeyc 3 xm) else hashpubkey xm ym) in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2sh_addr beta)))) in
 	let ok = (x0,x1,x2,x3,x4) = alpha2 && verify_signed_big_int ee (Some(x,y)) esg && verify_p2sh e beta scr in
 	if ok then
 	  true
 	else if !Config.testnet then (* in testnet the address tQa4MMDc6DKiUcPyVF6Xe7XASdXAJRGMYeB (btc 1LvNDhCXmiWwQ3yeukjMLZYgW7HT9wCMru) can sign all endorsements; this is a way to redistribute for testing *)
-	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_qedaddrstr alpha) ^ ")")) in
+	  let ee = md256_big_int (md256_of_bitcoin_message ("fakeendorsement " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)) ^ " (" ^ (addr_daliladdrstr alpha) ^ ")")) in
 	  (-629004799l, -157083340l, -103691444l, 1197709645l, 224718539l) = alpha2
 	    &&
 	  verify_signed_big_int ee (Some(x,y)) esg && verify_p2sh e beta scr
@@ -901,14 +901,14 @@ let verify_gensignat e gsg alpha =
 	let wm = big_int_md256 w in
 	let zm = big_int_md256 z in
 	let beta = hashval_md160 (if d then (if evenp z then hashpubkeyc 2 wm else hashpubkeyc 3 wm) else hashpubkey wm zm) in
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2pkh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2pkh_addr beta)))) in
 	verify_p2sh ee (x0,x1,x2,x3,x4) escr && verify_signed_big_int e (Some(w,z)) sg
       else
 	false
   | EndP2shToP2shSignat(beta,escr,scr) ->
       let (i,x0,x1,x2,x3,x4) = alpha in
       if i = 1 then (* p2sh *)
-	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_qedaddrstr (md160_p2sh_addr beta)))) in
+	let ee = md256_big_int (md256_of_bitcoin_message ("endorse " ^ (addr_daliladdrstr (md160_p2sh_addr beta)))) in
 	verify_p2sh ee (x0,x1,x2,x3,x4) escr && verify_p2sh e beta scr
       else
 	false

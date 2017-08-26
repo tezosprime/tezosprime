@@ -104,7 +104,7 @@ let initnetwork () =
 	  flush stdout;
 	  netlistenerth := Some(Thread.create netlistener l)
       | None ->
-	  Printf.printf "Not listening for incoming connections.\nIf you want Qeditas to listen for incoming connections set ip to your ip address\nusing ip=... in qeditas.conf or -ip=... on the command line.\n";
+	  Printf.printf "Not listening for incoming connections.\nIf you want Dalilcoin to listen for incoming connections set ip to your ip address\nusing ip=... in dalilcoin.conf or -ip=... on the command line.\n";
 	  flush stdout
     with _ -> ()
   end;
@@ -904,7 +904,7 @@ let initialize () =
     datadir_from_command_line(); (*** if -datadir=... is on the command line, then set Config.datadir so we can find the config file ***)
     process_config_file();
     process_config_args(); (*** settings on the command line shadow those in the config file ***)
-    if not !Config.testnet then (Printf.printf "Qeditas can only be run on testnet for now. Please give the -testnet command line argument.\n"; exit 1);
+    if not !Config.testnet then (Printf.printf "Dalilcoin can only be run on testnet for now. Please give the -testnet command line argument.\n"; exit 1);
     begin
       match !Config.checkpointskey with
 	None -> ()
@@ -922,7 +922,7 @@ let initialize () =
     let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
     if Sys.file_exists (Filename.concat datadir ".lock") then
       begin
-	Printf.printf "Cannot start Qeditas. Do you already have Qeditas running? If not, remove: %s\n" (Filename.concat datadir ".lock");
+	Printf.printf "Cannot start Dalilcoin. Do you already have Dalilcoin running? If not, remove: %s\n" (Filename.concat datadir ".lock");
 	flush stdout;
 	exit 1;
       end;

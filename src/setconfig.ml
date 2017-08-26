@@ -126,7 +126,7 @@ let process_config_line l =
 let datadir () = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir
 
 let process_config_file () =
-  let fn = Filename.concat (datadir()) "qeditas.conf" in
+  let fn = Filename.concat (datadir()) "dalilcoin.conf" in
   if Sys.file_exists fn then
     begin
       let ch = open_in fn in
@@ -137,12 +137,12 @@ let process_config_file () =
 	    if String.length l > 0 && not (l.[0] = '%') then
 	      process_config_line l
 	  with Not_found ->
-	    Printf.printf "Do not understand %s in qeditas.conf; skipping\n" l
+	    Printf.printf "Do not understand %s in dalilcoin.conf; skipping\n" l
 	done
       with End_of_file -> ()
     end
   else
-    Printf.printf "No qeditas.conf file found. Using default configuration.\n";;
+    Printf.printf "No dalilcoin.conf file found. Using default configuration.\n";;
 
 let datadir_from_command_line () =
   let a = Array.length Sys.argv in

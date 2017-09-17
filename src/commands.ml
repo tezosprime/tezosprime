@@ -986,19 +986,13 @@ let sendtx blkh lr staustr =
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
 begin
-    Printf.printf "sendtx 2\n";
     let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr))) in
-    Printf.printf "sendtx 3\n";
     if tx_signatures_valid blkh al (tau,tausg) then
       let txh = hashtx tau in
-    Printf.printf "sendtx 4\n";
       let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
-    Printf.printf "sendtx 5\n";
       seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
       close_out ch;
-    Printf.printf "sendtx 6\n";
       publish_stx txh stau;
-    Printf.printf "sendtx 7\n";
       Printf.printf "%s\n" (hashval_hexstring txh);
       flush stdout;
     else

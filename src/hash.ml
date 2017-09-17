@@ -714,3 +714,6 @@ let merkle_root (l:hashval list) : hashval option =
 	| (h2::r2) -> merkle_root_b h2 r2
       in
       Some (merkle_root_b h r)
+
+let hashval_rev (x0,x1,x2,x3,x4,x5,x6,x7) =
+  (int32_rev x7,int32_rev x6,int32_rev x5,int32_rev x4,int32_rev x3,int32_rev x2,int32_rev x1,int32_rev x0)

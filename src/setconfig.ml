@@ -1,4 +1,5 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -7,7 +8,10 @@ let stringconfigvars = [
 ("lastcheckpoint",fun x -> Config.lastcheckpoint := x);
 ("prompt",fun x -> Config.prompt := x);
 ("rpcuser",fun x -> Config.rpcuser := x);
-("rpcpass",fun x -> Config.rpcpass := x)
+("rpcpass",fun x -> Config.rpcpass := x);
+("ltcrpcuser",fun x -> Config.ltcrpcuser := x);
+("ltcrpcpass",fun x -> Config.ltcrpcpass := x);
+("curl",fun x -> Config.curl := x)
 ];;
 let boolconfigvars = [
 ("daemon",fun x -> Config.daemon := x);
@@ -18,6 +22,9 @@ let intconfigvars = [
 ("port",fun x -> Config.port := x);
 ("socksport",fun x -> Config.socksport := x);
 ("rpcport",fun x -> Config.rpcport := x);
+("rpcport",fun x -> Config.rpcport := x);
+("ltcrpcport",fun x -> Config.ltcrpcport := x);
+("ltcnotifyport",fun x -> Config.ltcnotifyport := x);
 ("maxconns",fun x -> Config.maxconns := x);
 ("burnifleq",fun x -> Config.burnifleq := x);
 ("minconnstostake",fun x -> Config.minconnstostake := x)
@@ -36,6 +43,9 @@ let stringoptionconfigvars = [
 ];;
 let intoptionconfigvars = [
 ("socks",fun x -> Config.socks := x)
+];;
+let stringlistconfigvars = [
+("ltcaddress",fun x -> Config.ltcaddresses := x::!Config.ltcaddresses)
 ];;
 
 exception Done
@@ -119,6 +129,17 @@ let process_config_line l =
 	    end
 	  )
 	intoptionconfigvars;
+      List.iter
+	(fun (v,r) ->
+	  let vl = String.length v in
+	  if ll > 1 + vl && String.sub l 0 (vl) = v && l.[vl] = '=' then
+	    begin
+	      setl := v::!setl;
+	      r (String.sub l (vl+1) (ll-(vl+1)));
+	      raise Done
+	    end
+	  )
+	stringlistconfigvars;
       raise Not_found
     with Done -> ()
   end

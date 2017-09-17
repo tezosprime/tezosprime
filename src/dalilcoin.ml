@@ -647,6 +647,83 @@ let parse_command l =
 let do_command oc l =
   let (c,al) = parse_command l in
   match c with
+  | "ltcgettxinfo" ->
+      begin
+	match al with
+	| [h] ->
+	    begin
+	      try
+		let (burned,prev,nxt) = Ltcrpc.ltc_gettransactioninfo h in
+		Printf.fprintf oc  "burned %Ld prev %s next %s\n" burned (hashval_hexstring prev) (hashval_hexstring nxt)
+	      with Not_found -> raise (Failure("problem"))
+	    end
+	| _ -> raise (Failure("expected ltcgettxinfo <txid>"))
+      end
+  | "ltcgetbestblockhash" ->
+      begin
+	try
+	  let x = Ltcrpc.ltc_getbestblockhash () in
+	  Printf.fprintf oc "best ltc block hash %s\n" x
+	with Not_found ->
+	  Printf.fprintf oc "could not find best ltc block hash\n"
+      end
+  | "ltcgetblock" ->
+      begin
+	match al with
+	| [h] ->
+	    begin
+	      try
+		let (pbh,tm,txl) = Ltcrpc.ltc_getblock h in
+		Printf.fprintf oc "ltc block %s time %Ld prev %s; %d dalilcoin candidate txs:\n" h tm pbh (List.length txl);
+		List.iter (fun tx -> Printf.fprintf oc "%s\n" tx) txl
+	      with Not_found ->
+		Printf.fprintf oc "could not find ltc block %s\n" h
+	    end
+	| _ -> Printf.fprintf oc "expected ltcgetblock <blockid>\n"
+      end
+  | "ltclistunspent" ->
+      begin
+	try
+	  let utxol = Ltcrpc.ltc_listunspent () in
+	  Printf.fprintf oc "%d ltc utxos\n" (List.length utxol);
+	  List.iter (fun (txid,vout,_,_,amt) -> Printf.fprintf oc "%s:%d %Ld\n" txid vout amt) utxol
+	with Not_found ->
+	  Printf.fprintf oc "could not get unspent ltc list\n"
+      end
+  | "hash" ->
+      begin
+	match al with
+	| [h] -> Printf.fprintf oc "%s\n" (hashval_hexstring (Sha256.sha256dstr (Hashaux.hexstring_string h)))
+	| _ -> raise Not_found
+      end
+  | "ltcsigntx" ->
+      begin
+	match al with
+	| [tx] -> Printf.fprintf oc "%s\n" (Ltcrpc.ltc_signrawtransaction tx)
+	| _ -> raise Not_found
+      end
+  | "ltcsendtx" ->
+      begin
+	match al with
+	| [tx] -> Printf.fprintf oc "%s\n" (Ltcrpc.ltc_sendrawtransaction tx)
+	| _ -> raise Not_found
+      end
+  | "ltccreateburn" ->
+      begin
+	match al with
+	| [h1;h2;toburn] ->
+	    begin
+	      try
+		let txs = Ltcrpc.ltc_createburntx (hexstring_hashval h1) (hexstring_hashval h2) (Int64.of_string toburn) in
+		Printf.fprintf oc "burntx: %s\n" (Hashaux.string_hexstring txs)
+	      with
+	      | Ltcrpc.InsufficientLtcFunds ->
+		  Printf.fprintf oc "no ltc utxo has %s litoshis\n" toburn
+	      | Not_found ->
+		  Printf.fprintf oc "trouble creating burn tx\n"
+	    end
+	| _ -> Printf.fprintf oc "expected ltccreateburn <hash1> <hash2> <litoshis to burn>\n"
+      end
   | "exit" ->
       (*** Could call Thread.kill on netth and stkth, but Thread.kill is not always implemented. ***)
       closelog();
@@ -920,6 +997,7 @@ let initialize () =
 	      raise (Failure "Incorrect testnet checkpointskey given")
     end;
     let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
+    if !Config.testnet && !Config.ltcrpcport = 9332 then Config.ltcrpcport := 19332;
     if Sys.file_exists (Filename.concat datadir ".lock") then
       begin
 	Printf.printf "Cannot start Dalilcoin. Do you already have Dalilcoin running? If not, remove: %s\n" (Filename.concat datadir ".lock");

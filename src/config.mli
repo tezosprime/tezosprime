@@ -14,6 +14,12 @@ val socksport : int ref
 val rpcuser : string ref
 val rpcpass : string ref
 val rpcport : int ref
+val ltcrpcport : int ref
+val ltcrpcuser : string ref
+val ltcrpcpass : string ref
+val ltcnotifyport : int ref
+val ltcaddresses : string list ref
+val curl : string ref
 val maxconns : int ref
 val lastcheckpoint : string ref
 val prompt : string ref

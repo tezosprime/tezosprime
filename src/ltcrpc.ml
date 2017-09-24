@@ -6,6 +6,44 @@ open Ser
 open Hashaux
 open Hash
 open Json
+open Db
+
+let ltc_oldest_to_consider = hexstring_hashval "0b5db7a2a032bb4b03dd110ab37887be59945b61f6b4457d821d1fbebb896c23"
+let ltc_oldest_to_consider_time = 1506256909L
+let ltc_oldest_to_consider_height = 200242L
+
+let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
+
+type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
+
+let seo_ltcdacstatus o s c =
+  match s with
+  | LtcDacStatusPrev(h) ->
+      let c = o 1 0 c in
+      seo_hashval o h c
+  | LtcDacStatusNew(l) ->
+      let c = o 1 1 c in
+      seo_list (seo_list (seo_prod5 seo_hashval seo_hashval seo_hashval seo_int64 seo_int64)) o l c
+
+let sei_ltcdacstatus i c =
+  let (x,c) = i 1 c in
+  if x = 0 then
+    let (h,c) = sei_hashval i c in
+    (LtcDacStatusPrev(h),c)
+  else
+    let (l,c) = sei_list (sei_list (sei_prod5 sei_hashval sei_hashval sei_hashval sei_int64 sei_int64)) i c in
+    (LtcDacStatusNew(l),c)
+
+module DbLtcDacStatus = Dbbasic2 (struct type t = ltcdacstatus let basedir = "ltcdacstatus" let seival = sei_ltcdacstatus seic let seoval = seo_ltcdacstatus seoc end)
+
+let rec ltcdacstatus_dbget h =
+  try
+    let z = DbLtcDacStatus.dbget h in
+    match z with
+    | LtcDacStatusPrev(k) ->
+	ltcdacstatus_dbget k
+    | LtcDacStatusNew(l) -> (h,l)
+  with Not_found -> (ltc_oldest_to_consider,[])
 
 let json_assoc_string k al =
   match List.assoc k al with
@@ -92,7 +130,9 @@ let ltc_getbestblockhash () =
     ignore (Unix.close_process_full (inc,outc,errc));
     match parse_jsonval l with
     | (JsonObj(al),_) -> json_assoc_string "result" al
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc getbestblockhash:\n%s\n" l;
+	raise Not_found
   with _ ->
     raise Not_found
 
@@ -115,7 +155,8 @@ let ltc_getblock h =
 	  | JsonObj(bl) ->
 	      begin
 		let pbh = json_assoc_string "previousblockhash" bl in
-		let tm = json_assoc_int64 "time" bl in
+		let tm = json_assoc_int64 "mediantime" bl in
+		let hght = json_assoc_int64 "height" bl in
 		let txl = ref [] in
 		match List.assoc "tx" bl with
 		| JsonArr(txs) ->
@@ -126,13 +167,19 @@ let ltc_getblock h =
 			  | JsonStr(txh) when dalilcoin_candidate_p txh -> txl := txh::!txl
 			  | _ -> ())
 			txs;
-		      (pbh,tm,!txl)
+		      (pbh,tm,hght,!txl)
 		    end
-		| _ -> raise Not_found
+		| _ ->
+		    Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+		    raise Not_found
 	      end
-	  | _ -> raise Not_found
+	  | _ ->
+	      Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+	      raise Not_found
 	end
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+	raise Not_found
   with _ ->
     raise Not_found
 
@@ -173,15 +220,20 @@ let ltc_listunspent () =
 			    let spk = json_assoc_string "scriptPubKey" bl in
 			    let amt = json_assoc_litoshis "amount" bl in
 			    utxol := (txh,vout,rs,spk,amt)::!utxol
-			  with Not_found -> ()
+			  with Not_found ->
+			    ()
 			end
 		    | _ -> ())
 		  ul;
 		!utxol
 	      end
-	  | _ -> raise Not_found
+	  | _ ->
+	      Printf.fprintf !Utils.log "problem return from ltc listunspent:\n%s\n" l;
+	      raise Not_found
 	end
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc listunspent:\n%s\n" l;
+	raise Not_found
   with _ ->
     raise Not_found
 
@@ -281,9 +333,13 @@ let ltc_signrawtransaction txs =
 	begin 
 	  match List.assoc "result" al with
 	  | JsonObj(bl) -> json_assoc_string "hex" bl
-	  | _ -> raise Not_found
+	  | _ ->
+	      Printf.fprintf !Utils.log "problem return from ltc signrawtransaction:\n%s\n" l;
+	      raise Not_found
 	end
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc signrawtransaction:\n%s\n" l;
+	raise Not_found
   with _ -> raise Not_found
 
 let ltc_sendrawtransaction txs =
@@ -297,7 +353,9 @@ let ltc_sendrawtransaction txs =
     ignore (Unix.close_process_full (inc,outc,errc));
     match parse_jsonval l with
     | (JsonObj(al),_) -> json_assoc_string "result" al
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc sendrawtransaction:\n%s\n" l;
+	raise Not_found
   with _ -> raise Not_found
 
 let ltc_gettransactioninfo h =
@@ -325,12 +383,132 @@ let ltc_gettransactioninfo h =
 			  if String.length hex >= 132 && hex.[0] = '6' && hex.[1] = 'a' then
 			    (litoshisburned,hexstring_hashval (String.sub hex 4 64),hexstring_hashval (String.sub hex 68 64))
 			  else
-			    raise Not_found
-		      | _ -> raise Not_found
+			    begin
+			      Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+			      raise Not_found
+			    end
+		      | _ ->
+			  Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+			  raise Not_found
 		    end
-		| _ -> raise Not_found
+		| _ ->
+		    Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+		    raise Not_found
 	      end
-	  | _ -> raise Not_found
+	  | _ ->
+	      Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+	      raise Not_found
 	end
-    | _ -> raise Not_found
+    | _ ->
+	Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+	raise Not_found
   with _ -> raise Not_found
+
+module DbHeaderLtcBurn = Dbbasic2 (struct type t = hashval * hashval option let basedir = "headerltcburn" let seival = sei_prod sei_hashval (sei_option sei_hashval) seic let seoval = seo_prod seo_hashval (seo_option seo_hashval) seoc end)
+module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let basedir = "ltcburntx" let seival = sei_prod3 sei_int64 sei_hashval sei_hashval seic let seoval = seo_prod3 seo_int64 seo_hashval seo_hashval seoc end)
+
+module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
+
+let rec ltc_process_block h =
+  let hh = hexstring_hashval h in
+  if not (hh = ltc_oldest_to_consider) && not (DbLtcBlock.dbexists hh) then
+    begin
+      let (prev,tm,hght,txhs) = ltc_getblock h in
+      if not (txhs = []) then
+	begin
+	  Printf.fprintf !Utils.log "getblock %s had %d candidate txs:\n" h (List.length txhs);
+	  List.iter (fun txh -> Printf.fprintf !Utils.log "candidate %s\n" txh) txhs;
+	end;
+      ltc_process_block prev;
+      let prevh = hexstring_hashval prev in
+      let genl = ref [] in
+      let succl = ref [] in
+      let txhhs = ref [] in
+      List.iter
+	  (fun txh ->
+	    let txhh = hexstring_hashval txh in
+	    if not (DbLtcBurnTx.dbexists txhh) then
+	      begin
+		let (burned,dprev,dnxt) = ltc_gettransactioninfo txh in
+		if DbHeaderLtcBurn.dbexists dnxt then
+		  Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
+		else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
+		  begin
+		    DbHeaderLtcBurn.dbput dnxt (txhh,None);
+		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		    txhhs := txhh :: !txhhs;
+		    genl := (txhh,burned,dnxt)::!genl
+		  end
+		else
+		  begin
+		    DbHeaderLtcBurn.dbput dnxt (txhh,Some(dprev));
+		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		    txhhs := txhh :: !txhhs;
+		    succl := (dprev,txhh,burned,dnxt)::!succl
+		  end
+	      end
+	    else
+	      txhhs := txhh :: !txhhs)
+	txhs;
+      begin
+	let (prevkey,pbds) = ltcdacstatus_dbget prevh in
+	let change = ref false in
+	let bds = ref [] in
+	if not (!genl = []) then
+	  begin
+	    if tm > Int64.add !Config.genesistimestamp 604800L then
+	      begin
+		Printf.fprintf !Utils.log "Ignoring unexpected genesis blocks burned during what appears to be after the genesis phase:\n";
+		List.iter (fun (txhh,burned,dnxt) -> Printf.printf "%s %Ld %s\n" (hashval_hexstring txhh) burned (hashval_hexstring dnxt)) !genl
+	      end
+	    else (*** there has already been a genesis block created during the genesis phase, but a competing one (or more) was created; include it too ***)
+	      begin
+		Printf.fprintf !Utils.log "%d genesis block(s) found:\n" (List.length !genl);
+		let pbdl = List.map (fun (txhh,burned,dnxt) -> (dnxt,hh,txhh,tm,hght)) !genl in
+		bds := [pbdl]
+	      end
+	  end;
+	List.iter
+	  (fun pbdl ->
+	    let pbdl2 =
+	      List.filter
+		(fun (bh,lbh,ltx,ltm,lhght) -> if Int64.sub tm ltm <= 604800L && Int64.sub hght lhght <= 4032L then true else (change := true; false))
+		pbdl
+	    in
+	    if not (pbdl2 = []) then bds := pbdl2 :: !bds;
+	    let pbdl3 = ref [] in
+	    List.iter
+	      (fun (bh,lbh,ltx,ltm,lhght) ->
+		try
+		  let (dprev,txhh,burned,dnxt) = List.find (fun (dprev,_,_,_) -> bh = dprev) !succl in
+		  pbdl3 := (dnxt,hh,txhh,tm,hght)::!pbdl3;
+		  change := true
+		with Not_found -> ())
+	      pbdl2;
+	    if not (!pbdl3 = []) then bds := !pbdl3 :: !bds)
+	  (List.rev pbds);
+	if !change then
+	  DbLtcDacStatus.dbput hh (LtcDacStatusPrev(prevkey)) (*** pointer to last ltc block where dalilcoin status changed ***)
+	else
+	  DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
+      end;
+      DbLtcBlock.dbput hh (prevh,tm,hght,!txhhs)
+    end
+
+let ltc_medtime () =
+  try
+    let (_,mtm,_,_) = DbLtcBlock.dbget !ltc_bestblock in
+    mtm
+  with Not_found -> Int64.of_float (Unix.time())
+
+let ltc_synced () =
+  try
+    Printf.fprintf !Utils.log "Checking if ltc synced ; bestblock %s\n" (hashval_hexstring !ltc_bestblock); flush !Utils.log;
+    let (_,tm,_,_) = DbLtcBlock.dbget !ltc_bestblock in
+    Printf.fprintf !Utils.log "tm of ltc bestblock %Ld offset from now %f\n" tm (Unix.time() -. Int64.to_float tm); flush !Utils.log;
+    if Unix.time() -. Int64.to_float tm < 1200.0 then
+      true
+    else
+      false
+  with Not_found -> false
+

@@ -41,7 +41,6 @@ type blockheaderdata = {
     newledgerroot : hashval;
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
-    announcedpoburn : poburn;
     timestamp : int64;
     deltatime : int32;
     tinfo : targetinfo;
@@ -50,6 +49,7 @@ type blockheaderdata = {
   }
 
 type blockheadersig = {
+    announcedpoburn : poburn;
     blocksignat : signat;
     blocksignatrecid : int;
     blocksignatfcomp : bool;
@@ -60,6 +60,8 @@ type blockheader = blockheaderdata * blockheadersig
 
 val fake_blockheader : blockheader
 
+val seo_blockheaderdata : (int -> int -> 'a -> 'a) -> blockheaderdata -> 'a -> 'a
+val sei_blockheaderdata : (int -> 'a -> int * 'a) -> 'a -> blockheaderdata * 'a
 val seo_blockheader : (int -> int -> 'a -> 'a) -> blockheader -> 'a -> 'a
 val sei_blockheader : (int -> 'a -> int * 'a) -> 'a -> blockheader * 'a
 
@@ -79,22 +81,21 @@ val sei_blockdelta : (int -> 'a -> int * 'a) -> 'a -> blockdelta * 'a
 val seo_block : (int -> int -> 'a -> 'a) -> block -> 'a -> 'a
 val sei_block : (int -> 'a -> int * 'a) -> 'a -> block * 'a
 
-module DbRecentHeaders :
+module DbBlockHeaderData :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> big_int
+      val dbget : Hash.hashval -> blockheaderdata
       val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> big_int -> unit
+      val dbput : Hash.hashval -> blockheaderdata -> unit
       val dbdelete : Hash.hashval -> unit
-      val dbkeyiter : (Hash.hashval -> unit) -> unit
     end
 
-module DbBlockHeader :
+module DbBlockHeaderSig :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> blockheader
+      val dbget : Hash.hashval -> blockheadersig
       val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> blockheader -> unit
+      val dbput : Hash.hashval -> blockheadersig -> unit
       val dbdelete : Hash.hashval -> unit
     end
 
@@ -116,6 +117,8 @@ module DbInvalidatedBlocks :
     val dbdelete : hashval -> unit
   end
 
+val get_blockheaderdata : hashval -> blockheaderdata
+val get_blockheadersig : hashval -> blockheadersig
 val get_blockheader : hashval -> blockheader
 val get_blockdelta : hashval -> blockdelta
 
@@ -123,7 +126,7 @@ val coinstake : block -> tx
 
 val check_hit_b : int64 -> int64 -> obligation -> int64
   -> stakemod -> big_int -> int64 -> hashval -> p2pkhaddr -> poburn -> bool
-val check_hit : int64 -> stakemod -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> bool
+val check_hit : int64 -> stakemod -> targetinfo -> blockheaderdata -> int64 -> obligation -> int64 -> poburn -> bool
 
 val hash_blockheaderdata : blockheaderdata -> hashval
 val hash_blockheadersig : blockheadersig -> hashval
@@ -133,7 +136,7 @@ exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
 val blockheader_stakeasset : blockheaderdata -> asset
 
-val valid_blockheader_allbutsignat : int64 -> stakemod -> targetinfo -> blockheaderdata -> asset -> bool
+val valid_blockheader_allbutsignat : int64 -> stakemod -> targetinfo -> blockheaderdata -> asset -> poburn -> bool
 val valid_blockheader_signat : blockheader -> asset -> bool
 
 val valid_blockheader : int64 -> stakemod -> targetinfo -> blockheader -> bool

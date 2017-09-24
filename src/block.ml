@@ -92,7 +92,6 @@ type blockheaderdata = {
     newledgerroot : hashval;
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
-    announcedpoburn : poburn;
     timestamp : int64;
     deltatime : int32;
     tinfo : targetinfo;
@@ -101,6 +100,7 @@ type blockheaderdata = {
   }
 
 type blockheadersig = {
+    announcedpoburn : poburn;
     blocksignat : signat;
     blocksignatrecid : int;
     blocksignatfcomp : bool;
@@ -117,14 +117,14 @@ let fake_blockheader : blockheader =
      newledgerroot = (0l,0l,0l,0l,0l,0l,0l,0l);
      stakeaddr = (0l,0l,0l,0l,0l);
      stakeassetid = (0l,0l,0l,0l,0l,0l,0l,0l);
-     announcedpoburn = Poburn((0l,0l,0l,0l,0l,0l,0l,0l),(0l,0l,0l,0l,0l,0l,0l,0l),0L);
      timestamp = 0L;
      deltatime = 0l;
      tinfo = zero_big_int;
      prevledger = CHash(0l,0l,0l,0l,0l,0l,0l,0l);
      blockdeltaroot = (0l,0l,0l,0l,0l,0l,0l,0l);
    },
-   { blocksignat = (zero_big_int,zero_big_int);
+   { announcedpoburn = Poburn((0l,0l,0l,0l,0l,0l,0l,0l),(0l,0l,0l,0l,0l,0l,0l,0l),0L);
+     blocksignat = (zero_big_int,zero_big_int);
      blocksignatrecid = 0;
      blocksignatfcomp = false;
      blocksignatendorsement = None;
@@ -137,7 +137,6 @@ let seo_blockheaderdata o bh c =
   let c = seo_hashval o bh.newledgerroot c in
   let c = seo_md160 o bh.stakeaddr c in (*** p2pkh addresses are md160 ***)
   let c = seo_hashval o bh.stakeassetid c in
-  let c = seo_poburn o bh.announcedpoburn c in
   let c = seo_int64 o bh.timestamp c in
   let c = seo_int32 o bh.deltatime c in
   let c = seo_targetinfo o bh.tinfo c in
@@ -152,7 +151,6 @@ let sei_blockheaderdata i c =
   let (x3,c) = sei_hashval i c in
   let (x4,c) = sei_md160 i c in (*** p2pkh addresses are md160 ***)
   let (x5,c) = sei_hashval i c in
-  let (x6a,c) = sei_poburn i c in
   let (x7,c) = sei_int64 i c in
   let (x8,c) = sei_int32 i c in
   let (x9,c) = sei_targetinfo i c in
@@ -165,7 +163,6 @@ let sei_blockheaderdata i c =
 	newledgerroot = x3;
 	stakeaddr = x4;
 	stakeassetid = x5;
-	announcedpoburn = x6a;
 	timestamp = x7;
 	deltatime = x8;
 	tinfo = x9;
@@ -176,6 +173,7 @@ let sei_blockheaderdata i c =
   (bhd,c)
 
 let seo_blockheadersig o bhs c = 
+  let c = seo_poburn o bhs.announcedpoburn c in
   let c = seo_signat o bhs.blocksignat c in
   let c = o 2 bhs.blocksignatrecid c in
   let c = seo_bool o bhs.blocksignatfcomp c in
@@ -183,12 +181,14 @@ let seo_blockheadersig o bhs c =
   c
 
 let sei_blockheadersig i c = 
+  let (y,c) = sei_poburn i c in
   let (x,c) = sei_signat i c in
   let (r,c) = i 2 c in
   let (f,c) = sei_bool i c in
   let (e,c) = sei_option (sei_prod4 sei_md160 sei_varintb sei_bool sei_signat) i c in
   let bhs : blockheadersig =
-    { blocksignat = x;
+    { announcedpoburn = y;
+      blocksignat = x;
       blocksignatrecid = r;
       blocksignatfcomp = f;
       blocksignatendorsement = e;
@@ -244,17 +244,27 @@ let sei_blockdelta i c =
 let seo_block o b c = seo_prod seo_blockheader seo_blockdelta o b c
 let sei_block i c = sei_prod sei_blockheader sei_blockdelta i c
 
-module DbRecentHeaders = Dbbasic2keyiter (struct type t = big_int let basedir = "recentheaders" let seival = sei_big_int_256 seic let seoval = seo_big_int_256 seoc end)
-module DbBlockHeader = Dbbasic2 (struct type t = blockheader let basedir = "blockheader" let seival = sei_blockheader seic let seoval = seo_blockheader seoc end)
+module DbBlockHeaderData = Dbbasic2 (struct type t = blockheaderdata let basedir = "blockheaderdata" let seival = sei_blockheaderdata seic let seoval = seo_blockheaderdata seoc end)
+module DbBlockHeaderSig = Dbbasic2 (struct type t = blockheadersig let basedir = "blockheadersig" let seival = sei_blockheadersig seic let seoval = seo_blockheadersig seoc end)
 module DbBlockDelta = Dbbasic2 (struct type t = blockdelta let basedir = "blockdelta" let seival = sei_blockdelta seic let seoval = seo_blockdelta seoc end)
 module DbInvalidatedBlocks = Dbbasic2 (struct type t = bool let basedir = "invalidatedblocks" let seival = sei_bool seic let seoval = seo_bool seoc end)
 
-let get_blockheader h = 
+let get_blockheaderdata h = 
   try
-    DbBlockHeader.dbget h
+    DbBlockHeaderData.dbget h
   with Not_found -> (*** request it and fail ***)
 (*** missing code to ask peers for data ***)
     raise GettingRemoteData
+
+let get_blockheadersig h = 
+  try
+    DbBlockHeaderSig.dbget h
+  with Not_found -> (*** request it and fail ***)
+(*** missing code to ask peers for data ***)
+    raise GettingRemoteData
+
+let get_blockheader h = 
+  (get_blockheaderdata h,get_blockheadersig h)
 
 let get_blockdelta h = 
   try
@@ -276,8 +286,8 @@ let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn =
   in
   lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl v))
 
-let check_hit blkh csm tinf bh bday obl v =
-  check_hit_b blkh bday obl v csm tinf bh.timestamp bh.stakeassetid bh.stakeaddr bh.announcedpoburn
+let check_hit blkh csm tinf bh bday obl v apob =
+  check_hit_b blkh bday obl v csm tinf bh.timestamp bh.stakeassetid bh.stakeaddr apob
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
@@ -300,7 +310,6 @@ let hash_blockheaderdata bh =
 	   bh.blockdeltaroot;
 	   hashaddr (p2pkhaddr_addr bh.stakeaddr);
 	   bh.stakeassetid;
-	   hashpoburn bh.announcedpoburn;
 	   hashtargetinfo bh.tinfo;
 	   hashint64 bh.timestamp;
 	   hashint32 bh.deltatime]))
@@ -309,7 +318,9 @@ let hash_blockheaderdata bh =
 let hash_blockheadersig bhs =
   hashopair1
     (hashpair
-       (hashsignat bhs.blocksignat)
+       (hashpair
+	  (hashpoburn bhs.announcedpoburn)
+	  (hashsignat bhs.blocksignat))
        (hashtag
 	  (hashint32 (Int32.of_int bhs.blocksignatrecid))
 	  (if bhs.blocksignatfcomp then 1029l else 1030l)))
@@ -323,13 +334,13 @@ let hash_blockheadersig bhs =
 let hash_blockheader (bhd,bhs) =
   hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
-let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) =
+let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) apob =
   bhd.stakeassetid = aid
     &&
   match u with
   | Currency(v) ->
       begin
-	check_hit blkh csm tinfo bhd bday obl v
+	check_hit blkh csm tinfo bhd bday obl v apob
 	  &&
 	bhd.deltatime > 0l
       end
@@ -359,7 +370,7 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
 let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) =
   valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v)
     &&
-  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v)
+  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) bhs.announcedpoburn
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
@@ -728,14 +739,17 @@ let ledgerroot_of_blockchain bc =
   let (((bhd,bhs),bd),bl) = bc in
   bhd.newledgerroot
 
-(*** retargeting at each step (July 2017, changed to very slow block time target of 6 hours, 21600 seconds) ***)
+(*** retargeting at each step
+ (July 2017, changed to very slow block time target of 6 hours, 21600 seconds)
+ (Sep 2017, changed testnet to block time target of 1 hour, 3600 seconds)
+ ***)
 let retarget tar deltm =
   min_big_int
     !max_target
     (div_big_int
        (mult_big_int tar
 	  (big_int_of_int32 (Int32.add 10000l deltm)))
-       (big_int_of_int (10000 + 21600)))
+       (big_int_of_int (10000 + (if !Config.testnet then 3600 else 21600))))
 
 let difficulty tar =
   div_big_int !max_target tar
@@ -765,9 +779,9 @@ let rec valid_blockchain_aux blkh bl =
   match bl with
   | ((bh,bd)::(pbh,pbd)::br) ->
       if blkh > 1L then
-	let (pbhd,_) = pbh in
+	let (pbhd,pbhs) = pbh in
 	let (tht,sigt) = valid_blockchain_aux (Int64.sub blkh 1L) ((pbh,pbd)::br) in
-	let csm = poburn_stakemod pbhd.announcedpoburn in
+	let csm = poburn_stakemod pbhs.announcedpoburn in
 	if blockheader_succ pbh bh then
 	  begin
 	    match valid_block tht sigt blkh csm pbhd.tinfo (bh,bd) with
@@ -803,8 +817,8 @@ let rec valid_blockheaderchain_aux blkh bhl =
   match bhl with
   | (bh::pbh::bhr) ->
       if blkh > 1L then
-	let (pbhd,_) = pbh in
-	let csm = poburn_stakemod pbhd.announcedpoburn in
+	let (pbhd,pbhs) = pbh in
+	let csm = poburn_stakemod pbhs.announcedpoburn in
 	valid_blockheaderchain_aux (Int64.sub blkh 1L) (pbh::bhr)
 	  && blockheader_succ pbh bh
 	  && valid_blockheader blkh csm pbhd.tinfo bh

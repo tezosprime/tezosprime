@@ -3,6 +3,14 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Hash
+open Sha256
+
+type poburn =
+  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
+
+val hashpoburn : poburn -> hashval
+val seo_poburn : (int -> int -> 'a -> 'a) -> poburn -> 'a -> 'a
+val sei_poburn : (int -> 'a -> int * 'a) -> 'a -> poburn * 'a
 
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 
@@ -20,9 +28,9 @@ val ltcdacstatus_dbget : hashval -> hashval * ((hashval * hashval * hashval * in
 module DbHeaderLtcBurn :
     sig
       val dbinit : unit -> unit
-      val dbget : hashval -> hashval * hashval option
+      val dbget : hashval -> poburn * hashval option
       val dbexists : hashval -> bool
-      val dbput : hashval -> hashval * hashval option -> unit
+      val dbput : hashval -> poburn * hashval option -> unit
       val dbdelete : hashval -> unit
     end
 

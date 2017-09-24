@@ -5,14 +5,36 @@
 open Ser
 open Hashaux
 open Hash
+open Sha256
 open Json
 open Db
 
-let ltc_oldest_to_consider = hexstring_hashval "0b5db7a2a032bb4b03dd110ab37887be59945b61f6b4457d821d1fbebb896c23"
-let ltc_oldest_to_consider_time = 1506256909L
-let ltc_oldest_to_consider_height = 200242L
+let ltc_oldest_to_consider = hexstring_hashval "edf26a7449c72b8191dc119997dbc01e13974c5476d027b7c4ef513a3d461a92"
+let ltc_oldest_to_consider_time = 1506282764L
+let ltc_oldest_to_consider_height = 200634L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
+
+type poburn =
+  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
+
+let hashpoburn p =
+  match p with
+  | Poburn(h,k,x) -> hashtag (hashpair (hashpair h k) (hashint64 x)) 194l
+
+let seo_poburn o p c =
+  match p with
+  | Poburn(h,k,x) ->
+      let c = seo_md256 o h c in
+      let c = seo_md256 o k c in
+      let c = seo_int64 o x c in
+      c
+
+let sei_poburn i c =
+  let (h,c) = sei_md256 i c in
+  let (k,c) = sei_md256 i c in
+  let (x,c) = sei_int64 i c in
+  (Poburn(h,k,x),c)
 
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 
@@ -404,7 +426,7 @@ let ltc_gettransactioninfo h =
 	raise Not_found
   with _ -> raise Not_found
 
-module DbHeaderLtcBurn = Dbbasic2 (struct type t = hashval * hashval option let basedir = "headerltcburn" let seival = sei_prod sei_hashval (sei_option sei_hashval) seic let seoval = seo_prod seo_hashval (seo_option seo_hashval) seoc end)
+module DbHeaderLtcBurn = Dbbasic2 (struct type t = poburn * hashval option let basedir = "headerltcburn" let seival = sei_prod sei_poburn (sei_option sei_hashval) seic let seoval = seo_prod seo_poburn (seo_option seo_hashval) seoc end)
 module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let basedir = "ltcburntx" let seival = sei_prod3 sei_int64 sei_hashval sei_hashval seic let seoval = seo_prod3 seo_int64 seo_hashval seo_hashval seoc end)
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
@@ -434,14 +456,14 @@ let rec ltc_process_block h =
 		  Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
 		else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		  begin
-		    DbHeaderLtcBurn.dbput dnxt (txhh,None);
+		    DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),None);
 		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		    txhhs := txhh :: !txhhs;
 		    genl := (txhh,burned,dnxt)::!genl
 		  end
 		else
 		  begin
-		    DbHeaderLtcBurn.dbput dnxt (txhh,Some(dprev));
+		    DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),Some(dprev));
 		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		    txhhs := txhh :: !txhhs;
 		    succl := (dprev,txhh,burned,dnxt)::!succl

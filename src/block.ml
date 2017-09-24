@@ -17,6 +17,7 @@ open Cryptocurr
 open Tx
 open Ctre
 open Ctregraft
+open Ltcrpc
 
 (*** 256 bits ***)
 type stakemod = hashval
@@ -60,33 +61,12 @@ let seo_targetinfo o ti c =
 let sei_targetinfo i c =
   sei_big_int_256 i c
 
-type poburn =
-  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
-
-let hashpoburn p =
-  match p with
-  | Poburn(h,k,x) -> hashtag (hashpair (hashpair h k) (hashint64 x)) 194l
-
-let seo_poburn o p c =
-  match p with
-  | Poburn(h,k,x) ->
-      let c = seo_md256 o h c in
-      let c = seo_md256 o k c in
-      let c = seo_int64 o x c in
-      c
-
-let sei_poburn i c =
-  let (h,c) = sei_md256 i c in
-  let (k,c) = sei_md256 i c in
-  let (x,c) = sei_int64 i c in
-  (Poburn(h,k,x),c)
-
 let poburn_stakemod p =
   match p with
   | Poburn(h,k,x) -> hashpair h k
 
 type blockheaderdata = {
-    prevblockhash : (hashval * hashval) option;
+    prevblockhash : (hashval * hashval * poburn) option;
     newtheoryroot : hashval option;
     newsignaroot : hashval option;
     newledgerroot : hashval;
@@ -100,7 +80,6 @@ type blockheaderdata = {
   }
 
 type blockheadersig = {
-    announcedpoburn : poburn;
     blocksignat : signat;
     blocksignatrecid : int;
     blocksignatfcomp : bool;
@@ -123,15 +102,14 @@ let fake_blockheader : blockheader =
      prevledger = CHash(0l,0l,0l,0l,0l,0l,0l,0l);
      blockdeltaroot = (0l,0l,0l,0l,0l,0l,0l,0l);
    },
-   { announcedpoburn = Poburn((0l,0l,0l,0l,0l,0l,0l,0l),(0l,0l,0l,0l,0l,0l,0l,0l),0L);
-     blocksignat = (zero_big_int,zero_big_int);
+   { blocksignat = (zero_big_int,zero_big_int);
      blocksignatrecid = 0;
      blocksignatfcomp = false;
      blocksignatendorsement = None;
    })
 
 let seo_blockheaderdata o bh c =
-  let c = seo_option (seo_prod seo_hashval seo_hashval) o bh.prevblockhash c in
+  let c = seo_option (seo_prod3 seo_hashval seo_hashval seo_poburn) o bh.prevblockhash c in
   let c = seo_option seo_hashval o bh.newtheoryroot c in
   let c = seo_option seo_hashval o bh.newsignaroot c in
   let c = seo_hashval o bh.newledgerroot c in
@@ -145,7 +123,7 @@ let seo_blockheaderdata o bh c =
   c
 
 let sei_blockheaderdata i c =
-  let (x0,c) = sei_option (sei_prod sei_hashval sei_hashval) i c in
+  let (x0,c) = sei_option (sei_prod3 sei_hashval sei_hashval sei_poburn) i c in
   let (x1,c) = sei_option sei_hashval i c in
   let (x2,c) = sei_option sei_hashval i c in
   let (x3,c) = sei_hashval i c in
@@ -173,7 +151,6 @@ let sei_blockheaderdata i c =
   (bhd,c)
 
 let seo_blockheadersig o bhs c = 
-  let c = seo_poburn o bhs.announcedpoburn c in
   let c = seo_signat o bhs.blocksignat c in
   let c = o 2 bhs.blocksignatrecid c in
   let c = seo_bool o bhs.blocksignatfcomp c in
@@ -181,14 +158,12 @@ let seo_blockheadersig o bhs c =
   c
 
 let sei_blockheadersig i c = 
-  let (y,c) = sei_poburn i c in
   let (x,c) = sei_signat i c in
   let (r,c) = i 2 c in
   let (f,c) = sei_bool i c in
   let (e,c) = sei_option (sei_prod4 sei_md160 sei_varintb sei_bool sei_signat) i c in
   let bhs : blockheadersig =
-    { announcedpoburn = y;
-      blocksignat = x;
+    { blocksignat = x;
       blocksignatrecid = r;
       blocksignatfcomp = f;
       blocksignatendorsement = e;
@@ -279,15 +254,14 @@ let get_blockdelta h =
  If there is proof of burn, the number of litecoin satoshis * 10000 is added to the stake.
  With a proof of storage, the stake is multiplied by 1.25 before the comparison is made.
 ***)
-let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr brn =
+let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr burned =
   let v =
-    match brn with
-    | Poburn(_,_,u) -> Int64.add v (Int64.mul (min u 100000000000L) 1000000L) (*** burning more than 1000 ltc still counts as only 1000 ***)
+    Int64.add v (Int64.mul (min burned 100000000000L) 1000000L) (*** burning more than 1000 ltc still counts as only 1000 ***)
   in
   lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl v))
 
-let check_hit blkh csm tinf bh bday obl v apob =
-  check_hit_b blkh bday obl v csm tinf bh.timestamp bh.stakeassetid bh.stakeaddr apob
+let check_hit blkh csm tinf bh bday obl v burned =
+  check_hit_b blkh bday obl v csm tinf bh.timestamp bh.stakeassetid bh.stakeaddr burned
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
@@ -302,7 +276,7 @@ let hash_blockheaderdata bh =
     (hashopair2
        (match bh.prevblockhash with
        | None -> None
-       | Some(h,k) -> Some(hashpair h k))
+       | Some(h,k,pob) -> Some(hashpair h (hashpair k (hashpoburn pob))))
        (hashlist
 	  [hashopair2 bh.newtheoryroot
 	     (hashopair2 bh.newsignaroot bh.newledgerroot);
@@ -318,9 +292,7 @@ let hash_blockheaderdata bh =
 let hash_blockheadersig bhs =
   hashopair1
     (hashpair
-       (hashpair
-	  (hashpoburn bhs.announcedpoburn)
-	  (hashsignat bhs.blocksignat))
+       (hashsignat bhs.blocksignat)
        (hashtag
 	  (hashint32 (Int32.of_int bhs.blocksignatrecid))
 	  (if bhs.blocksignatfcomp then 1029l else 1030l)))
@@ -334,13 +306,13 @@ let hash_blockheadersig bhs =
 let hash_blockheader (bhd,bhs) =
   hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
-let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) apob =
+let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) burned =
   bhd.stakeassetid = aid
     &&
   match u with
   | Currency(v) ->
       begin
-	check_hit blkh csm tinfo bhd bday obl v apob
+	check_hit blkh csm tinfo bhd bday obl v burned
 	  &&
 	bhd.deltatime > 0l
       end
@@ -367,10 +339,10 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
 	  end
     end
 
-let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) =
+let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) burned =
   valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v)
     &&
-  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) bhs.announcedpoburn
+  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) burned
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
@@ -387,9 +359,9 @@ let blockheader_stakeasset bhd =
   | _ -> 
       raise HeaderNoStakedAsset
 	
-let valid_blockheader blkh csm tinfo (bhd,bhs) =
+let valid_blockheader blkh csm tinfo (bhd,bhs) burned =
   try
-    valid_blockheader_a blkh csm tinfo (bhd,bhs) (blockheader_stakeasset bhd)
+    valid_blockheader_a blkh csm tinfo (bhd,bhs) (blockheader_stakeasset bhd) burned
   with
   | HeaderStakedAssetNotMin -> false
   | HeaderNoStakedAsset -> false
@@ -442,7 +414,7 @@ let blockdelta_hashroot bd =
 let rec check_bhl pbhsh bhl oth =
   match pbhsh with
   | None -> raise Not_found
-  | Some(pbh,_) ->
+  | Some(pbh,_,_) ->
       if pbh = oth then (*** if this happens, then it's not a genuine fork; one of the lists is a sublist of the other ***)
 	raise Not_found
       else
@@ -486,10 +458,10 @@ let check_poforfeit blkh ((bhd1,bhs1),(bhd2,bhs2),bhl1,bhl2,v,fal) tr =
     else
       false
 
-let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr =
+let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr burned =
   let ((bhd,bhs),bd) = b in
   (*** The header is valid. ***)
-  if (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u)
+  if (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u) burned
 	&&
       tx_outputs_valid bd.stakeoutput
         &&
@@ -719,11 +691,11 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr =
   else
     None
 
-let valid_block tht sigt blkh csm tinfo (b:block) =
+let valid_block tht sigt blkh csm tinfo (b:block) burned =
   let ((bhd,_),_) = b in
   let stkaddr = p2pkhaddr_addr bhd.stakeaddr in
   try
-    valid_block_a tht sigt blkh csm tinfo b (blockheader_stakeasset bhd) stkaddr
+    valid_block_a tht sigt blkh csm tinfo b (blockheader_stakeasset bhd) stkaddr burned
   with
   | HeaderStakedAssetNotMin -> None
   | HeaderNoStakedAsset -> None
@@ -771,25 +743,36 @@ let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
 let blockheader_succ bh1 bh2 =
   let (bhd1,bhs1) = bh1 in
   let (bhd2,bhs2) = bh2 in
-  bhd2.prevblockhash = Some (hash_blockheaderdata bhd1,hash_blockheadersig bhs1) (*** the next block must also commit to the previous signature ***)
-    &&
-  blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.tinfo bh2
+  match bhd2.prevblockhash with
+  | Some(pbh,pbsh,Poburn(lblkh,ltxh,burned)) ->
+      pbh = hash_blockheaderdata bhd1
+	&&
+      pbsh = hash_blockheadersig bhs1 (*** the next block must also commit to the previous signature ***)
+	&&
+      blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.tinfo bh2
+  | None -> false
 
-let rec valid_blockchain_aux blkh bl =
+let rec valid_blockchain_aux blkh bl burned =
   match bl with
   | ((bh,bd)::(pbh,pbd)::br) ->
       if blkh > 1L then
-	let (pbhd,pbhs) = pbh in
-	let (tht,sigt) = valid_blockchain_aux (Int64.sub blkh 1L) ((pbh,pbd)::br) in
-	let csm = poburn_stakemod pbhs.announcedpoburn in
-	if blockheader_succ pbh bh then
-	  begin
-	    match valid_block tht sigt blkh csm pbhd.tinfo (bh,bd) with
-	    | Some(tht2,sigt2) -> (tht2,sigt2)
-	    | None -> raise NotSupported
-	  end
-	else
-	  raise NotSupported
+	begin
+	  let (bhd,bhs) = bh in
+	  let (pbhd,pbhs) = pbh in
+	  match bhd.prevblockhash with
+	  | None -> raise NotSupported
+	  | Some(bhdprev,bhsprev,(Poburn(lblk,ltx,burned1) as pob)) ->
+	      let (tht,sigt) = valid_blockchain_aux (Int64.sub blkh 1L) ((pbh,pbd)::br) burned1 in
+	      let csm = poburn_stakemod pob in
+	      if blockheader_succ pbh bh then
+		begin
+		  match valid_block tht sigt blkh csm pbhd.tinfo (bh,bd) burned with
+		  | Some(tht2,sigt2) -> (tht2,sigt2)
+		  | None -> raise NotSupported
+		end
+	      else
+		raise NotSupported
+	end
       else
 	raise NotSupported
   | [(bh,bd)] ->
@@ -798,7 +781,7 @@ let rec valid_blockchain_aux blkh bl =
 	  && blockheader_succ_a !genesisledgerroot !Config.genesistimestamp !genesistarget bh
       then
 	begin
-	  match valid_block None None blkh !genesisstakemod !genesistarget (bh,bd) with
+	  match valid_block None None blkh !genesisstakemod !genesistarget (bh,bd) burned with
 	  | Some(tht2,sigt2) -> (tht2,sigt2)
 	  | None -> raise NotSupported
 	end
@@ -806,28 +789,34 @@ let rec valid_blockchain_aux blkh bl =
 	raise NotSupported
   | [] -> raise NotSupported
 
-let valid_blockchain blkh bc =
+let valid_blockchain blkh bc burned =
   try
     let (b,bl) = bc in
-    ignore (valid_blockchain_aux blkh (b::bl));
+    ignore (valid_blockchain_aux blkh (b::bl) burned);
     true
   with NotSupported -> false
 
-let rec valid_blockheaderchain_aux blkh bhl =
+let rec valid_blockheaderchain_aux blkh bhl burned =
   match bhl with
   | (bh::pbh::bhr) ->
       if blkh > 1L then
-	let (pbhd,pbhs) = pbh in
-	let csm = poburn_stakemod pbhs.announcedpoburn in
-	valid_blockheaderchain_aux (Int64.sub blkh 1L) (pbh::bhr)
-	  && blockheader_succ pbh bh
-	  && valid_blockheader blkh csm pbhd.tinfo bh
+	begin
+	  let (bhd,bhs) = bh in
+	  let (pbhd,pbhs) = pbh in
+	  match bhd.prevblockhash with
+	  | None -> false
+	  | Some(bhdprev,bhsprev,(Poburn(lblk,ltx,burned1) as pob)) ->
+	      let csm = poburn_stakemod pob in
+	      valid_blockheaderchain_aux (Int64.sub blkh 1L) (pbh::bhr) burned1
+		&& blockheader_succ pbh bh
+		&& valid_blockheader blkh csm pbhd.tinfo bh burned
+	end
       else
 	false
   | [(bhd,bhs)] ->
       blkh = 1L
 	&&
-      valid_blockheader blkh !genesisstakemod !genesistarget (bhd,bhs)
+      valid_blockheader blkh !genesisstakemod !genesistarget (bhd,bhs) burned
 	&&
       bhd.prevblockhash = None
 	&&
@@ -836,6 +825,6 @@ let rec valid_blockheaderchain_aux blkh bhl =
       blockheader_succ_a !genesisledgerroot !Config.genesistimestamp !genesistarget (bhd,bhs)
   | [] -> false
 
-let valid_blockheaderchain blkh bhc =
+let valid_blockheaderchain blkh bhc burned =
   match bhc with
-  | (bh,bhr) -> valid_blockheaderchain_aux blkh (bh::bhr)
+  | (bh,bhr) -> valid_blockheaderchain_aux blkh (bh::bhr) burned

@@ -9,9 +9,9 @@ open Sha256
 open Json
 open Db
 
-let ltc_oldest_to_consider = hexstring_hashval "edf26a7449c72b8191dc119997dbc01e13974c5476d027b7c4ef513a3d461a92"
-let ltc_oldest_to_consider_time = 1506282764L
-let ltc_oldest_to_consider_height = 200634L
+let ltc_oldest_to_consider = hexstring_hashval "de03ff6e66697188fb628c81c137fb502cc1085522258252c0ef9171ae168b59"
+let ltc_oldest_to_consider_time = 1506536388L
+let ltc_oldest_to_consider_height = 202390L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 
@@ -426,7 +426,7 @@ let ltc_gettransactioninfo h =
 	raise Not_found
   with _ -> raise Not_found
 
-module DbHeaderLtcBurn = Dbbasic2 (struct type t = poburn * hashval option let basedir = "headerltcburn" let seival = sei_prod sei_poburn (sei_option sei_hashval) seic let seoval = seo_prod seo_poburn (seo_option seo_hashval) seoc end)
+module DbHeaderLtcBurn = Dbbasic2 (struct type t = poburn * hashval option * int64 let basedir = "headerltcburn" let seival = sei_prod3 sei_poburn (sei_option sei_hashval) sei_int64 seic let seoval = seo_prod3 seo_poburn (seo_option seo_hashval) seo_int64 seoc end)
 module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let basedir = "ltcburntx" let seival = sei_prod3 sei_int64 sei_hashval sei_hashval seic let seoval = seo_prod3 seo_int64 seo_hashval seo_hashval seoc end)
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
@@ -451,23 +451,27 @@ let rec ltc_process_block h =
 	    let txhh = hexstring_hashval txh in
 	    if not (DbLtcBurnTx.dbexists txhh) then
 	      begin
-		let (burned,dprev,dnxt) = ltc_gettransactioninfo txh in
-		if DbHeaderLtcBurn.dbexists dnxt then
-		  Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
-		else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
-		  begin
-		    DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),None);
-		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
-		    txhhs := txhh :: !txhhs;
-		    genl := (txhh,burned,dnxt)::!genl
-		  end
-		else
-		  begin
-		    DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),Some(dprev));
-		    DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
-		    txhhs := txhh :: !txhhs;
-		    succl := (dprev,txhh,burned,dnxt)::!succl
-		  end
+		try
+		  let (burned,dprev,dnxt) = ltc_gettransactioninfo txh in
+		  if DbHeaderLtcBurn.dbexists dnxt then
+		    Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
+		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
+		    begin
+		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),None,1L);
+		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      txhhs := txhh :: !txhhs;
+		      genl := (txhh,burned,dnxt)::!genl
+		    end
+		  else
+		    begin
+		      let (_,_,pblkh) = DbHeaderLtcBurn.dbget dprev in
+		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),Some(dprev),Int64.add pblkh 1L);
+		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      txhhs := txhh :: !txhhs;
+		      succl := (dprev,txhh,burned,dnxt)::!succl
+		    end
+		with Not_found ->
+		  Printf.fprintf !Utils.log "Ignoring tx %s which does not appear to be a Dalilcoin burn tx\n" txh
 	      end
 	    else
 	      txhhs := txhh :: !txhhs)

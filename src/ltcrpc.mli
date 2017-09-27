@@ -28,9 +28,9 @@ val ltcdacstatus_dbget : hashval -> hashval * ((hashval * hashval * hashval * in
 module DbHeaderLtcBurn :
     sig
       val dbinit : unit -> unit
-      val dbget : hashval -> poburn * hashval option
+      val dbget : hashval -> poburn * hashval option * int64
       val dbexists : hashval -> bool
-      val dbput : hashval -> poburn * hashval option -> unit
+      val dbput : hashval -> poburn * hashval option * int64 -> unit
       val dbdelete : hashval -> unit
     end
 

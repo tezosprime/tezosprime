@@ -56,3 +56,5 @@ val publish_block : int64 -> hashval -> block -> big_int -> unit
 val send_inv : int -> out_channel -> connstate -> unit
 
 val dumpblocktreestate : out_channel -> unit
+
+val create_new_node : hashval -> blocktree

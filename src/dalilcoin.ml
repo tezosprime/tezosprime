@@ -32,6 +32,38 @@ let ltc_best_chaintips () =
   let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
   List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
 
+let get_bestnode () =
+  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let rec get_bestnode_r2 ctips =
+    match ctips with
+    | [] -> raise Not_found
+    | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
+	if not (DbBlacklist.dbexists dbh) && not (DbInvalidatedBlocks.dbexists dbh) then
+	  begin
+	    try
+	      Hashtbl.find blkheadernode (Some(dbh))
+	    with Not_found ->
+	      create_new_node dbh
+	  end
+	else
+	  get_bestnode_r2 ctipr
+  in
+  let rec get_bestnode_r ctipsl =
+    match ctipsl with
+    | [] ->
+	let tm = ltc_medtime() in
+	if tm > Int64.add !Config.genesistimestamp 604800L then
+	  raise (Failure "no valid best chaintip found and past the genesis phase")
+	else
+	  !genesisblocktreenode
+    | ctips::ctipsr ->
+	try
+	  get_bestnode_r2 ctips
+	with Not_found ->
+	  get_bestnode_r ctipsr
+  in
+  get_bestnode_r ctips0l
+
 let rec pblockchain s n c lr m =
   let BlocktreeNode(par,_,pbh,_,_,plr,csm,tar,_,_,blkh,_,_,chl) = n in
   if m > 0 then
@@ -89,7 +121,7 @@ let dumpstate fa =
     )
     !netconns;
   Printf.fprintf sa "=================\nBlock Chain:\n";
-  pblockchain sa !bestnode None None 10000;
+  pblockchain sa (get_bestnode()) None None 10000;
   dumpblocktreestate sa;
   close_out sa
 
@@ -327,7 +359,7 @@ let stakingthread () =
       if sleeplen > 1.0 then Thread.delay sleeplen;
       Printf.fprintf !log "Staking after sleeplen %f seconds\n" sleeplen;
       if not (ltc_synced()) then (Printf.fprintf !log "ltc not synced yet; delaying staking\n"; flush !log; raise (StakingPause(60.0)));
-      let best = !bestnode in
+      let best = get_bestnode() in
       begin
 	match node_validationstatus best with
 	| InvalidBlock -> find_best_validated_block()
@@ -606,7 +638,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			if tm <= ftm then
 			  begin
 			    if node_validationstatus best = ValidBlock then (*** Don't publish a successor unless the previous block has been fully validated ***)
-			      let currbestnode = !bestnode in (*** in case it has changed ***)
+			      let currbestnode = get_bestnode() in (*** in case it has changed ***)
 			      if pbhh = node_prevblockhash currbestnode then (*** if the bestnode has changed, don't publish it ***)
 				begin
 				  match toburn with
@@ -630,7 +662,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		      end
 		  in
 		  if node_validationstatus best = ValidBlock then (*** Don't publish a successor unless the previous block has been fully validated ***)
-		    let currbestnode = !bestnode in (*** in case it has changed ***)
+		    let currbestnode = get_bestnode() in (*** in case it has changed ***)
 		    if pbhh = node_prevblockhash currbestnode then (*** if the bestnode has changed, don't publish it unless the cumulative stake is higher ***)
 		      publish_new_block()
 		end
@@ -918,7 +950,7 @@ let do_command oc l =
       remove_dead_conns();
       let ll = List.length !netconns in
       Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
-      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = !bestnode in
+      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = get_bestnode() in
       begin
 	match pbh with
 	| Some(h,_,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
@@ -1003,7 +1035,7 @@ let do_command oc l =
       begin
 	match al with
 	| [] ->
-	    let best = !bestnode in
+	    let best = get_bestnode() in
 	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
 	    Commands.printctreeinfo currledgerroot
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
@@ -1044,7 +1076,7 @@ let do_command oc l =
 	      | [] ->
 		  let gamma = alpha2 in
 		  let beta = alpha in
-		  let lr = node_ledgerroot !bestnode in
+		  let lr = node_ledgerroot (get_bestnode()) in
 		  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 	      | (gam::r) ->
 		  let gamma = daliladdrstr_addr gam in
@@ -1052,7 +1084,7 @@ let do_command oc l =
 		  match r with
 		  | [] ->
 		      let beta = alpha in
-		      let lr = node_ledgerroot !bestnode in
+		      let lr = node_ledgerroot (get_bestnode()) in
 		      Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		  | (bet::r) ->
 		      let beta2 = daliladdrstr_addr bet in
@@ -1061,7 +1093,7 @@ let do_command oc l =
 		      let beta = (p=1,b4,b3,b2,b1,b0) in
 		      match r with
 		      | [] ->
-			  let lr = node_ledgerroot !bestnode in
+			  let lr = node_ledgerroot (get_bestnode()) in
 			  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		      | [lr] ->
 			  let lr = hexstring_hashval lr in
@@ -1077,7 +1109,7 @@ let do_command oc l =
   | "signtx" ->
       begin
 	match al with
-	| [s] -> Commands.signtx (node_ledgerroot !bestnode) s
+	| [s] -> Commands.signtx (node_ledgerroot (get_bestnode())) s
 	| _ ->
 	    Printf.fprintf oc "signtx <tx in hex>\n";
 	    flush oc
@@ -1085,7 +1117,7 @@ let do_command oc l =
   | "savetxtopool" ->
       begin
 	match al with
-	| [s] -> Commands.savetxtopool (node_blockheight !bestnode) (node_ledgerroot !bestnode) s
+	| [s] -> Commands.savetxtopool (node_blockheight (get_bestnode())) (node_ledgerroot (get_bestnode())) s
 	| _ ->
 	    Printf.fprintf oc "savetxtopool <tx in hex>\n";
 	    flush oc
@@ -1093,13 +1125,13 @@ let do_command oc l =
   | "sendtx" ->
       begin
 	match al with
-	| [s] -> Commands.sendtx (node_blockheight !bestnode) (node_ledgerroot !bestnode) s
+	| [s] -> Commands.sendtx (node_blockheight (get_bestnode())) (node_ledgerroot (get_bestnode())) s
 	| _ ->
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc
       end
   | "bestblock" ->
-      let node = !bestnode in
+      let node = get_bestnode() in
       let h = node_prevblockhash node in
       let blkh = node_blockheight node in
       let lr = node_ledgerroot node in
@@ -1113,12 +1145,12 @@ let do_command oc l =
 	    flush oc
       end
   | "difficulty" ->
-      let node = !bestnode in
+      let node = get_bestnode() in
       let tar = node_targetinfo node in
       let blkh = node_blockheight node in
       Printf.fprintf oc "Current target (for block at height %Ld): %s\n" blkh (string_of_big_int tar);
       flush oc
-  | "blockchain" -> pblockchain oc !bestnode None None 1000
+  | "blockchain" -> pblockchain oc (get_bestnode()) None None 1000
   | _ ->
       (Printf.fprintf oc "Ignoring unknown command: %s\n" c; List.iter (fun a -> Printf.fprintf oc "%s\n" a) al; flush oc);;
 

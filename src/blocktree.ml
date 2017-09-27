@@ -284,7 +284,7 @@ let insert_new_node par blkh bhdnewh (bhdnew,bhsnew) pob =
 
 let rec validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs =
   let (blkhd,_) as blkh = (DbBlockHeaderData.dbget h,DbBlockHeaderSig.dbget h) in
-  let (Poburn(lblkh,ltxh,burned),_) = DbHeaderLtcBurn.dbget h in
+  let (Poburn(lblkh,ltxh,burned),_,_) = DbHeaderLtcBurn.dbget h in
   let blk = (blkh,blkdel) in
   if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
     let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
@@ -342,7 +342,7 @@ let rec process_new_header_a h hh blkhs1h blkh1 blkhd1 blkhs1 initialization kno
       raise (Failure "header does not support staked asset")
 and process_new_header_aa h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization knownvalid =
   if valid_blockheader_signat blkh1 a then
-    let (pob,prevbh) = DbHeaderLtcBurn.dbget h in
+    let (pob,prevbh,_) = DbHeaderLtcBurn.dbget h in
     process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization knownvalid pob
   else
     begin
@@ -485,7 +485,7 @@ let rec init_headers h =
     init_headers_to h
   else
     try
-      let (_,prevbh) = DbHeaderLtcBurn.dbget h in
+      let (_,prevbh,_) = DbHeaderLtcBurn.dbget h in
       match prevbh with
       | Some(prevh) -> init_headers prevh
       | None -> ()
@@ -620,7 +620,7 @@ Hashtbl.add msgtype_handler Headers
 		  cs.banned <- true
 		end
 	      else
-		let (pob,_) = DbHeaderLtcBurn.dbget h in
+		let (pob,_,_) = DbHeaderLtcBurn.dbget h in
 		process_new_header_ab h (hashval_hexstring h) bhsh bh bhd bhs a false false pob
 	    with
 	    | HeaderStakedAssetNotMin -> (*** here it is safe to blacklist the header's hash since no valid header can have this hash ***)
@@ -1024,7 +1024,7 @@ Hashtbl.add msgtype_handler Checkpoint
 	    broadcast_inv [(int_of_msgtype Checkpoint,node_blockheight n,h)]
 	  with Not_found ->
 	    try
-	      let (pob,_) = DbHeaderLtcBurn.dbget h in
+	      let (pob,_,_) = DbHeaderLtcBurn.dbget h in
 	      let blkhd1 = DbBlockHeaderData.dbget h in
 	      let blkhs1 = DbBlockHeaderSig.dbget h in
 	      let bh = (blkhd1,blkhs1) in
@@ -1046,3 +1046,40 @@ Hashtbl.add msgtype_handler Checkpoint
       else
 	Printf.fprintf !log "Bad signature on checkpoint\n%s\n" (string_hexstring ms));;
 
+let rec create_new_node h =
+  try
+    let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
+    try
+      let bhd = DbBlockHeaderData.dbget h in
+      let bhs = DbBlockHeaderSig.dbget h in
+      let bh = (bhd,bhs) in
+      if DbBlockDelta.dbexists h then
+	let bhsh = hash_blockheadersig bhs in
+	let newcsm = poburn_stakemod pob in
+	let pbh = fstohash bhd.prevblockhash in
+	let par =
+	  match pbh with
+	  | Some(pbh) -> Some(get_or_create_node pbh)
+	  | None -> Some(!genesisblocktreenode)
+	in
+	let fnode = BlocktreeNode(par,ref [],Some(h,bhsh,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in
+	Hashtbl.add blkheadernode (Some(h)) fnode;
+	fnode
+      else
+	begin
+	  Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
+	  find_and_send_requestdata GetBlockdelta h;
+	  raise GettingRemoteData
+	end
+    with Not_found ->
+      Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
+      find_and_send_requestdata GetHeader h;
+      raise GettingRemoteData
+  with Not_found ->
+    Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
+    raise (Failure "problem in create_new_node")
+and get_or_create_node h =
+  try
+    Hashtbl.find blkheadernode (Some(h))
+  with Not_found ->
+    create_new_node h

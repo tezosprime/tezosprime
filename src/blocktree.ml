@@ -147,7 +147,8 @@ let rec collect_inv m cnt tosend n txinv =
       | Some(pbh,_,_) ->
 	  if DbBlockHeaderData.dbexists pbh && DbBlockHeaderSig.dbexists pbh then
 	    begin
-	      tosend := (int_of_msgtype Headers,Int64.sub blkh 1L,pbh)::!tosend; incr cnt;
+tosend := (int_of_msgtype Headers,Int64.sub blkh 1L,pbh)::!tosend; incr cnt;
+Printf.printf "Will send inv header %s %b\n" (hashval_hexstring pbh) (DbBlockDelta.dbexists pbh); flush stdout;
 	      if DbBlockDelta.dbexists pbh then (tosend := (int_of_msgtype Blockdelta,blkh,pbh)::!tosend; incr cnt)
 	    end;
 	  match par with
@@ -491,14 +492,6 @@ let rec init_headers h =
       | None -> ()
     with Not_found ->
       Printf.printf "Could not find ltc burn for header %s\nStarting node without initializing headers.\n" (hashval_hexstring h)
-
-let initblocktree () =
-  genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);
-  lastcheckpointnode := !genesisblocktreenode;
-  update_bestnode !genesisblocktreenode;
-  Hashtbl.add blkheadernode None !genesisblocktreenode;
-  let (lastchangekey,ctipsl) = ltcdacstatus_dbget !ltc_bestblock in
-  List.iter (fun ctips -> List.iter (fun (h,_,_,_,_) -> init_headers h) ctips) ctipsl
 
 let rec find_best_validated_block_from fromnode bestn bestcumulstk =
   let BlocktreeNode(_,_,_,_,_,_,_,_,_,cumulstk,_,validatedp,blklistp,succl) = fromnode in
@@ -1048,25 +1041,26 @@ Hashtbl.add msgtype_handler Checkpoint
       else
 	Printf.fprintf !log "Bad signature on checkpoint\n%s\n" (string_hexstring ms));;
 
-let rec create_new_node h =
+let rec create_new_node h req =
   try
     let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
     try
       let bhd = DbBlockHeaderData.dbget h in
       let bhs = DbBlockHeaderSig.dbget h in
-      let bh = (bhd,bhs) in
       if DbBlockDelta.dbexists h then
 	let bhsh = hash_blockheadersig bhs in
 	let newcsm = poburn_stakemod pob in
 	let pbh = fstohash bhd.prevblockhash in
 	let par =
 	  match pbh with
-	  | Some(pbh) -> Some(get_or_create_node pbh)
+	  | Some(pbh) -> Some(get_or_create_node pbh req)
 	  | None -> Some(!genesisblocktreenode)
 	in
-	let fnode = BlocktreeNode(par,ref [],Some(h,bhsh,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in
+	let fnode = BlocktreeNode(par,ref [],Some(h,bhsh,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
 	Hashtbl.add blkheadernode (Some(h)) fnode;
 	fnode
+      else if not req then
+        raise Not_found
       else
 	begin
 	  Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
@@ -1079,19 +1073,75 @@ let rec create_new_node h =
 	    raise Exit
 	end
     with Not_found ->
-      Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
-      try
-	find_and_send_requestdata GetHeader h;
-	raise GettingRemoteData
-      with Not_found ->
-	Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
-	Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
-	raise Exit
+      if not req then
+        raise Not_found
+      else
+        begin
+          Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
+          try
+	    find_and_send_requestdata GetHeader h;
+	    raise GettingRemoteData
+          with Not_found ->
+	    Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
+            Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	    raise Exit
+        end
   with Not_found ->
     Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
     raise (Failure "problem in create_new_node")
-and get_or_create_node h =
+and get_or_create_node h req =
   try
     Hashtbl.find blkheadernode (Some(h))
   with Not_found ->
-    create_new_node h
+    create_new_node h req
+
+let ltc_best_chaintips () =
+  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let ctips1l =
+    List.map (fun ctips -> List.filter (fun (h,_,_,_,_) -> not (DbBlacklist.dbexists h) && not (DbInvalidatedBlocks.dbexists h)) ctips) ctips0l
+  in
+  let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
+  List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
+
+let get_bestnode req =
+  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let rec get_bestnode_r2 ctips =
+    match ctips with
+    | [] -> raise Not_found
+    | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
+	if not (DbBlacklist.dbexists dbh) && not (DbInvalidatedBlocks.dbexists dbh) then
+	  begin
+            try
+	      Hashtbl.find blkheadernode (Some(dbh))
+	    with Not_found ->
+	      try
+		create_new_node dbh req
+	      with Exit -> raise Not_found
+	  end
+	else
+	  get_bestnode_r2 ctipr
+  in
+  let rec get_bestnode_r ctipsl =
+    match ctipsl with
+    | [] ->
+	let tm = ltc_medtime() in
+	if tm > Int64.add !Config.genesistimestamp 604800L then
+	  raise (Failure "no valid best chaintip found and past the genesis phase")
+	else
+	  !genesisblocktreenode
+    | ctips::ctipsr ->
+	try
+	  get_bestnode_r2 ctips
+	with Not_found ->
+	  get_bestnode_r ctipsr
+  in
+  get_bestnode_r ctips0l
+
+let initblocktree () =
+  genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);
+  lastcheckpointnode := !genesisblocktreenode;
+  Hashtbl.add blkheadernode None !genesisblocktreenode;
+  try
+    ignore (get_bestnode true);
+  with Exit -> ()
+

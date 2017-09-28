@@ -9,34 +9,36 @@ open Sha256
 open Json
 open Db
 
-let ltc_oldest_to_consider = hexstring_hashval "de03ff6e66697188fb628c81c137fb502cc1085522258252c0ef9171ae168b59"
-let ltc_oldest_to_consider_time = 1506536388L
-let ltc_oldest_to_consider_height = 202390L
+let ltc_oldest_to_consider = hexstring_hashval "6d5bd852b3870aa0d1efc62e7ab71ce22cc8f0bce7291bb07b2f389deee2e0e8"
+let ltc_oldest_to_consider_time = 1506624081L
+let ltc_oldest_to_consider_height = 202963L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 
 let burntx : (hashval,string) Hashtbl.t = Hashtbl.create 100
 
 type poburn =
-  | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
+  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
 
 let hashpoburn p =
   match p with
-  | Poburn(h,k,x) -> hashtag (hashpair (hashpair h k) (hashint64 x)) 194l
+  | Poburn(h,k,x,y) -> hashtag (hashpair (hashpair h k) (hashpair (hashint64 x) (hashint64 y))) 194l
 
 let seo_poburn o p c =
   match p with
-  | Poburn(h,k,x) ->
+  | Poburn(h,k,x,y) ->
       let c = seo_md256 o h c in
       let c = seo_md256 o k c in
       let c = seo_int64 o x c in
+      let c = seo_int64 o y c in
       c
 
 let sei_poburn i c =
   let (h,c) = sei_md256 i c in
   let (k,c) = sei_md256 i c in
   let (x,c) = sei_int64 i c in
-  (Poburn(h,k,x),c)
+  let (y,c) = sei_int64 i c in
+  (Poburn(h,k,x,y),c)
 
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 
@@ -465,7 +467,7 @@ let rec ltc_process_block h =
 		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		    begin
 		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
-		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),None,1L);
+		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),None,1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		      txhhs := txhh :: !txhhs;
 		      genl := (txhh,burned,dnxt)::!genl
@@ -475,7 +477,7 @@ let rec ltc_process_block h =
 		      Printf.fprintf !Utils.log "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt);
 		      let (_,_,pblkh) = DbHeaderLtcBurn.dbget dprev in
 		      Printf.fprintf !Utils.log "New height %Ld\n" (Int64.add pblkh 1L);
-		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),Some(dprev),Int64.add pblkh 1L);
+		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),Some(dprev),Int64.add pblkh 1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		      txhhs := txhh :: !txhhs;
 		      succl := (dprev,txhh,burned,dnxt)::!succl

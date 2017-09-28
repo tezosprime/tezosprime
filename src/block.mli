@@ -133,10 +133,10 @@ exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
 val blockheader_stakeasset : blockheaderdata -> asset
 
-val valid_blockheader_allbutsignat : int64 -> stakemod -> targetinfo -> blockheaderdata -> asset -> int64 -> bool
+val valid_blockheader_allbutsignat : int64 -> stakemod -> targetinfo -> blockheaderdata -> asset -> int64 -> int64 -> bool
 val valid_blockheader_signat : blockheader -> asset -> bool
 
-val valid_blockheader : int64 -> stakemod -> targetinfo -> blockheader -> int64 -> bool
+val valid_blockheader : int64 -> stakemod -> targetinfo -> blockheader -> int64 -> int64 -> bool
 
 val ctree_of_block : block -> ctree
 
@@ -146,7 +146,7 @@ val retarget : big_int -> int32 -> big_int
 val difficulty : big_int -> big_int
 val cumul_stake : big_int -> big_int -> int32 -> big_int
 
-val valid_block : ttree option -> stree option -> int64 -> stakemod -> targetinfo -> block -> int64 -> (ttree option * stree option) option
+val valid_block : ttree option -> stree option -> int64 -> stakemod -> targetinfo -> block -> int64 -> int64 -> (ttree option * stree option) option
 
 val blockheader_succ_a : hashval -> int64 -> targetinfo -> blockheader -> bool
 val blockheader_succ : blockheader -> blockheader -> bool
@@ -158,6 +158,6 @@ val blockchain_headers : blockchain -> blockheaderchain
 
 val ledgerroot_of_blockchain : blockchain -> hashval
 
-val valid_blockchain : int64 -> blockchain -> int64 -> bool
+val valid_blockchain : int64 -> blockchain -> int64 -> int64 -> bool
 
-val valid_blockheaderchain : int64 -> blockheaderchain -> int64 -> bool
+val valid_blockheaderchain : int64 -> blockheaderchain -> int64 -> int64 -> bool

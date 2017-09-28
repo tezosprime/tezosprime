@@ -319,7 +319,7 @@ let stakingthread () =
       if sleeplen > 1.0 then Thread.delay sleeplen;
       Printf.fprintf !log "Staking after sleeplen %f seconds\n" sleeplen;
       if not (ltc_synced()) then (Printf.fprintf !log "ltc not synced yet; delaying staking\n"; flush !log; raise (StakingPause(60.0)));
-      let best = try get_bestnode false with Not_found -> Printf.fprintf !log "not synced; delaying staking\n"; flush !log; raise (StakingPause(300.0)) in
+      let best = try get_bestnode false with _ -> Printf.fprintf !log "possibly not synced; delaying staking\n"; flush !log; raise (StakingPause(300.0)) in
       begin
 	match node_validationstatus best with
 	| InvalidBlock -> find_best_validated_block()
@@ -549,11 +549,11 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		    let prevledgerroot = node_ledgerroot best in
 		    let csm0 = node_stakemod best in
 		    let tar0 = node_targetinfo best in
-		    if valid_blockheader blkh csm0 tar0 bhnew (match toburn with Some(burn) -> burn | _ -> 0L) then
+		    if valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L) then
 		      () (* (Printf.fprintf !log "New block header is valid\n"; flush !log) *)
 		    else
 		      (Printf.fprintf !log "New block header is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate"); Hashtbl.remove nextstakechances pbhh1; raise StakingProblemPause);
-		    if not ((valid_block None None blkh csm0 tar0 (bhnew,bdnew) (match toburn with Some(burn) -> burn | _ -> 0L)) = None) then
+		    if not ((valid_block None None blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L)) = None) then
 		      () (* (Printf.fprintf !log "New block is valid\n"; flush stdout) *)
 		    else
 		      (Printf.fprintf !log "New block is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate"); Hashtbl.remove nextstakechances pbhh1; raise StakingProblemPause);
@@ -564,7 +564,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			let (pbhd,pbhs) = get_blockheader pbhh1 in
 			let tmpsucctest bhd1 bhs1 bhd2 =
 			  match bhd2.prevblockhash with
-			  | Some(pbh,pbsh,Poburn(lblkh,ltxh,burned)) ->
+			  | Some(pbh,pbsh,Poburn(lblkh,ltxh,lmedtm,burned)) ->
 			      bhd2.timestamp = Int64.add bhd1.timestamp (Int64.of_int32 bhd2.deltatime)
 				&&
 			      pbh = hash_blockheaderdata bhd1
@@ -962,6 +962,24 @@ let do_command oc l =
 	match al with
 	| [h] -> DbInvalidatedBlocks.dbdelete (hexstring_hashval h)
 	| _ -> raise (Failure "revalidateblock <blockhash>")
+      end
+  | "getblock" ->
+      begin
+	match al with
+	| [hh] ->
+	    begin
+	      let h = hexstring_hashval hh in
+	      try
+		let bhd = DbBlockHeaderData.dbget h in
+		if not (DbBlockHeaderSig.dbexists h) then
+		  find_and_send_requestdata GetHeader h;
+		if not (DbBlockDelta.dbexists h) then
+		  find_and_send_requestdata GetBlockdelta h;
+		Printf.printf "Time: %Ld\n" bhd.timestamp;
+	      with Not_found ->
+		find_and_send_requestdata GetHeader h
+	    end
+	| _ -> raise (Failure "getblock <blockhash>")
       end
   | "printassets" when al = [] -> Commands.printassets oc
   | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger oc (hexstring_hashval h)) al

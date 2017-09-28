@@ -290,7 +290,7 @@ let rec validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel
     let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
     Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
     begin
-      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk burned lmedtm with
+      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk lmedtm burned with
       | Some(tht2,sigt2) ->
 	  vs := ValidBlock;
 	  Hashtbl.remove tovalidate h;

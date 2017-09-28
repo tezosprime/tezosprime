@@ -15,6 +15,8 @@ let ltc_oldest_to_consider_height = 202390L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 
+let burntx : (hashval,string) Hashtbl.t = Hashtbl.create 100
+
 type poburn =
   | Poburn of md256 * md256 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
 
@@ -304,42 +306,47 @@ let ltc_createburntx h1 h2 toburn =
   let utxol = ltc_listunspent () in
   let toburn_plus_fee = Int64.add toburn !Config.ltctxfee in
   try
-    let (txid,vout,rs,spk,amt) = List.find (fun (_,_,_,_,amt) -> amt > toburn_plus_fee) utxol in (*** only consider single spends ***)
-    let txs1b = Buffer.create 100 in
-    let txs2b = Buffer.create 100 in
-    let txs3b = Buffer.create 100 in
-    Buffer.add_string txs1b "\001"; (*** assume one input ***)
-    let txidrh = hashval_rev (hexstring_hashval txid) in
-    ignore (seo_hashval seosb txidrh (txs1b,None));
-    List.iter (fun z -> Buffer.add_char txs1b (Char.chr z)) (blnum32 (Int32.of_int vout));
-    let txs1 = Buffer.contents txs1b in
-    Buffer.add_char txs1b '\023';
-    Buffer.add_char txs1b '\022';
-    Buffer.add_string txs1b (hexstring_string rs);
-    Buffer.add_string txs2b "\255\255\255\255\002";
-    List.iter (fun z -> Buffer.add_char txs2b (Char.chr z)) (blnum64 toburn);
-    Buffer.add_char txs2b (Char.chr 69);
-    Buffer.add_char txs2b (Char.chr 0x6a); (*** OP_RETURN ***)
-    Buffer.add_char txs2b (Char.chr 67); (*** PUSH 67 ***)
-    ignore (seo_hashval seosb h1 (txs2b,None));
-    ignore (seo_hashval seosb h2 (txs2b,None));
-    List.iter (fun z -> Buffer.add_char txs3b (Char.chr z)) (blnum64 (Int64.sub amt toburn_plus_fee));
-    let spks = hexstring_string spk in
-    Buffer.add_char txs3b (Char.chr (String.length spks));
-    Buffer.add_string txs3b spks;
-    Buffer.add_string txs3b "\000\000\000\000"; (*** locktime ***)
-    let txs2 = Buffer.contents txs2b in
-    let txs3 = Buffer.contents txs3b in
-    let (i,rtxid,txs) = finddatx ("\002\000\000\000" ^ (Buffer.contents txs1b) ^ txs2) txs3 in
-    let txsb = Buffer.create 100 in
-    Buffer.add_string txsb "\002\000\000\000";
-    Buffer.add_string txsb txs1;
-    Buffer.add_string txsb "\000";
-    Buffer.add_string txsb txs2;
-    Buffer.add_string txsb (le_num24 i);
-    Buffer.add_string txsb txs3;
-    Buffer.contents txsb
-  with Not_found -> raise InsufficientLtcFunds
+    Hashtbl.find burntx h2
+  with Not_found ->
+    try
+      let (txid,vout,rs,spk,amt) = List.find (fun (_,_,_,_,amt) -> amt >= toburn_plus_fee) utxol in (*** only consider single spends ***)
+      let txs1b = Buffer.create 100 in
+      let txs2b = Buffer.create 100 in
+      let txs3b = Buffer.create 100 in
+      Buffer.add_string txs1b "\001"; (*** assume one input ***)
+      let txidrh = hashval_rev (hexstring_hashval txid) in
+      ignore (seo_hashval seosb txidrh (txs1b,None));
+      List.iter (fun z -> Buffer.add_char txs1b (Char.chr z)) (blnum32 (Int32.of_int vout));
+      let txs1 = Buffer.contents txs1b in
+      Buffer.add_char txs1b '\023';
+      Buffer.add_char txs1b '\022';
+      Buffer.add_string txs1b (hexstring_string rs);
+      Buffer.add_string txs2b "\255\255\255\255\002";
+      List.iter (fun z -> Buffer.add_char txs2b (Char.chr z)) (blnum64 toburn);
+      Buffer.add_char txs2b (Char.chr 69);
+      Buffer.add_char txs2b (Char.chr 0x6a); (*** OP_RETURN ***)
+      Buffer.add_char txs2b (Char.chr 67); (*** PUSH 67 ***)
+      ignore (seo_hashval seosb h1 (txs2b,None));
+      ignore (seo_hashval seosb h2 (txs2b,None));
+      List.iter (fun z -> Buffer.add_char txs3b (Char.chr z)) (blnum64 (Int64.sub amt toburn_plus_fee));
+      let spks = hexstring_string spk in
+      Buffer.add_char txs3b (Char.chr (String.length spks));
+      Buffer.add_string txs3b spks;
+      Buffer.add_string txs3b "\000\000\000\000"; (*** locktime ***)
+      let txs2 = Buffer.contents txs2b in
+      let txs3 = Buffer.contents txs3b in
+      let (i,rtxid,txs) = finddatx ("\002\000\000\000" ^ (Buffer.contents txs1b) ^ txs2) txs3 in
+      let txsb = Buffer.create 100 in
+      Buffer.add_string txsb "\002\000\000\000";
+      Buffer.add_string txsb txs1;
+      Buffer.add_string txsb "\000";
+      Buffer.add_string txsb txs2;
+      Buffer.add_string txsb (le_num24 i);
+      Buffer.add_string txsb txs3;
+      let s = Buffer.contents txsb in
+      Hashtbl.add burntx h2 s;
+      s
+    with Not_found -> raise InsufficientLtcFunds
 
 let ltc_signrawtransaction txs =
   try
@@ -457,6 +464,7 @@ let rec ltc_process_block h =
 		    Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
 		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		    begin
+		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),None,1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		      txhhs := txhh :: !txhhs;
@@ -464,7 +472,9 @@ let rec ltc_process_block h =
 		    end
 		  else
 		    begin
+		      Printf.fprintf !Utils.log "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt);
 		      let (_,_,pblkh) = DbHeaderLtcBurn.dbget dprev in
+		      Printf.fprintf !Utils.log "New height %Ld\n" (Int64.add pblkh 1L);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,burned),Some(dprev),Int64.add pblkh 1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
 		      txhhs := txhh :: !txhhs;
@@ -489,8 +499,9 @@ let rec ltc_process_block h =
 	      end
 	    else (*** there has already been a genesis block created during the genesis phase, but a competing one (or more) was created; include it too ***)
 	      begin
-		Printf.fprintf !Utils.log "%d genesis block(s) found:\n" (List.length !genl);
+		Printf.fprintf !Utils.log "%d genesis block(s) found.\n" (List.length !genl);
 		let pbdl = List.map (fun (txhh,burned,dnxt) -> (dnxt,hh,txhh,tm,hght)) !genl in
+		change := true;
 		bds := [pbdl]
 	      end
 	  end;
@@ -514,9 +525,12 @@ let rec ltc_process_block h =
 	    if not (!pbdl3 = []) then bds := !pbdl3 :: !bds)
 	  (List.rev pbds);
 	if !change then
+	  begin
+	    Printf.fprintf !Utils.log "bds %d\n" (List.length !bds);
+	    DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
+	  end
+	else if not (prevkey = ltc_oldest_to_consider) then
 	  DbLtcDacStatus.dbput hh (LtcDacStatusPrev(prevkey)) (*** pointer to last ltc block where dalilcoin status changed ***)
-	else
-	  DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
       end;
       DbLtcBlock.dbput hh (prevh,tm,hght,!txhhs)
     end

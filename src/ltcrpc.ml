@@ -311,7 +311,8 @@ let ltc_createburntx h1 h2 toburn =
     Hashtbl.find burntx h2
   with Not_found ->
     try
-      let (txid,vout,rs,spk,amt) = List.find (fun (_,_,_,_,amt) -> amt >= toburn_plus_fee) utxol in (*** only consider single spends ***)
+      Printf.fprintf !Utils.log "Searching for an unspent litecoin tx with at least %Ld litoshis.\n" toburn_plus_fee;
+      let (txid,vout,rs,spk,amt) = List.find (fun (txid,vout,_,_,amt) -> Printf.fprintf !Utils.log "Considering %s %d %Ld\n" txid vout amt; amt >= toburn_plus_fee) utxol in (*** only consider single spends ***)
       let txs1b = Buffer.create 100 in
       let txs2b = Buffer.create 100 in
       let txs3b = Buffer.create 100 in

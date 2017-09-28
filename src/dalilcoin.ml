@@ -653,8 +653,12 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 					  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;
 					  output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
 					with
-					| InsufficientLtcFunds -> output_string !log ("insufficient ltc to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n")
-					| Not_found -> output_string !log ("problem trying to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n")
+					| InsufficientLtcFunds ->
+					    output_string !log ("insufficient ltc to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
+					    raise (StakingPause(300.0))
+					| Not_found ->
+					    output_string !log ("problem trying to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
+					    raise (StakingPause(300.0))
 				      end
 				  | None -> raise (Failure("must burn, should have known"))
 				end
@@ -692,7 +696,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			  (if List.length bestctips > 1 then (Printf.fprintf !log "Staking on top of %s, orphaning other equally good tips.\n" (hashval_hexstring h); flush !log))
 			else
 			  begin
-			    Printf.fprintf !log "Refusing to stake on top of %s when there are better chaintips. Invalidate them by hand to force staking.\n";
+			    Printf.fprintf !log "Refusing to stake on top of %s when there are better chaintips. Invalidate them by hand to force staking.\n" (hashval_hexstring h);
 			    flush !log;
 			    raise (StakingPause(3600.0))
 			  end
@@ -1274,6 +1278,7 @@ let readevalloop () =
       let l = read_line() in
       do_command stdout l
     with
+    | GettingRemoteData -> Printf.printf "Requested some remote data; try again.\n"
     | Exit -> () (*** silently ignore ***)
     | End_of_file ->
 	closelog();

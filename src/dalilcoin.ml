@@ -43,7 +43,9 @@ let get_bestnode () =
 	    try
 	      Hashtbl.find blkheadernode (Some(dbh))
 	    with Not_found ->
-	      create_new_node dbh
+	      try
+		create_new_node dbh
+	      with Exit -> raise Not_found
 	  end
 	else
 	  get_bestnode_r2 ctipr

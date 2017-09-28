@@ -664,13 +664,14 @@ Hashtbl.add msgtype_handler Inv
     let c = ref (ms,String.length ms,None,0,0) in
     let hl = ref [] in
     let (n,cn) = sei_int32 seis !c in
+    Printf.fprintf !log "Inv msg %ld entries\n" n;
     c := cn;
     for j = 1 to Int32.to_int n do
       let ((i,blkh,h),cn) = sei_prod3 sei_int8 sei_int64 sei_hashval seis !c in
       c := cn;
       cs.rinv <- (i,h)::cs.rinv;
-      Printf.fprintf !log "Inv %d %Ld %s\n" i blkh (hashval_hexstring h);
       if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeaderData.dbexists h) (DbArchived.dbexists h);
+      Printf.fprintf !log "Inv %d %Ld %s\n" i blkh (hashval_hexstring h);
       if i = int_of_msgtype Headers && not (DbArchived.dbexists h) then
 	begin
 	  try
@@ -1040,7 +1041,7 @@ Hashtbl.add msgtype_handler Checkpoint
 	    with Not_found ->
 	      Printf.fprintf !log "Unknown header %s, trying to request it.\n" (hashval_hexstring h);
 	      try
-		find_and_send_requestdata Headers h
+		find_and_send_requestdata GetHeader h
 	      with Not_found ->
 		Printf.fprintf !log "No peer willing to send header was found %s\n" (hashval_hexstring h)
 	end

@@ -669,6 +669,7 @@ Hashtbl.add msgtype_handler Inv
       let ((i,blkh,h),cn) = sei_prod3 sei_int8 sei_int64 sei_hashval seis !c in
       c := cn;
       cs.rinv <- (i,h)::cs.rinv;
+      Printf.fprintf !log "Inv %d %Ld %s\n" i blkh (hashval_hexstring h);
       if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeaderData.dbexists h) (DbArchived.dbexists h);
       if i = int_of_msgtype Headers && not (DbArchived.dbexists h) then
 	begin
@@ -1068,13 +1069,23 @@ let rec create_new_node h =
       else
 	begin
 	  Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
-	  find_and_send_requestdata GetBlockdelta h;
-	  raise GettingRemoteData
+	  try
+	    find_and_send_requestdata GetBlockdelta h;
+	    raise GettingRemoteData
+	  with Not_found ->
+	    Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	    Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	    raise Exit
 	end
     with Not_found ->
       Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
-      find_and_send_requestdata GetHeader h;
-      raise GettingRemoteData
+      try
+	find_and_send_requestdata GetHeader h;
+	raise GettingRemoteData
+      with Not_found ->
+	Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
+	Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	raise Exit
   with Not_found ->
     Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
     raise (Failure "problem in create_new_node")

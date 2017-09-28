@@ -1115,7 +1115,8 @@ let get_bestnode req =
 	      Hashtbl.find blkheadernode (Some(dbh))
 	    with Not_found ->
 	      try
-		create_new_node dbh req
+                bestnode := create_new_node dbh req;
+                !bestnode
 	      with Exit -> raise Not_found
 	  end
 	else

@@ -496,7 +496,6 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	match a with
 	| (_,_,Some(beta,n,r),Currency(v)) -> (*** stake may be on loan for staking ***)
 	    begin
-Printf.printf "a 4\n";
 	      match bd.stakeoutput with
 	      | (alpha2,(Some(beta2,n2,r2),Currency(v2)))::remouts -> (*** the first output must recreate the loaned asset. It's a reward iff it was already a reward. The remaining outputs are marked as rewards and are subject to forfeiture. ***)
 		  r2 = r

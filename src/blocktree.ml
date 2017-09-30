@@ -1,4 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -688,7 +689,7 @@ let rec req_header_batches sout cs m hl nw =
     | (_,h)::hr ->
 	let i = int_of_msgtype GetHeader in
 	let tm = Unix.time() in
-	cs.invreq <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
+(*	cs.invreq <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq; *) (* Do not put these in the request here, in case it fails and we need to rerequest some individually *)
 	req_header_batches sout cs (m+1) hr (h::nw)
     | [] -> req_headers sout cs m nw;;
 

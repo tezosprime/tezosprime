@@ -1,4 +1,5 @@
 (* Copyright (c) 2015-2017 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -70,12 +71,12 @@ let dumpstate fa =
 	    (fun (m,h,tm) ->
 	      Printf.fprintf sa "%d %s %f\n" m (hashval_hexstring h) tm)
 	    cs.sentinv;
-	  Printf.fprintf sa "rinv %d:\n" (List.length cs.sentinv);
+	  Printf.fprintf sa "rinv %d:\n" (List.length cs.rinv);
 	  List.iter
 	    (fun (m,h) ->
 	      Printf.fprintf sa "%d %s\n" m (hashval_hexstring h))
 	    cs.rinv;
-	  Printf.fprintf sa "sentinv %d:\n" (List.length cs.invreq);
+	  Printf.fprintf sa "invreq %d:\n" (List.length cs.invreq);
 	  List.iter
 	    (fun (m,h,tm) ->
 	      Printf.fprintf sa "%d %s %f\n" m (hashval_hexstring h) tm)

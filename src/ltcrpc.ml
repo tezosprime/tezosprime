@@ -420,10 +420,22 @@ module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let bas
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
 
-let possibly_request_dalilcoin_block h =
+let rec possibly_request_dalilcoin_block h =
   try
-    if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then find_and_send_requestdata GetHeader h;
-    if not (DbBlockDelta.dbexists h) then find_and_send_requestdata GetBlockdelta h
+    let req = ref false in
+    if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then
+      (find_and_send_requestdata GetHeader h; req := true);
+    if not (DbBlockDelta.dbexists h) then
+      (find_and_send_requestdata GetBlockdelta h; req := true);
+    if !req then
+      begin
+	try
+	  let (_,oprev,_) = DbHeaderLtcBurn.dbget h in
+	  match oprev with
+	  | Some(prev) -> possibly_request_dalilcoin_block prev
+	  | None -> ()
+	with Not_found -> ()
+      end
   with _ ->
     Printf.fprintf !Utils.log "Problem trying to request block %s\n" (hashval_hexstring h)
 
@@ -456,6 +468,7 @@ let rec ltc_process_block h =
 		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),None,1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      possibly_request_dalilcoin_block dprev;
 		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
 		      genl := (txhh,burned,dnxt)::!genl
@@ -467,6 +480,7 @@ let rec ltc_process_block h =
 		      Printf.fprintf !Utils.log "New height %Ld\n" (Int64.add pblkh 1L);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),Some(dprev),Int64.add pblkh 1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      possibly_request_dalilcoin_block dprev;
 		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
 		      succl := (dprev,txhh,burned,dnxt)::!succl

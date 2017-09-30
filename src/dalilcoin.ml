@@ -25,7 +25,7 @@ open Ltcrpc;;
 open Setconfig;;
 
 let rec pblockchain s n c lr m =
-  let BlocktreeNode(par,_,pbh,_,_,plr,csm,tar,_,_,blkh,_,_,chl) = n in
+  let BlocktreeNode(par,_,pbh,_,_,plr,csm,tar,tm,_,blkh,_,_,chl) = n in
   if m > 0 then
     begin
       match par with
@@ -34,8 +34,10 @@ let rec pblockchain s n c lr m =
     end;
   Printf.fprintf s "Target: %s\n" (string_of_big_int tar);
   Printf.fprintf s "Difficulty: %s\n" (string_of_big_int (difficulty tar));
+  Printf.fprintf s "Timestamp: %Ld\n" tm;
   match c with
-  | Some(h,_,_) ->
+  | Some(h,_,Poburn(lblkh,ltxh,lmedtm,burned)) ->
+      Printf.printf "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring ltxh);
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
       begin
 	match lr with
@@ -781,11 +783,20 @@ let do_command oc l =
 		    if DbBlockDelta.dbexists dbh then
 		      Printf.fprintf oc "+ %s %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		    else
-		      Printf.fprintf oc "* %s (missing delta) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		      begin
+			possibly_request_dalilcoin_block dbh;
+			Printf.fprintf oc "* %s (missing delta) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		      end
 		  else
-		    Printf.fprintf oc "* %s (missing header sig) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		    begin
+		      possibly_request_dalilcoin_block dbh;
+		      Printf.fprintf oc "* %s (missing header sig) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		    end
 		else
-		  Printf.fprintf oc "* %s (missing header) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght)
+		  begin
+		    possibly_request_dalilcoin_block dbh;
+		    Printf.fprintf oc "* %s (missing header) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		  end)
 	      zl)
 	  zll
       end

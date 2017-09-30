@@ -421,8 +421,11 @@ module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let bas
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
 
 let possibly_request_dalilcoin_block h =
-  if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then find_and_send_requestdata GetHeader h;
-  if not (DbBlockDelta.dbexists h) then find_and_send_requestdata GetBlockdelta h
+  try
+    if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then find_and_send_requestdata GetHeader h;
+    if not (DbBlockDelta.dbexists h) then find_and_send_requestdata GetBlockdelta h
+  with _ ->
+    Printf.fprintf !Utils.log "Problem trying to request block %s\n" (hashval_hexstring h)
 
 let rec ltc_process_block h =
   let hh = hexstring_hashval h in

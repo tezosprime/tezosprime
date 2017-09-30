@@ -534,7 +534,7 @@ let ltc_synced () =
     Printf.fprintf !Utils.log "Checking if ltc synced ; bestblock %s\n" (hashval_hexstring !ltc_bestblock); flush !Utils.log;
     let (_,tm,_,_) = DbLtcBlock.dbget !ltc_bestblock in
     Printf.fprintf !Utils.log "tm of ltc bestblock %Ld offset from now %f\n" tm (Unix.time() -. Int64.to_float tm); flush !Utils.log;
-    if Unix.time() -. Int64.to_float tm < 1200.0 then
+    if Unix.time() -. Int64.to_float tm < 3600.0 then
       true
     else
       false

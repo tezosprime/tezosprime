@@ -537,14 +537,15 @@ Hashtbl.add msgtype_handler GetHeader
   (fun (sin,sout,cs,ms) ->
     let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
     let i = int_of_msgtype GetHeader in
-    if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+    let tm = Unix.time() in
+    if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
       try
 	let bhd = DbBlockHeaderData.dbget h in
 	let bhs = DbBlockHeaderSig.dbget h in
 	let bh = (bhd,bhs) in
 	let s = Buffer.create 1000 in
 	seosbf (seo_blockheader seosb bh (seo_hashval seosb h (seo_int8 seosb 1 (s,None))));
-	cs.sentinv <- (i,h)::cs.sentinv;
+	cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv;
 	let ss = Buffer.contents s in
 	ignore (queue_msg cs Headers ss)
       with Not_found ->
@@ -562,14 +563,15 @@ Hashtbl.add msgtype_handler GetHeaders
     for j = 1 to n do
       let (h,cn) = sei_hashval seis !c in
       c := cn;
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let blkhd1 = DbBlockHeaderData.dbget h in
 	  let blkhs1 = DbBlockHeaderSig.dbget h in
 	  let bh = (blkhd1,blkhs1) in
 	  incr m;
 	  bhl := (h,bh)::!bhl;
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  (*** don't have it to send, ignore ***)
 	    ()
@@ -587,12 +589,13 @@ Hashtbl.add msgtype_handler Headers
     let c = ref (ms,String.length ms,None,0,0) in
     let (n,cn) = sei_int8 seis !c in (*** peers can request at most 255 headers at a time **)
     c := cn;
+    let tm = Unix.time() in
     let i = int_of_msgtype GetHeader in
     for j = 1 to n do
       let (h,cn) = sei_hashval seis !c in
       let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
       c := cn;
-      if not (DbBlockHeaderData.dbexists h) && List.mem (i,h) cs.invreq then
+      if not (DbBlockHeaderData.dbexists h) && recently_requested (i,h) tm cs.invreq then
 	let (bhd,bhs) = bh in
 	let bhsh = hash_blockheadersig bhs in
 	if not (hash_blockheaderdata bhd = h) then
@@ -684,7 +687,8 @@ let rec req_header_batches sout cs m hl nw =
     match hl with
     | (_,h)::hr ->
 	let i = int_of_msgtype GetHeader in
-	cs.invreq <- (i,h)::cs.invreq;
+	let tm = Unix.time() in
+	cs.invreq <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 	req_header_batches sout cs (m+1) hr (h::nw)
     | [] -> req_headers sout cs m nw;;
 
@@ -716,7 +720,8 @@ Hashtbl.add msgtype_handler Inv
       else if i = int_of_msgtype Blockdelta && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && Hashtbl.mem tovalidate h then
 	begin
 	  try
-            cs.invreq <- (int_of_msgtype GetBlockdelta,h)::cs.invreq;
+	    let tm = Unix.time() in
+            cs.invreq <- (int_of_msgtype GetBlockdelta,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 	    let s = Buffer.create 1000 in
 	    seosbf (seo_hashval seosb h (s,None));
 	    Printf.fprintf !log "Immediately requesting blockdelta %s\n" (hashval_hexstring h);
@@ -728,7 +733,8 @@ Hashtbl.add msgtype_handler Inv
 	  if DbTx.dbexists h then
 	    if not (DbTxSignatures.dbexists h) then
 	      begin
-                cs.invreq <- (int_of_msgtype GetTxSignatures,h)::cs.invreq;
+		let tm = Unix.time() in
+                cs.invreq <- (int_of_msgtype GetTxSignatures,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 		let s = Buffer.create 1000 in
 		seosbf (seo_hashval seosb h (s,None));
 		ignore (queue_msg cs GetTxSignatures (Buffer.contents s))
@@ -736,7 +742,8 @@ Hashtbl.add msgtype_handler Inv
             else ()
           else
  	    begin
-              cs.invreq <- (int_of_msgtype GetTx,h)::cs.invreq;
+	      let tm = Unix.time() in
+              cs.invreq <- (int_of_msgtype GetTx,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
               let s = Buffer.create 1000 in
 	      seosbf (seo_hashval seosb h (s,None));
 	      ignore (queue_msg cs GetTx (Buffer.contents s))
@@ -758,7 +765,8 @@ Hashtbl.add msgtype_handler Inv
 		| None -> raise Exit
 		| Some(lcppnh,_,_) -> if not (lcppnh = h) then raise Exit
 	  with Exit -> (*** if Exit was raised, then we need the checkpoint ***)
-	    cs.invreq <- (int_of_msgtype GetCheckpoint,h)::cs.invreq;
+	    let tm = Unix.time() in
+	    cs.invreq <- (int_of_msgtype GetCheckpoint,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
             let s = Buffer.create 1000 in
 	    seosbf (seo_hashval seosb h (s,None));
 	    ignore (queue_msg cs GetCheckpoint (Buffer.contents s))
@@ -770,14 +778,15 @@ Hashtbl.add msgtype_handler GetBlockdelta
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetBlockdelta in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let blkdel = DbBlockDelta.dbget h in
 	  let bdsb = Buffer.create 100 in
 	  seosbf (seo_blockdelta seosb blkdel (seo_hashval seosb h (bdsb,None)));
 	  let bdser = Buffer.contents bdsb in
 	  ignore (queue_msg cs Blockdelta bdser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  Printf.fprintf !log "Unknown Block Delta %s (Bad Peer or Did I Advertize False Inventory?)\n" (hashval_hexstring h);
 	  ());;
@@ -789,7 +798,8 @@ Hashtbl.add msgtype_handler Blockdelta
       if not (DbBlockDelta.dbexists h) then (*** if we already have it, abort ***)
 	begin
 	  try
-	    cs.invreq <- List.filter (fun (j,k) -> not (i = j && h = k)) cs.invreq;
+	    let tm = Unix.time() in
+	    cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq;
 	    let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) as newnode = Hashtbl.find blkheadernode (Some(h)) in
 	    match !vs with
 	    | Waiting(tm,None) ->
@@ -818,7 +828,8 @@ Hashtbl.add msgtype_handler GetTx
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetTx in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let (tau,_) = Hashtbl.find stxpool h in
 	  let tausb = Buffer.create 100 in
@@ -826,7 +837,7 @@ Hashtbl.add msgtype_handler GetTx
 	  let tauser = Buffer.contents tausb in
 	  Printf.fprintf !log "Sending Tx (from pool) %s\n" (hashval_hexstring h);
 	  ignore (queue_msg cs Tx tauser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  try
 	    let tau = DbTx.dbget h in
@@ -835,7 +846,7 @@ Hashtbl.add msgtype_handler GetTx
 	    let tauser = Buffer.contents tausb in
 	    Printf.fprintf !log "Sending Tx (from db) %s\n" (hashval_hexstring h);
 	    ignore (queue_msg cs Tx tauser);
-	    cs.sentinv <- (i,h)::cs.sentinv
+	    cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	  with Not_found ->
 	    Printf.fprintf !log "Unknown Tx %s\n" (hashval_hexstring h);
 	    ());;
@@ -844,13 +855,14 @@ Hashtbl.add msgtype_handler Tx
     (fun (sin,sout,cs,ms) ->
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetTx in
+      let tm = Unix.time() in
       if not (DbTx.dbexists h) then (*** if we already have it, abort ***)
-	if List.mem (i,h) cs.invreq then (*** only continue if it was requested ***)
+	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
           let (tau,_) = sei_tx seis r in
 	  if hashtx tau = h then
 	    begin
   	      DbTx.dbput h tau;
-	      cs.invreq <- List.filter (fun (j,k) -> not (i = j && h = k)) cs.invreq
+	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
 	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed Tx]\n"; flush !Utils.log)
@@ -862,7 +874,8 @@ Hashtbl.add msgtype_handler GetTxSignatures
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       Printf.fprintf !log "Processing GetTxSignatures %s\n" (hashval_hexstring h);
       let i = int_of_msgtype GetTxSignatures in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let (_,s) = Hashtbl.find stxpool h in
 	  let ssb = Buffer.create 100 in
@@ -870,7 +883,7 @@ Hashtbl.add msgtype_handler GetTxSignatures
 	  let sser = Buffer.contents ssb in
 	  Printf.fprintf !log "Sending TxSignatures (from pool) %s\n" (hashval_hexstring h);
 	  ignore (queue_msg cs TxSignatures sser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  try
 	    let s = DbTxSignatures.dbget h in
@@ -879,7 +892,7 @@ Hashtbl.add msgtype_handler GetTxSignatures
 	    let sser = Buffer.contents ssb in
 	    Printf.fprintf !log "Sending TxSignatures (from db) %s\n" (hashval_hexstring h);
 	    ignore (queue_msg cs TxSignatures sser);
-	    cs.sentinv <- (i,h)::cs.sentinv
+	    cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  Printf.fprintf !log "Unknown TxSignatures %s\n" (hashval_hexstring h);
 	  ());;
@@ -891,14 +904,15 @@ Hashtbl.add msgtype_handler TxSignatures
       if not (DbTxSignatures.dbexists h) then (*** if we already have it, abort ***)
 	try
 	  let ((tauin,_) as tau) = DbTx.dbget h in
-	  if List.mem (i,h) cs.invreq then (*** only continue if it was requested ***)
+	  let tm = Unix.time() in
+	  if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
             let (s,_) = sei_txsigs seis r in
 	    try
 	      let al = List.map (fun (_,aid) -> DbAsset.dbget aid) tauin in
 	      ignore (tx_signatures_valid_asof_blkh al (tau,s)); (*** signatures valid at some block height ***)
               Hashtbl.add stxpool h (tau,s);
   	      DbTxSignatures.dbput h s;
-	      cs.invreq <- List.filter (fun (j,k) -> not (i = j && h = k)) cs.invreq
+	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    with
 	    | BadOrMissingSignature -> (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
 		(Printf.fprintf !Utils.log "misbehaving peer? [malformed TxSignatures]\n"; flush !Utils.log)
@@ -1007,14 +1021,15 @@ Hashtbl.add msgtype_handler GetCheckpoint
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetCheckpoint in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let (chblkh,chsg) = Hashtbl.find checkpoints h in
 	  let sb = Buffer.create 100 in
 	  seosbf (seo_signat seosb chsg (seo_int64 seosb chblkh (seo_hashval seosb h (sb,None))));
 	  let ser = Buffer.contents sb in
 	  ignore (queue_msg cs Checkpoint ser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  Printf.fprintf !log "Unknown Checkpoint %s (Bad Peer or Did I Advertize False Inventory?)\n" (hashval_hexstring h);
 	  ());;

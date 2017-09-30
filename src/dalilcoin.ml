@@ -67,8 +67,8 @@ let dumpstate fa =
 	    cs.pending;
 	  Printf.fprintf sa "sentinv %d:\n" (List.length cs.sentinv);
 	  List.iter
-	    (fun (m,h) ->
-	      Printf.fprintf sa "%d %s\n" m (hashval_hexstring h))
+	    (fun (m,h,tm) ->
+	      Printf.fprintf sa "%d %s %f\n" m (hashval_hexstring h) tm)
 	    cs.sentinv;
 	  Printf.fprintf sa "rinv %d:\n" (List.length cs.sentinv);
 	  List.iter
@@ -77,8 +77,8 @@ let dumpstate fa =
 	    cs.rinv;
 	  Printf.fprintf sa "sentinv %d:\n" (List.length cs.invreq);
 	  List.iter
-	    (fun (m,h) ->
-	      Printf.fprintf sa "%d %s\n" m (hashval_hexstring h))
+	    (fun (m,h,tm) ->
+	      Printf.fprintf sa "%d %s %f\n" m (hashval_hexstring h) tm)
 	    cs.invreq;
     )
     !netconns;

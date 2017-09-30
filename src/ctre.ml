@@ -2296,14 +2296,15 @@ Hashtbl.add msgtype_handler GetHConsElement
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetHConsElement in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time() in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let hk = DbHConsElt.dbget h in
 	  let hksb = Buffer.create 100 in
 	  seosbf (seo_prod seo_hashval (seo_option seo_hashval) seosb hk (seo_hashval seosb h (hksb,None)));
 	  let hkser = Buffer.contents hksb in
 	  ignore (queue_msg cs HConsElement hkser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found -> ());;
 
 Hashtbl.add msgtype_handler HConsElement
@@ -2311,7 +2312,8 @@ Hashtbl.add msgtype_handler HConsElement
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetHConsElement in
       if not (DbHConsElt.dbexists h) then (*** if we already have it, abort ***)
-	if List.mem (i,h) cs.invreq then (*** only continue if it was requested ***)
+	let tm = Unix.time() in
+	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
           let (hk,_) = sei_prod sei_hashval (sei_option sei_hashval) seis r in
 	  let hkh =
 	    match hk with
@@ -2321,7 +2323,7 @@ Hashtbl.add msgtype_handler HConsElement
 	  if hkh = h then
 	    begin
   	      DbHConsElt.dbput h hk;
-	      cs.invreq <- List.filter (fun (j,k) -> not (i = j && h = k)) cs.invreq
+	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
 	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed HConsElement]\n"; flush !Utils.log)
@@ -2332,14 +2334,15 @@ Hashtbl.add msgtype_handler GetCTreeElement
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetCTreeElement in
-      if not (List.mem (i,h) cs.sentinv) then (*** don't resend ***)
+      let tm = Unix.time () in
+      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
 	  let c = DbCTreeElt.dbget h in
 	  let csb = Buffer.create 100 in
 	  seosbf (seo_ctree seosb c (seo_hashval seosb h (csb,None)));
 	  let cser = Buffer.contents csb in
 	  ignore (queue_msg cs CTreeElement cser);
-	  cs.sentinv <- (i,h)::cs.sentinv
+	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found -> ());;
 
 Hashtbl.add msgtype_handler CTreeElement
@@ -2347,12 +2350,13 @@ Hashtbl.add msgtype_handler CTreeElement
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetCTreeElement in
       if not (DbCTreeElt.dbexists h) then (*** if we already have it, abort ***)
-	if List.mem (i,h) cs.invreq then (*** only continue if it was requested ***)
+	let tm = Unix.time () in
+	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
           let (c,_) = sei_ctree seis r in
 	  if ctree_element_p c && ctree_hashroot c = h then
 	    begin
   	      DbCTreeElt.dbput h c;
-	      cs.invreq <- List.filter (fun (j,k) -> not (i = j && h = k)) cs.invreq
+	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
 	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed CTreeElement]\n"; flush !Utils.log)

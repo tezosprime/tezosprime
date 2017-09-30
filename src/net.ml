@@ -360,9 +360,9 @@ type connstate = {
     mutable banned : bool;
     mutable lastmsgtm : float;
     mutable pending : (hashval * (bool * float * float * (msgtype * string -> unit))) list;
-    mutable sentinv : (int * hashval) list;
+    mutable sentinv : (int * hashval * float) list;
     mutable rinv : (int * hashval) list;
-    mutable invreq : (int * hashval) list;
+    mutable invreq : (int * hashval * float) list;
     mutable first_header_height : int64; (*** how much header history is stored at the node ***)
     mutable first_full_height : int64; (*** how much block/ctree history is stored at the node ***)
     mutable last_height : int64; (*** how up to date the node is ***)
@@ -826,19 +826,32 @@ let netseeker () =
   loadknownpeers();
   netseekerth := Some(Thread.create netseeker_loop ())
 
+let recently_requested (i,h) nw ir =
+  try
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 3600.0) ir);
+    true
+  with Not_found -> false
+
+let recently_sent (i,h) nw isnt =
+  try
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 3600.0) isnt);
+    true
+  with Not_found -> false
+  
 let broadcast_requestdata mt h =
   let i = int_of_msgtype mt in
   let msb = Buffer.create 20 in
   seosbf (seo_hashval seosb h (msb,None));
   let ms = Buffer.contents msb in
+  let tm = Unix.time() in
   List.iter
     (fun (lth,sth,(fd,sin,sout,gcs)) ->
        match !gcs with
        | Some(cs) ->
-           if not (List.mem (i,h) cs.invreq) && (List.mem (inv_of_msgtype mt,h) cs.rinv || (i >= 26 && i <= 31)) then
+           if not (recently_requested (i,h) tm cs.invreq) && (List.mem (inv_of_msgtype mt,h) cs.rinv || (i >= 26 && i <= 31)) then
              begin
                queue_msg cs mt ms;
-               cs.invreq <- (i,h)::cs.invreq
+               cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq
              end
        | None -> ())
     !netconns
@@ -848,15 +861,16 @@ let find_and_send_requestdata mt h =
   let msb = Buffer.create 20 in
   seosbf (seo_hashval seosb h (msb,None));
   let ms = Buffer.contents msb in
+  let tm = Unix.time() in
   try
     List.iter
       (fun (lth,sth,(fd,sin,sout,gcs)) ->
 	match !gcs with
 	| Some(cs) ->
-            if not cs.banned && not (List.mem (i,h) cs.invreq) && List.mem (inv_of_msgtype mt,h) cs.rinv then
+            if not cs.banned && not (recently_requested (i,h) tm cs.invreq) && List.mem (inv_of_msgtype mt,h) cs.rinv then
               begin
 		let mh = queue_msg cs mt ms in
-		cs.invreq <- (i,h)::cs.invreq;
+		cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 		raise Exit
               end
 	| None -> ())

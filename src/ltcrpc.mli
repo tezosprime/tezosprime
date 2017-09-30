@@ -64,3 +64,4 @@ val ltc_medtime : unit -> int64
 
 val ltc_synced : unit -> bool
 
+val possibly_request_dalilcoin_block : hashval -> unit

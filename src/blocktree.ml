@@ -605,11 +605,48 @@ Hashtbl.add msgtype_handler Headers
 	  begin
 	    try
 	      let a = blockheader_stakeasset bhd in
-	      if not (valid_blockheader_signat (bhd,bhs) a) then
+	      let validsofar = ref true in
+	      let dontban = ref false in
+	      begin
+		match bhd.prevblockhash with
+		| None -> ()
+		| Some(prevdatah,prevsigh,Poburn(lblkh,ltxh,lmedtm,burned)) -> (* commitment to previous proof of burn *)
+		    try
+		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_,_) = DbHeaderLtcBurn.dbget prevdatah in (* previous proof of burn *)
+		      if not (lblkh = lblkh2) then
+			begin
+			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
+			  validsofar := false
+			end;
+		      if not (ltxh = ltxh2) then
+			begin
+			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc tx hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring ltxh) (hashval_hexstring ltxh2);
+			  validsofar := false
+			end;
+		      if not (lmedtm = lmedtm2) then
+			begin
+			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc median time mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) lmedtm lmedtm2;
+			  validsofar := false
+			end;
+		      if not (burned = burned2) then
+			begin
+			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc burn amount mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) burned burned2;
+			  validsofar := false
+			end;
+		    with Not_found ->
+		      Printf.fprintf !Utils.log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevdatah);
+		      validsofar := false;
+		      dontban := true
+	      end;
+	      if not !validsofar then
+		begin
+		  if not !dontban then cs.banned <- true
+		end
+	      else if not (valid_blockheader_signat (bhd,bhs) a) then
 		begin (*** this may simply be the result of a misbehaving peer mangling the signature of an otherwise valid header ***)
 		  Printf.fprintf !log "got a header with an invalid signature, dropping it and banning node\n";
 		  flush !log;
-		  cs.banned <- true
+		  if not !dontban then cs.banned <- true
 		end
 	      else
 		let (pob,_,_) = DbHeaderLtcBurn.dbget h in

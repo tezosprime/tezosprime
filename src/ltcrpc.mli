@@ -4,13 +4,7 @@
 
 open Hash
 open Sha256
-
-type poburn =
-  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
-
-val hashpoburn : poburn -> hashval
-val seo_poburn : (int -> int -> 'a -> 'a) -> poburn -> 'a -> 'a
-val sei_poburn : (int -> 'a -> int * 'a) -> 'a -> poburn * 'a
+open Block
 
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 

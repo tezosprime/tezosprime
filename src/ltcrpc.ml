@@ -7,38 +7,17 @@ open Hashaux
 open Hash
 open Sha256
 open Json
+open Net
 open Db
+open Block
 
-let ltc_oldest_to_consider = hexstring_hashval "6d5bd852b3870aa0d1efc62e7ab71ce22cc8f0bce7291bb07b2f389deee2e0e8"
-let ltc_oldest_to_consider_time = 1506624081L
-let ltc_oldest_to_consider_height = 202963L
+let ltc_oldest_to_consider = hexstring_hashval "a3d92027c6571ad9e98b81ad64e9badc776edc2f6f26b78d9a779a71517c3a75"
+let ltc_oldest_to_consider_time = 1506776137L
+let ltc_oldest_to_consider_height = 203856L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 
 let burntx : (hashval,string) Hashtbl.t = Hashtbl.create 100
-
-type poburn =
-  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
-
-let hashpoburn p =
-  match p with
-  | Poburn(h,k,x,y) -> hashtag (hashpair (hashpair h k) (hashpair (hashint64 x) (hashint64 y))) 194l
-
-let seo_poburn o p c =
-  match p with
-  | Poburn(h,k,x,y) ->
-      let c = seo_md256 o h c in
-      let c = seo_md256 o k c in
-      let c = seo_int64 o x c in
-      let c = seo_int64 o y c in
-      c
-
-let sei_poburn i c =
-  let (h,c) = sei_md256 i c in
-  let (k,c) = sei_md256 i c in
-  let (x,c) = sei_int64 i c in
-  let (y,c) = sei_int64 i c in
-  (Poburn(h,k,x,y),c)
 
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 
@@ -441,6 +420,10 @@ module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let bas
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
 
+let possibly_request_dalilcoin_block h =
+  if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then find_and_send_requestdata GetHeader h;
+  if not (DbBlockDelta.dbexists h) then find_and_send_requestdata GetBlockdelta h
+
 let rec ltc_process_block h =
   let hh = hexstring_hashval h in
   if not (hh = ltc_oldest_to_consider) && not (DbLtcBlock.dbexists hh) then
@@ -470,6 +453,7 @@ let rec ltc_process_block h =
 		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),None,1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
 		      genl := (txhh,burned,dnxt)::!genl
 		    end
@@ -480,6 +464,7 @@ let rec ltc_process_block h =
 		      Printf.fprintf !Utils.log "New height %Ld\n" (Int64.add pblkh 1L);
 		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),Some(dprev),Int64.add pblkh 1L);
 		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
+		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
 		      succl := (dprev,txhh,burned,dnxt)::!succl
 		    end

@@ -17,7 +17,29 @@ open Cryptocurr
 open Tx
 open Ctre
 open Ctregraft
-open Ltcrpc
+
+type poburn =
+  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
+
+let hashpoburn p =
+  match p with
+  | Poburn(h,k,x,y) -> hashtag (hashpair (hashpair h k) (hashpair (hashint64 x) (hashint64 y))) 194l
+
+let seo_poburn o p c =
+  match p with
+  | Poburn(h,k,x,y) ->
+      let c = seo_md256 o h c in
+      let c = seo_md256 o k c in
+      let c = seo_int64 o x c in
+      let c = seo_int64 o y c in
+      c
+
+let sei_poburn i c =
+  let (h,c) = sei_md256 i c in
+  let (k,c) = sei_md256 i c in
+  let (x,c) = sei_int64 i c in
+  let (y,c) = sei_int64 i c in
+  (Poburn(h,k,x,y),c)
 
 (*** 256 bits ***)
 type stakemod = hashval
@@ -307,10 +329,13 @@ let hash_blockheader (bhd,bhs) =
   hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
 let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm burned =
+(Printf.printf "babs 1 %Ld %Ld\n" bhd.timestamp lmedtm;
   bhd.timestamp <= lmedtm
     &&
+(Printf.printf "babs 2\n";
   bhd.stakeassetid = aid
     &&
+(Printf.printf "babs 3\n";
   match u with
   | Currency(v) ->
       begin
@@ -319,6 +344,7 @@ let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm bu
 	bhd.deltatime > 0l
       end
   | _ -> false
+)))
 
 let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
   let bhdh = hash_blockheaderdata bhd in
@@ -342,9 +368,12 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
     end
 
 let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) lmedtm burned =
+(Printf.printf "ba 1\n";
   valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v)
     &&
+(Printf.printf "ba 2\n";
   valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) lmedtm burned
+))
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
@@ -465,15 +494,19 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
   (*** The header is valid. ***)
   if (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u) lmedtm burned
 	&&
+(Printf.printf "a 1\n";
       tx_outputs_valid bd.stakeoutput
         &&
+(Printf.printf "a 2\n";
       blockdelta_hashroot bd = bhd.blockdeltaroot (*** the header commits to the blockdelta (including all txs and their signatures) ***)
 	&&
       (*** ensure that if the stake has an explicit obligation (e.g., it is borrowed for staking), then the obligation isn't changed; otherwise the staker could steal the borrowed stake; unchanged copy should be first output ***)
+(Printf.printf "a 3\n";
       begin
 	match a with
 	| (_,_,Some(beta,n,r),Currency(v)) -> (*** stake may be on loan for staking ***)
 	    begin
+Printf.printf "a 4\n";
 	      match bd.stakeoutput with
 	      | (alpha2,(Some(beta2,n2,r2),Currency(v2)))::remouts -> (*** the first output must recreate the loaned asset. It's a reward iff it was already a reward. The remaining outputs are marked as rewards and are subject to forfeiture. ***)
 		  r2 = r
@@ -497,6 +530,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	    end
 	| (_,_,None,Currency(v)) -> (*** stake has the default obligation ***)
 	    begin (*** the first output is optionally the stake with the default obligation (not a reward, immediately spendable) with all other outputs must be marked as rewards and are subject to forfeiture; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
+Printf.printf "a 5\n";
 	      match bd.stakeoutput with
 	      | (alpha2,(_,Currency(v2)))::remouts -> (*** allow the staker to choose the new obligation for the staked asset [Feb 2016] ***)
 		  begin
@@ -517,18 +551,23 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	    end
 	| _ -> false (*** this means the staked asset isn't currency, which is not allowed ***)
       end)
+)))
   then
     let tr = ctree_of_block b in (*** let tr be the ctree of the block, used often below ***)
+Printf.printf "a 6\n";
     if ((try let z = ctree_supports_tx false false tht sigt blkh (coinstake b) tr in (*** the ctree must support the tx without the need to expand hashes using the database or requesting from peers ***)
     z >= rewfn blkh
     with NotSupported -> false)
 	  &&
+(Printf.printf "a 7\n";
 	(*** There are no duplicate transactions. (Comparing the signatures would be an error since they contain abstract values.) ***)
 	no_dups (List.map (fun (tau,_) -> tau) bd.blockdelta_stxl)
 	  &&
+(Printf.printf "a 8\n";
 	(*** The cgraft is valid. ***)
 	cgraft_valid bd.prevledgergraft
 	  &&
+(Printf.printf "a 9\n";
 	let stakein = (stkaddr,bhd.stakeassetid) in
 	(*** Each transaction in the delta has supported elaborated assets and is appropriately signed. ***)
 	(*** Also, each transaction in the delta is valid and supported without a reward. ***)
@@ -567,6 +606,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	  with NotSupported -> false
 	end
 	  &&
+(Printf.printf "a 10\n";
 	(*** No distinct transactions try to spend the same asset. ***)
 	(*** Also, ownership is not created for the same address alpha by two txs in the block. ***)
 	begin
@@ -612,6 +652,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	end
 	  &&
 	(*** Ownership is not created for the same address alpha by the coinstake and a tx in the block. ***)
+(Printf.printf "a 11\n";
 	begin
 	  try
 	    List.iter
@@ -645,6 +686,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	    true
 	  with NotSupported -> false
 	end)
+)))))
     then
       let (forfeitval,forfok) =
 	begin
@@ -694,9 +736,12 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
     None
 
 let valid_block tht sigt blkh csm tinfo (b:block) lmedtm burned =
+Printf.printf "valid_block 1\n";
   let ((bhd,_),_) = b in
+Printf.printf "valid_block 2\n";
   let stkaddr = p2pkhaddr_addr bhd.stakeaddr in
   try
+Printf.printf "valid_block 3 %Ld\n" lmedtm;
     valid_block_a tht sigt blkh csm tinfo b (blockheader_stakeasset bhd) stkaddr lmedtm burned
   with
   | HeaderStakedAssetNotMin -> None

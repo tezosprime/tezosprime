@@ -9,10 +9,16 @@ open Mathdata
 open Logic
 open Assets
 open Signat
-open Ltcrpc
 open Tx
 open Ctre
 open Ctregraft
+
+type poburn =
+  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litecoin burned **)
+
+val hashpoburn : poburn -> hashval
+val seo_poburn : (int -> int -> 'a -> 'a) -> poburn -> 'a -> 'a
+val sei_poburn : (int -> 'a -> int * 'a) -> 'a -> poburn * 'a
 
 type stakemod = hashval
 val genesisstakemod : stakemod ref

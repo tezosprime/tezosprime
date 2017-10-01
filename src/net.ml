@@ -863,20 +863,24 @@ let find_and_send_requestdata mt h =
   seosbf (seo_hashval seosb h (msb,None));
   let ms = Buffer.contents msb in
   let tm = Unix.time() in
+  let alrreq = ref false in
   try
     List.iter
       (fun (lth,sth,(fd,sin,sout,gcs)) ->
 	match !gcs with
 	| Some(cs) ->
-            if not cs.banned && not (recently_requested (i,h) tm cs.invreq) && List.mem (inv_of_msgtype mt,h) cs.rinv then
-              begin
-		let mh = queue_msg cs mt ms in
-		cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
-		raise Exit
-              end
+            if not cs.banned && List.mem (inv_of_msgtype mt,h) cs.rinv then
+	      if recently_requested (i,h) tm cs.invreq then
+		alrreq := true
+	      else
+		begin
+		  let mh = queue_msg cs mt ms in
+		  cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
+		  raise Exit
+		end
 	| None -> ())
       !netconns;
-    raise Not_found
+    if not !alrreq then raise Not_found
   with Exit -> ()
 
 let broadcast_inv tosend =

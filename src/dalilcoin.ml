@@ -949,7 +949,7 @@ let do_command oc l =
 	  match !gcs with
 	  | Some(cs) ->
 	      Printf.fprintf oc "%s (%s): %s\n" cs.realaddr cs.addrfrom cs.useragent;
-	      let snc = Int64.sub (ltc_medtime()) (Int64.of_float cs.conntime) in
+	      let snc = Int64.sub (Int64.of_float (Unix.time())) (Int64.of_float cs.conntime) in
 	      let snc1 = sincetime (Int64.of_float cs.conntime) in
 	      let snc2 = sincetime (Int64.of_float cs.lastmsgtm) in
 	      Printf.fprintf oc "Connected for %s; last message %s ago.\n" snc1 snc2;

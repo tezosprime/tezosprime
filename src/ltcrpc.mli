@@ -6,6 +6,8 @@ open Hash
 open Sha256
 open Block
 
+val ltctestnet : unit -> unit
+
 type ltcdacstatus = LtcDacStatusPrev of hashval | LtcDacStatusNew of (hashval * hashval * hashval * int64 * int64) list list
 
 module DbLtcDacStatus :

@@ -119,6 +119,7 @@ let initnetwork () =
 let ltc_listener_th : Thread.t option ref = ref None;;
 
 let ltc_init () =
+  if !Config.testnet then ltctestnet();
   try
     Printf.fprintf !log "syncing with ltc\n";
     let lbh = ltc_getbestblockhash () in

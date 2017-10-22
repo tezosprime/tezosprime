@@ -11,9 +11,16 @@ open Net
 open Db
 open Block
 
-let ltc_oldest_to_consider = hexstring_hashval "a3d92027c6571ad9e98b81ad64e9badc776edc2f6f26b78d9a779a71517c3a75"
-let ltc_oldest_to_consider_time = 1506776137L
-let ltc_oldest_to_consider_height = 203856L
+(*** mainnet ***)
+let ltc_oldest_to_consider = ref (hexstring_hashval "77ea3ccb88201e4a09a7ec6523ee7d9882032b1b682ec33351b6cae0c73dd442")
+let ltc_oldest_to_consider_time = ref 1508682622L
+let ltc_oldest_to_consider_height = ref 1299600L
+
+(*** testnet ***)
+let ltctestnet () =
+  ltc_oldest_to_consider := hexstring_hashval "3a8c7310825d19cd19a7458fa699065929ee7334b0dfbaddcddcce885bd7acbe";
+  ltc_oldest_to_consider_time := 1508682183L;
+  ltc_oldest_to_consider_height := 230010L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 
@@ -48,7 +55,7 @@ let rec ltcdacstatus_dbget h =
     | LtcDacStatusPrev(k) ->
 	ltcdacstatus_dbget k
     | LtcDacStatusNew(l) -> (h,l)
-  with Not_found -> (ltc_oldest_to_consider,[])
+  with Not_found -> (!ltc_oldest_to_consider,[])
 
 let json_assoc_string k al =
   match List.assoc k al with
@@ -441,7 +448,7 @@ let rec possibly_request_dalilcoin_block h =
 
 let rec ltc_process_block h =
   let hh = hexstring_hashval h in
-  if not (hh = ltc_oldest_to_consider) && not (DbLtcBlock.dbexists hh) then
+  if not (hh = !ltc_oldest_to_consider) && not (DbLtcBlock.dbexists hh) then
     begin
       let (prev,tm,hght,txhs) = ltc_getblock h in
       if not (txhs = []) then
@@ -534,7 +541,7 @@ let rec ltc_process_block h =
 	    Printf.fprintf !Utils.log "bds %d\n" (List.length !bds);
 	    DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
 	  end
-	else if not (prevkey = ltc_oldest_to_consider) then
+	else if not (prevkey = !ltc_oldest_to_consider) then
 	  DbLtcDacStatus.dbput hh (LtcDacStatusPrev(prevkey)) (*** pointer to last ltc block where dalilcoin status changed ***)
       end;
       DbLtcBlock.dbput hh (prevh,tm,hght,!txhhs)

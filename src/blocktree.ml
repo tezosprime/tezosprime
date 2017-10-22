@@ -29,9 +29,9 @@ let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
 let thytree : (hashval,Mathdata.ttree) Hashtbl.t = Hashtbl.create 1000;;
 let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
 
-type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock (*** It isn't clear if there are any circumstances when it is safe to say the header is not the header for a valid block. InvalidBlock may be unused. ***)
+type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock
 
-type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * hashval * poburn) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
+type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * poburn) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
 
 let genesisblocktreenode = ref (BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []));;
 
@@ -144,8 +144,8 @@ let rec collect_inv m cnt tosend n txinv =
       let BlocktreeNode(par,_,pbh,_,_,_,_,_,_,_,blkh,_,_,_) = n in
       match pbh with
       | None -> ()
-      | Some(pbh,_,_) ->
-	  if DbBlockHeaderData.dbexists pbh && DbBlockHeaderSig.dbexists pbh then
+      | Some(pbh,_) ->
+	  if DbBlockHeader.dbexists pbh then
 	    begin
               tosend := (int_of_msgtype Headers,Int64.sub blkh 1L,pbh)::!tosend; incr cnt;
 	      if DbBlockDelta.dbexists pbh then (tosend := (int_of_msgtype Blockdelta,blkh,pbh)::!tosend; incr cnt)
@@ -218,7 +218,7 @@ let rec prev_nth_node i n =
     | Some(p) -> prev_nth_node (i-1) p
 
 let update_bestnode n =
-  Printf.fprintf !log "New best blockheader %s\n" (match node_prevblockhash n with Some(h,_,_) -> hashval_hexstring h | None -> "(genesis)"); flush !log;
+  Printf.fprintf !log "New best blockheader %s\n" (match node_prevblockhash n with Some(h,_) -> hashval_hexstring h | None -> "(genesis)"); flush !log;
   bestnode := n;
   netblkh := node_blockheight n
 
@@ -269,56 +269,70 @@ let equ_tinfo (x,(y3,y2,y1,y0),z) (u,(v3,v2,v1,v0),w) =
    x = u && y3 = v3 && y2 = v2 && y1 = v1 && Int64.logand y0 (Int64.lognot 1L) = Int64.logand v0 (Int64.lognot 1L) && eq_big_int z w
 
 let rec validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs =
-  let (blkhd,_) as blkh = (DbBlockHeaderData.dbget h,DbBlockHeaderSig.dbget h) in
-  let (Poburn(lblkh,ltxh,lmedtm,burned),_,_) = DbHeaderLtcBurn.dbget h in
-  let blk = (blkh,blkdel) in
-  if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
-    let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
-    Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
+  let blkdelroot = blockdelta_hashroot blkdel in
+  let (blkhd,_) as blkh = DbBlockHeader.dbget h in
+  let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
+  if not (blkdelroot = blkhd.blockdeltaroot) then (*** if even this fails, then the peer is misbehaving and sending a blockdelta that does not correspond to the header. In this case, ban the peer, drop the connection, and request it from someone else. ***)
     begin
-      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk lmedtm burned with
-      | Some(tht2,sigt2) ->
-	  vs := ValidBlock;
-	  Hashtbl.remove tovalidate h;
-	  DbBlockDelta.dbput h blkdel;
-	  let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = !bestnode in
-	  if gt_big_int newcumulstake bestcumulstk then update_bestnode newnode;
-	  add_thytree blkhd.newtheoryroot tht2;
-	  add_sigtree blkhd.newsignaroot sigt2;
-	  broadcast_inv [(int_of_msgtype Blockdelta,blkhght,h)];
-	  (*** construct a transformed tree consisting of elements ***)
-	  begin
-	    let prevc = load_expanded_ctree (ctree_of_block blk) in
-	    let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	    match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
-	    | Some(newc) -> ignore (save_ctree_elements newc)
-	    | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
-	  end;
-	  List.iter
-	    (fun (h,n) ->
-	      let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
-	      match !vs with
-	      | Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n tr2 sr2 csm2 tinf2 blkhght2 h blkdel cs
-	      | _ -> ())
-	    !chlr
-      | None -> (*** We can't mark it as invalid because the peer may be misbehaving and sending a blockdelta that does not correspond to the header. In this case, ban the peer, drop the connection, and request it from someone else. ***)
-	  Printf.fprintf !log "Block delta for %s was not valid.\n" (hashval_hexstring h);
-	  let tm = Unix.time() in
-	  cs.banned <- true;
-	  Hashtbl.add bannedpeers cs.addrfrom ();
-	  vs := Waiting(tm,None)
+      let b = Buffer.create 1000 in
+      seosbf (seo_blockdelta seosb blkdel (b,None));
+      Printf.fprintf !log "Bad block delta received for %s; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
+      let tm = Unix.time() in
+      cs.banned <- true;
+      Hashtbl.add bannedpeers cs.addrfrom ();
+      vs := Waiting(tm,None)
     end
   else
-    raise (Failure("parent was validated but thyroot and/or sigroot is not known"));;
+    let (Poburn(lblkh,ltxh,lmedtm,burned),_,_) = DbHeaderLtcBurn.dbget h in
+    let blk = (blkh,blkdel) in
+    if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
+      begin
+	Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
+	match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk lmedtm burned with
+	| Some(tht2,sigt2) ->
+	    vs := ValidBlock;
+	    Hashtbl.remove tovalidate h;
+	    DbBlockDelta.dbput h blkdel;
+	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = !bestnode in
+	    if gt_big_int newcumulstake bestcumulstk then update_bestnode newnode;
+	    add_thytree blkhd.newtheoryroot tht2;
+	    add_sigtree blkhd.newsignaroot sigt2;
+	    broadcast_inv [(int_of_msgtype Blockdelta,blkhght,h)];
+	    (*** construct a transformed tree consisting of elements ***)
+	    begin
+	      let prevc = load_expanded_ctree (ctree_of_block blk) in
+	      let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
+	      match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
+	      | Some(newc) -> ignore (save_ctree_elements newc)
+	      | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
+	    end;
+	    List.iter
+	      (fun (h,n) ->
+		let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
+		match !vs with
+		| Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n tr2 sr2 csm2 tinf2 blkhght2 h blkdel cs
+		| _ -> ())
+	      !chlr
+	| None -> (*** We can mark it as invalid because we know this is the only delta that could support the header. ***)
+	    let b = Buffer.create 1000 in
+	    seosbf (seo_blockdelta seosb blkdel (b,None));
+	    Printf.fprintf !log "Block delta for %s was invalid; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
+	    let tm = Unix.time() in
+	    cs.banned <- true;
+	    Hashtbl.add bannedpeers cs.addrfrom ();
+	    vs := InvalidBlock
+      end
+    else
+      raise (Failure("parent was validated but thyroot and/or sigroot is not known"));;
 
 let fstohash a =
   match a with
   | None -> None
-  | Some(h,_,_) -> Some(h)
+  | Some(h,_) -> Some(h)
 
-let rec process_new_header_a h hh blkhs1h blkh1 blkhd1 blkhs1 initialization knownvalid =
+let rec process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid =
   try
-    process_new_header_aa h hh blkhs1h blkh1 blkhd1 blkhs1 (blockheader_stakeasset blkhd1) initialization knownvalid
+    process_new_header_aa h hh blkh1 blkhd1 blkhs1 (blockheader_stakeasset blkhd1) initialization knownvalid
   with
   | HeaderStakedAssetNotMin ->
       Printf.fprintf !log "Header %s has extra information beyong supporting staked asset; should have been caught before process_new_header_a\n" hh;
@@ -326,16 +340,16 @@ let rec process_new_header_a h hh blkhs1h blkh1 blkhd1 blkhs1 initialization kno
   | HeaderNoStakedAsset ->
       Printf.fprintf !log "Header %s does not support staked asset; should have been caught before process_new_header_a\n" hh;
       raise (Failure "header does not support staked asset")
-and process_new_header_aa h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization knownvalid =
+and process_new_header_aa h hh blkh1 blkhd1 blkhs1 a initialization knownvalid =
   if valid_blockheader_signat blkh1 a then
     let (pob,prevbh,_) = DbHeaderLtcBurn.dbget h in
-    process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization knownvalid pob
+    process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid pob
   else
     begin
       Printf.fprintf !log "Header %s has an invalid signature; should have been caught before process_new_header_aa\n" hh;
       raise (Failure "header has invalid signature")
     end
-and process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization knownvalid pob =
+and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid pob =
   let prevblkh = fstohash blkhd1.prevblockhash in
   begin
     try
@@ -348,8 +362,7 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization know
             begin
 	      Printf.fprintf !log "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh;
 	      DbBlacklist.dbput h true;
-	      DbBlockHeaderData.dbdelete h;
-	      DbBlockHeaderSig.dbdelete h;
+	      DbBlockHeader.dbdelete h
             end
 	  else if
 	    valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned
@@ -358,13 +371,12 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization know
 	  then
 	    begin
 	      let newcumulstake = cumul_stake prevcumulstk currtinfo blkhd1.deltatime in
-	      if not (DbBlockHeaderData.dbexists h) then DbBlockHeaderData.dbput h blkhd1;
-	      if not (DbBlockHeaderSig.dbexists h) then DbBlockHeaderSig.dbput h blkhs1;
+	      if not (DbBlockHeader.dbexists h) then DbBlockHeader.dbput h (blkhd1,blkhs1);
 	      Hashtbl.add blkheaders h ();
 	      broadcast_inv [(int_of_msgtype Headers,blkhght,h)];
 	      let validated = ref (if knownvalid then ValidBlock else Waiting(Unix.time(),None)) in
 	      let newcsm = poburn_stakemod pob in
-	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,blkhs1h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
+	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      succl := (h,newnode)::!succl;
@@ -403,12 +415,11 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization know
 	      Printf.fprintf !log "Header %s was invalid, deleting and blacklisting it.\n" hh;
 	      Printf.fprintf !log "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
 	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
-              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,blkhs1h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
+              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
               DbBlacklist.dbput h true;
-	      DbBlockHeaderData.dbdelete h;
-	      DbBlockHeaderSig.dbdelete h;
+	      DbBlockHeader.dbdelete h;
             end
 	with Not_found ->
 	  Printf.fprintf !log "unexpected Not_found in process_new_header_a %s\n" hh;
@@ -423,22 +434,19 @@ and process_new_header_ab h hh blkhs1h blkh1 blkhd1 blkhs1 a initialization know
 and process_new_header_b h hh initialization knownvalid =
   Printf.fprintf !log "Processing new header %s\n" hh; flush !log;
   try
-    let blkhd1 = DbBlockHeaderData.dbget h in
-    let blkhs1 = DbBlockHeaderSig.dbget h in
+    let (blkhd1,blkhs1) = DbBlockHeader.dbget h in
     let blkh1 = (blkhd1,blkhs1) in
-    if not (hash_blockheaderdata blkhd1 = h) then (*** wrong hash, remove it but don't blacklist the (wrong) hashval ***)
+    if not (blockheader_id blkh1 = h) then (*** wrong hash, remove it but don't blacklist the (wrong) id ***)
       begin
         Printf.fprintf !log "WARNING: Block header in database has different hash than key, removing %s\nThis must be due to a bug.\n" hh; flush !log;
-	DbBlockHeaderData.dbdelete h;
-	DbBlockHeaderSig.dbdelete h
+	DbBlockHeader.dbdelete h;
       end
     else
-      process_new_header_a h hh (hash_blockheadersig blkhs1) blkh1 blkhd1 blkhs1 initialization knownvalid
+      process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid
   with (*** in some cases, failure should lead to blacklist and removal of the header, but it's not clear which cases; if it's in a block we might need to distinguish between definitely incorrect vs. possibly incorrect ***)
   | Not_found ->
       Printf.fprintf !log "Problem with blockheader %s, deleting it\n" hh; flush !log;
-      DbBlockHeaderData.dbdelete h;
-      DbBlockHeaderSig.dbdelete h
+      DbBlockHeader.dbdelete h;
   | e ->
       Printf.fprintf !log "exception %s\n" (Printexc.to_string e); flush !log;
       ()
@@ -449,7 +457,7 @@ and possibly_handle_orphan h n initialization knownvalid =
   try
     let (k,bh) = Hashtbl.find orphanblkheaders (Some(h)) in
     let (bhd,bhs) = bh in
-    process_new_header_a k (hashval_hexstring k) (hash_blockheadersig bhs) bh bhd bhs initialization knownvalid;
+    process_new_header_a k (hashval_hexstring k) bh bhd bhs initialization knownvalid;
     try
       let kn = Hashtbl.find blkheadernode (Some(k)) in
       let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,_,blklstd,chl) = n in
@@ -463,20 +471,18 @@ let rec init_headers_to h =
     Printf.fprintf !Utils.log "Skipping invalidated or blacklisted header %s" (hashval_hexstring h)
   else
     try
-      let blkhd1 = DbBlockHeaderData.dbget h in
-      let blkhs1 = DbBlockHeaderSig.dbget h in
-      let blkh1 = (blkhd1,blkhs1) in
+      let (blkhd1,blkhs1) as blkh1 = DbBlockHeader.dbget h in
       begin
 	match blkhd1.prevblockhash with
-	| Some(ph,_,_) -> init_headers_to ph
+	| Some(ph,_) -> init_headers_to ph
 	| None -> ()
       end;
-      process_new_header_a h (hashval_hexstring h) (hash_blockheadersig blkhs1) blkh1 blkhd1 blkhs1 true false
+      process_new_header_a h (hashval_hexstring h) blkh1 blkhd1 blkhs1 true false
     with Not_found ->
       Printf.printf "Could not find header %s\nStarting node without initializing headers.\n" (hashval_hexstring h)
 
 let rec init_headers h =
-  if DbBlockHeaderData.dbexists h then
+  if DbBlockHeader.dbexists h then
     init_headers_to h
   else
     try
@@ -512,8 +518,7 @@ let rec blacklist_from h n =
   let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,_,blklstd,chl) = n in
   blklstd := true;
   DbBlacklist.dbput h true;
-  DbBlockHeaderData.dbdelete h;
-  DbBlockHeaderSig.dbdelete h;
+  DbBlockHeader.dbdelete h;
   List.iter (fun (k,c) -> blacklist_from k c) !chl
 
 let publish_stx txh stx1 =
@@ -532,10 +537,8 @@ let rec create_new_node h req =
   try
     let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
     try
-      let bhd = DbBlockHeaderData.dbget h in
-      let bhs = DbBlockHeaderSig.dbget h in
+      let (bhd,bhs) = DbBlockHeader.dbget h in
       if DbBlockDelta.dbexists h then
-	let bhsh = hash_blockheadersig bhs in
 	let newcsm = poburn_stakemod pob in
 	let pbh = fstohash bhd.prevblockhash in
 	let par =
@@ -543,7 +546,7 @@ let rec create_new_node h req =
 	  | Some(pbh) -> Some(get_or_create_node pbh req)
 	  | None -> Some(!genesisblocktreenode)
 	in
-	let fnode = BlocktreeNode(par,ref [],Some(h,bhsh,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
+	let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
 	Hashtbl.add blkheadernode (Some(h)) fnode;
 	possibly_handle_orphan h fnode false false;
 	fnode
@@ -640,9 +643,7 @@ Hashtbl.add msgtype_handler GetHeader
     let tm = Unix.time() in
     if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
       try
-	let bhd = DbBlockHeaderData.dbget h in
-	let bhs = DbBlockHeaderSig.dbget h in
-	let bh = (bhd,bhs) in
+	let (bhd,bhs) as bh = DbBlockHeader.dbget h in
 	let s = Buffer.create 1000 in
 	seosbf (seo_blockheader seosb bh (seo_hashval seosb h (seo_int8 seosb 1 (s,None))));
 	cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv;
@@ -666,9 +667,7 @@ Hashtbl.add msgtype_handler GetHeaders
       c := cn;
       if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
-	  let blkhd1 = DbBlockHeaderData.dbget h in
-	  let blkhs1 = DbBlockHeaderSig.dbget h in
-	  let bh = (blkhd1,blkhs1) in
+	  let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
 	  incr m;
 	  bhl := (h,bh)::!bhl;
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
@@ -695,12 +694,14 @@ Hashtbl.add msgtype_handler Headers
       let (h,cn) = sei_hashval seis !c in
       let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
       c := cn;
-      if not (DbBlockHeaderData.dbexists h) && (DbHeaderLtcBurn.dbexists h || recently_requested (i,h) tm cs.invreq) then
+      if not (DbBlockHeader.dbexists h) && (DbHeaderLtcBurn.dbexists h || recently_requested (i,h) tm cs.invreq) then
 	let (bhd,bhs) = bh in
-	let bhsh = hash_blockheadersig bhs in
-	if not (hash_blockheaderdata bhd = h) then
+	if not (blockheader_id bh = h) then
 	  begin (*** this may be the result of a misbehaving peer ***)
 	    Printf.fprintf !log "got a header with the wrong hash, dropping it and banning node\n";
+	    let b = Buffer.create 1000 in
+	    seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
+	    Printf.fprintf !log "given id h = %s header with wrong id = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
 	    flush !log;
 	    cs.banned <- true
 	  end
@@ -713,9 +714,9 @@ Hashtbl.add msgtype_handler Headers
 	      begin
 		match bhd.prevblockhash with
 		| None -> ()
-		| Some(prevdatah,prevsigh,Poburn(lblkh,ltxh,lmedtm,burned)) -> (* commitment to previous proof of burn *)
+		| Some(prevh,Poburn(lblkh,ltxh,lmedtm,burned)) -> (* commitment to previous proof of burn *)
 		    try
-		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_,_) = DbHeaderLtcBurn.dbget prevdatah in (* previous proof of burn *)
+		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_,_) = DbHeaderLtcBurn.dbget prevh in (* previous proof of burn *)
 		      if not (lblkh = lblkh2) then
 			begin
 			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
@@ -737,23 +738,31 @@ Hashtbl.add msgtype_handler Headers
 			  validsofar := false
 			end;
 		    with Not_found ->
-		      Printf.fprintf !Utils.log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevdatah);
+		      Printf.fprintf !Utils.log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevh);
 		      validsofar := false;
 		      dontban := true
 	      end;
 	      if not !validsofar then
 		begin
+		  Printf.printf "Got invalid header %s\n" (hashval_hexstring h);
+		  let b = Buffer.create 1000 in
+		  seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
+		  Printf.fprintf !log "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
+		  flush !log;
 		  if not !dontban then cs.banned <- true
 		end
 	      else if not (valid_blockheader_signat (bhd,bhs) a) then
 		begin (*** this may simply be the result of a misbehaving peer mangling the signature of an otherwise valid header ***)
-		  Printf.fprintf !log "got a header with an invalid signature, dropping it and banning node\n";
+		  Printf.printf "Got invalid header %s (signature invalid)\n" (hashval_hexstring h);
+		  let b = Buffer.create 1000 in
+		  seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
+		  Printf.fprintf !log "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
 		  flush !log;
 		  if not !dontban then cs.banned <- true
 		end
 	      else
 		let (pob,_,_) = DbHeaderLtcBurn.dbget h in
-		process_new_header_ab h (hashval_hexstring h) bhsh bh bhd bhs a false false pob
+		process_new_header_ab h (hashval_hexstring h) bh bhd bhs a false false pob
 	    with
 	    | HeaderStakedAssetNotMin -> (*** here it is safe to blacklist the header's hash since no valid header can have this hash ***)
 		begin
@@ -803,17 +812,15 @@ Hashtbl.add msgtype_handler Inv
       let ((i,blkh,h),cn) = sei_prod3 sei_int8 sei_int64 sei_hashval seis !c in
       c := cn;
       cs.rinv <- (i,h)::cs.rinv;
-      if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeaderData.dbexists h) (DbArchived.dbexists h);
+      if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeader.dbexists h) (DbArchived.dbexists h);
       Printf.fprintf !log "Inv %d %Ld %s\n" i blkh (hashval_hexstring h);
       if i = int_of_msgtype Headers && not (DbArchived.dbexists h) then
 	begin
 	  try
-	    let blkhd1 = DbBlockHeaderData.dbget h in
-	    let blkhs1 = DbBlockHeaderSig.dbget h in
-	    let bh = (blkhd1,blkhs1) in
+	    let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
 	    if not (Hashtbl.mem blkheadernode (Some(h))) then
 	      let (bhd,bhs) = bh in
-	      process_new_header_a h (hashval_hexstring h) (hash_blockheadersig bhs) bh bhd bhs false false
+	      process_new_header_a h (hashval_hexstring h) bh blkhd1 blkhs1 false false
 	  with Not_found ->
 	    hl := List.merge (fun (blkh1,_) (blkh2,_) -> compare blkh2 blkh1) !hl [(blkh,h)] (*** reverse order because they will be reversed again when requested ***)
 	end
@@ -863,7 +870,7 @@ Hashtbl.add msgtype_handler Inv
 	      | Some(lcppn) ->
 		match node_prevblockhash lcppn with
 		| None -> raise Exit
-		| Some(lcppnh,_,_) -> if not (lcppnh = h) then raise Exit
+		| Some(lcppnh,_) -> if not (lcppnh = h) then raise Exit
 	  with Exit -> (*** if Exit was raised, then we need the checkpoint ***)
 	    let tm = Unix.time() in
 	    cs.invreq <- (int_of_msgtype GetCheckpoint,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
@@ -915,7 +922,7 @@ Hashtbl.add msgtype_handler Blockdelta
 		      validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
 		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
 		      match !vsp with
-		      | InvalidBlock -> raise Not_found (*** questionable if this can happen ***)
+		      | InvalidBlock -> raise Not_found
 		      | Waiting(_,_) ->
 			  let (blkdel,_) = sei_blockdelta seis r in
 			  vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
@@ -1075,7 +1082,7 @@ let dumpblocktreestate sa =
       Printf.fprintf sa "- blk %s node:\n" (match h with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "recentstakers:\n";
       List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr k))) !rs;
-      Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h,_,_) -> hashval_hexstring h | None -> "[genesis]");
+      Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h,_) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "ledger tree root: %s\n" (hashval_hexstring lr);
@@ -1157,13 +1164,9 @@ Hashtbl.add msgtype_handler Checkpoint
 	  with Not_found ->
 	    try
 	      let (pob,_,_) = DbHeaderLtcBurn.dbget h in
-	      let blkhd1 = DbBlockHeaderData.dbget h in
-	      let blkhs1 = DbBlockHeaderSig.dbget h in
-	      let bh = (blkhd1,blkhs1) in
-	      let (bhd,bhs) = bh in
-	      let bhsh = hash_blockheadersig bhs in
+	      let (bhd,bhs) as bh = DbBlockHeader.dbget h in
 	      let newcsm = poburn_stakemod pob in
-	      let fnode = BlocktreeNode(None,ref [],Some(h,bhsh,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in (*** just drop the cumul stake back to zero because I don't know it here ***)
+	      let fnode = BlocktreeNode(None,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in (*** just drop the cumul stake back to zero because I don't know it here ***)
 	      Hashtbl.add blkheadernode (Some(h)) fnode;
 	      possibly_handle_orphan h fnode false false;
 	      lastcheckpointnode := fnode;

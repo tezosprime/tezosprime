@@ -40,7 +40,7 @@ val hitval : int64 -> hashval -> stakemod -> big_int
 val poburn_stakemod : poburn -> stakemod
 
 type blockheaderdata = {
-    prevblockhash : (hashval * hashval * poburn) option;
+    prevblockhash : (hashval * poburn) option;
     newtheoryroot : hashval option;
     newsignaroot : hashval option;
     newledgerroot : hashval;
@@ -69,11 +69,8 @@ val sei_blockheaderdata : (int -> 'a -> int * 'a) -> 'a -> blockheaderdata * 'a
 val seo_blockheader : (int -> int -> 'a -> 'a) -> blockheader -> 'a -> 'a
 val sei_blockheader : (int -> 'a -> int * 'a) -> 'a -> blockheader * 'a
 
-type poforfeit = blockheader * blockheader * blockheaderdata list * blockheaderdata list * int64 * hashval list
-
 type blockdelta = {
     stakeoutput : addr_preasset list;
-    forfeiture : poforfeit option;
     prevledgergraft : cgraft;
     blockdelta_stxl : stx list
   }
@@ -85,21 +82,12 @@ val sei_blockdelta : (int -> 'a -> int * 'a) -> 'a -> blockdelta * 'a
 val seo_block : (int -> int -> 'a -> 'a) -> block -> 'a -> 'a
 val sei_block : (int -> 'a -> int * 'a) -> 'a -> block * 'a
 
-module DbBlockHeaderData :
+module DbBlockHeader :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> blockheaderdata
+      val dbget : Hash.hashval -> blockheader
       val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> blockheaderdata -> unit
-      val dbdelete : Hash.hashval -> unit
-    end
-
-module DbBlockHeaderSig :
-    sig
-      val dbinit : unit -> unit
-      val dbget : Hash.hashval -> blockheadersig
-      val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> blockheadersig -> unit
+      val dbput : Hash.hashval -> blockheader -> unit
       val dbdelete : Hash.hashval -> unit
     end
 
@@ -135,6 +123,7 @@ val check_hit : int64 -> stakemod -> targetinfo -> blockheaderdata -> int64 -> o
 val hash_blockheaderdata : blockheaderdata -> hashval
 val hash_blockheadersig : blockheadersig -> hashval
 val blockdelta_hashroot : blockdelta -> hashval
+val blockheader_id : blockheader -> hashval
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin

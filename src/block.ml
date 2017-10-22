@@ -89,7 +89,7 @@ let poburn_stakemod p =
   | Poburn(h,k,x,y) -> hashpair h k
 
 type blockheaderdata = {
-    prevblockhash : (hashval * hashval * poburn) option;
+    prevblockhash : (hashval * poburn) option;
     newtheoryroot : hashval option;
     newsignaroot : hashval option;
     newledgerroot : hashval;
@@ -132,7 +132,7 @@ let fake_blockheader : blockheader =
    })
 
 let seo_blockheaderdata o bh c =
-  let c = seo_option (seo_prod3 seo_hashval seo_hashval seo_poburn) o bh.prevblockhash c in
+  let c = seo_option (seo_prod seo_hashval seo_poburn) o bh.prevblockhash c in
   let c = seo_option seo_hashval o bh.newtheoryroot c in
   let c = seo_option seo_hashval o bh.newsignaroot c in
   let c = seo_hashval o bh.newledgerroot c in
@@ -146,7 +146,7 @@ let seo_blockheaderdata o bh c =
   c
 
 let sei_blockheaderdata i c =
-  let (x0,c) = sei_option (sei_prod3 sei_hashval sei_hashval sei_poburn) i c in
+  let (x0,c) = sei_option (sei_prod sei_hashval sei_poburn) i c in
   let (x1,c) = sei_option sei_hashval i c in
   let (x2,c) = sei_option sei_hashval i c in
   let (x3,c) = sei_hashval i c in
@@ -197,23 +197,8 @@ let sei_blockheadersig i c =
 let seo_blockheader o bh c = seo_prod seo_blockheaderdata seo_blockheadersig o bh c
 let sei_blockheader i c = sei_prod sei_blockheaderdata sei_blockheadersig i c
 
-type poforfeit = blockheader * blockheader * blockheaderdata list * blockheaderdata list * int64 * hashval list
-
-let seo_poforfeit o pof c =
-  seo_prod6 seo_blockheader seo_blockheader
-    (seo_list seo_blockheaderdata) (seo_list seo_blockheaderdata)
-    seo_int64 (seo_list seo_hashval)
-    o pof c
-
-let sei_poforfeit i c =
-  sei_prod6 sei_blockheader sei_blockheader
-    (sei_list sei_blockheaderdata) (sei_list sei_blockheaderdata)
-    sei_int64 (sei_list sei_hashval)
-    i c
-
 type blockdelta = {
     stakeoutput : addr_preasset list;
-    forfeiture : poforfeit option;
     prevledgergraft : cgraft;
     blockdelta_stxl : stx list
   }
@@ -222,18 +207,15 @@ type block = blockheader * blockdelta
 
 let seo_blockdelta o bd c =
   let c = seo_list seo_addr_preasset o bd.stakeoutput c in
-  let c = seo_option seo_poforfeit o bd.forfeiture c in
   let c = seo_cgraft o bd.prevledgergraft c in
   let c = seo_list seo_stx o bd.blockdelta_stxl c in
   c
 
 let sei_blockdelta i c =
   let (stko,c) = sei_list sei_addr_preasset i c in
-  let (forf,c) = sei_option sei_poforfeit i c in
   let (cg,c) = sei_cgraft i c in
   let (stxl,c) = sei_list sei_stx i c in
   ({ stakeoutput = stko;
-     forfeiture = forf;
      prevledgergraft = cg;
      blockdelta_stxl = stxl;
    },
@@ -242,33 +224,37 @@ let sei_blockdelta i c =
 let seo_block o b c = seo_prod seo_blockheader seo_blockdelta o b c
 let sei_block i c = sei_prod sei_blockheader sei_blockdelta i c
 
-module DbBlockHeaderData = Dbbasic2 (struct type t = blockheaderdata let basedir = "blockheaderdata" let seival = sei_blockheaderdata seic let seoval = seo_blockheaderdata seoc end)
-module DbBlockHeaderSig = Dbbasic2 (struct type t = blockheadersig let basedir = "blockheadersig" let seival = sei_blockheadersig seic let seoval = seo_blockheadersig seoc end)
+module DbBlockHeader = Dbbasic2 (struct type t = blockheader let basedir = "blockheader" let seival = sei_blockheader seic let seoval = seo_blockheader seoc end)
 module DbBlockDelta = Dbbasic2 (struct type t = blockdelta let basedir = "blockdelta" let seival = sei_blockdelta seic let seoval = seo_blockdelta seoc end)
 module DbInvalidatedBlocks = Dbbasic2 (struct type t = bool let basedir = "invalidatedblocks" let seival = sei_bool seic let seoval = seo_bool seoc end)
 
 let get_blockheaderdata h = 
   try
-    DbBlockHeaderData.dbget h
+    let (d,s) = DbBlockHeader.dbget h in d
   with Not_found -> (*** request it and fail ***)
-(*** missing code to ask peers for data ***)
+    find_and_send_requestdata GetHeader h;
     raise GettingRemoteData
 
 let get_blockheadersig h = 
   try
-    DbBlockHeaderSig.dbget h
+    let (d,s) = DbBlockHeader.dbget h in
+    s
   with Not_found -> (*** request it and fail ***)
-(*** missing code to ask peers for data ***)
+    find_and_send_requestdata GetHeader h;
     raise GettingRemoteData
 
 let get_blockheader h = 
-  (get_blockheaderdata h,get_blockheadersig h)
+  try
+    DbBlockHeader.dbget h
+  with Not_found -> (*** request it and fail ***)
+    find_and_send_requestdata GetHeader h;
+    raise GettingRemoteData
 
 let get_blockdelta h = 
   try
     DbBlockDelta.dbget h
   with Not_found -> (*** request it and fail ***)
-(*** missing code to ask peers for data ***)
+    find_and_send_requestdata GetBlockdelta h;
     raise GettingRemoteData
 
 (***
@@ -288,18 +274,14 @@ let check_hit blkh csm tinf bh bday obl v burned =
 
 let coinstake b =
   let ((bhd,bhs),bd) = b in
-  match bd.forfeiture with
-  | None -> ([p2pkhaddr_addr bhd.stakeaddr,bhd.stakeassetid],bd.stakeoutput)
-  | Some((bhd1,_),_,_,_,_,fal) ->
-      let a = p2pkhaddr_addr bhd1.stakeaddr in
-      ((p2pkhaddr_addr bhd.stakeaddr,bhd.stakeassetid)::List.map (fun fid -> (a,fid)) fal,bd.stakeoutput)
+  ([p2pkhaddr_addr bhd.stakeaddr,bhd.stakeassetid],bd.stakeoutput)
 
 let hash_blockheaderdata bh =
   hashtag
     (hashopair2
        (match bh.prevblockhash with
        | None -> None
-       | Some(h,k,pob) -> Some(hashpair h (hashpair k (hashpoburn pob))))
+       | Some(h,pob) -> Some(hashpair h (hashpoburn pob)))
        (hashlist
 	  [hashopair2 bh.newtheoryroot
 	     (hashopair2 bh.newsignaroot bh.newledgerroot);
@@ -329,6 +311,8 @@ let hash_blockheadersig bhs =
 let hash_blockheader (bhd,bhs) =
   hashpair (hash_blockheaderdata bhd) (hash_blockheadersig bhs)
 
+let blockheader_id bh = hash_blockheader bh
+
 let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm burned =
   bhd.timestamp <= lmedtm
     &&
@@ -344,23 +328,23 @@ let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm bu
   | _ -> false
 
 let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
-  let bhdh = hash_blockheaderdata bhd in
+  let bhdh = hash_blockheaderdata bhd in (*** check that it signs the hash of the data part of the header, distinct form blockheader_id which combines hash of data with hash of sig ***)
   if (try DbInvalidatedBlocks.dbget bhdh with Not_found -> false) then (*** explicitly marked as invalid ***)
     false
   else
     begin
       match bhs.blocksignatendorsement with
-      | None -> verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) bhd.stakeaddr bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp
+      | None -> verify_p2pkhaddr_signat (hashval_big_int bhdh) bhd.stakeaddr bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp
       | Some(beta,recid,fcomp,esg) -> (*** signature via endorsement ***)
 	  begin
 	    (verifybitcoinmessage bhd.stakeaddr recid fcomp esg ("endorse " ^ (addr_daliladdrstr (p2pkhaddr_addr beta)))
 	       &&
-	     verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
+	     verify_p2pkhaddr_signat (hashval_big_int bhdh) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	  || (!Config.testnet (*** allow fake endorsements in testnet ***)
 		&&
 	      verifybitcoinmessage (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ (addr_daliladdrstr (p2pkhaddr_addr beta)) ^ " (" ^ (addr_daliladdrstr (p2pkhaddr_addr bhd.stakeaddr)) ^ ")")
 		&&
-	      verify_p2pkhaddr_signat (hashval_big_int (hash_blockheaderdata bhd)) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
+	      verify_p2pkhaddr_signat (hashval_big_int bhdh) beta bhs.blocksignat bhs.blocksignatrecid bhs.blocksignatfcomp)
 	  end
     end
 
@@ -420,68 +404,10 @@ let rec stxl_hashroot stxl =
 
 let blockdelta_hashroot bd =
   hashpair
-    (hashopair1
-       (hashlist (List.map hash_addr_preasset bd.stakeoutput))
-       (match bd.forfeiture with
-       | None -> None
-       | Some(bh1,bh2,bhdl1,bhdl2,i,hl) ->
-	   Some (hashpair
-		   (hashpair (hash_blockheader bh1) (hash_blockheader bh2))
-		   (hashpair
-		      (hashpair
-			 (hashlist (List.map hash_blockheaderdata bhdl1))
-			 (hashlist (List.map hash_blockheaderdata bhdl2)))
-		      (hashpair (hashint64 i) (hashlist hl))))))
+    (hashlist (List.map hash_addr_preasset bd.stakeoutput))
     (hashopair1
        (hashcgraft bd.prevledgergraft)
        (stxl_hashroot bd.blockdelta_stxl))
-
-let rec check_bhl pbhsh bhl oth =
-  match pbhsh with
-  | None -> raise Not_found
-  | Some(pbh,_,_) ->
-      if pbh = oth then (*** if this happens, then it's not a genuine fork; one of the lists is a sublist of the other ***)
-	raise Not_found
-      else
-	match bhl with
-	| [] -> pbh
-	| (bhd::bhr) ->
-	    if pbh = hash_blockheaderdata bhd then
-	      check_bhl bhd.prevblockhash bhr oth
-	    else
-	      raise Not_found
-
-let rec check_poforfeit_a blkh alpha alphabs v fal tr =
-  match fal with
-  | [] -> v = 0L
-  | fa::far ->
-      match ctree_lookup_asset false false fa tr alphabs with
-      | Some(_,bday,Some(alpha2,_,r),Currency(u)) when r && Int64.add bday 6L >= blkh && payaddr_addr alpha2 = alpha ->
-	  check_poforfeit_a blkh alpha alphabs (Int64.sub v u) far tr
-      | _ -> false
-
-let check_poforfeit blkh ((bhd1,bhs1),(bhd2,bhs2),bhl1,bhl2,v,fal) tr =
-  if hash_blockheaderdata bhd1 = hash_blockheaderdata bhd2 || not (bhd1.stakeaddr = bhd2.stakeaddr) || List.length bhl1 > 5 || List.length bhl2 > 5 then
-    false
-  else
-    let bhd1h = hash_blockheaderdata bhd1 in
-    let bhd2h = hash_blockheaderdata bhd2 in
-    (*** we only need to check the signatures here at the heads by the bad actor bhd*.stakeaddr ***)
-    if verify_p2pkhaddr_signat (hashval_big_int bhd1h) bhd1.stakeaddr bhs1.blocksignat bhs1.blocksignatrecid bhs1.blocksignatfcomp
-	&&
-      verify_p2pkhaddr_signat (hashval_big_int bhd2h) bhd2.stakeaddr bhs2.blocksignat bhs2.blocksignatrecid bhs2.blocksignatfcomp
-    then
-      try
-	begin
-	  if check_bhl (bhd1.prevblockhash) bhl1 bhd2h = check_bhl (bhd2.prevblockhash) bhl2 bhd1h then (*** bhd1.stakeaddr signed in two different forks within six blocks of fbh1 ***)
-	    let alpha = p2pkhaddr_addr bhd1.stakeaddr in
-	    check_poforfeit_a blkh alpha (addr_bitseq alpha) v fal tr
-	  else
-	    false
-	end
-      with Not_found -> false
-    else
-      false
 
 let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmedtm burned =
   let ((bhd,bhs),bd) = b in
@@ -498,7 +424,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	| (_,_,Some(beta,n,r),Currency(v)) -> (*** stake may be on loan for staking ***)
 	    begin
 	      match bd.stakeoutput with
-	      | (alpha2,(Some(beta2,n2,r2),Currency(v2)))::remouts -> (*** the first output must recreate the loaned asset. It's a reward iff it was already a reward. The remaining outputs are marked as rewards and are subject to forfeiture. ***)
+	      | (alpha2,(Some(beta2,n2,r2),Currency(v2)))::remouts -> (*** the first output must recreate the loaned asset. It's a reward iff it was already a reward. ***)
 		  r2 = r
 		    &&
 		  alpha2 = stkaddr
@@ -510,7 +436,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 		  v2 = v
 		    &&
 		  begin
-		    try (*** all other outputs must be marked as rewards and are subject to forfeiture; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
+		    try (*** all other outputs must be marked as rewards; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
 		      ignore (List.find (fun (alpha3,(obl,v)) -> not (alpha3 = stkaddr) || match obl with Some(_,n,r) when r && n >= Int64.add blkh reward_locktime -> false | _ -> true) remouts);
 		      false
 		    with Not_found -> true
@@ -519,7 +445,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 		  false
 	    end
 	| (_,_,None,Currency(v)) -> (*** stake has the default obligation ***)
-	    begin (*** the first output is optionally the stake with the default obligation (not a reward, immediately spendable) with all other outputs must be marked as rewards and are subject to forfeiture; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
+	    begin (*** the first output is optionally the stake with the default obligation (not a reward, immediately spendable) with all other outputs must be marked as rewards; they also must acknowledge they cannot be spent for at least reward_locktime many blocks ***)
 	      match bd.stakeoutput with
 	      | (alpha2,(_,Currency(v2)))::remouts -> (*** allow the staker to choose the new obligation for the staked asset [Feb 2016] ***)
 		  begin
@@ -669,21 +595,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	  with NotSupported -> false
 	end)
     then
-      let (forfeitval,forfok) =
-	begin
-	  match bd.forfeiture with
-	  | None -> (0L,true)
-	  | Some(bh1,bh2,bhl1,bhl2,v,fal) ->
-	      let forfok = check_poforfeit blkh (bh1,bh2,bhl1,bhl2,v,fal) tr in
-  	      (v,forfok)
-	end
-      in
-      if (forfok
-	    &&
-	  (***
-	      The root of the transformed ctree is the newledgerroot in the header.
-	   ***)
-	  begin
+      if (begin (*** The root of the transformed ctree is the newledgerroot in the header. ***)
 	    let (cstk,txl) = txl_of_block b in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
 	    match tx_octree_trans false false blkh cstk (txl_octree_trans false false blkh txl (Some(tr))) with (*** "false false" disallows database lookups and remote requests ***)
 	    | Some(tr2) ->
@@ -697,7 +609,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	let aal = ctree_lookup_input_assets false false inpl tr in
 	let al = List.map (fun (_,a) -> a) aal in
 	(*** Originally I added totalfees to the out_cost, but this was wrong since the totalfees are in the stake output which is already counted in out_cost. I don't really need totalfees to be explicit. ***)
-	if out_cost outpl = Int64.add (asset_value_sum blkh al) (Int64.add (rewfn blkh) forfeitval) then
+	if out_cost outpl = Int64.add (asset_value_sum blkh al) (rewfn blkh) then
 	  let newtht = txout_update_ottree outpl tht in
 	  let newsigt = txout_update_ostree outpl sigt in
 	  if bhd.newtheoryroot = ottree_hashroot newtht
@@ -769,12 +681,10 @@ let blockheader_succ bh1 bh2 =
   let (bhd1,bhs1) = bh1 in
   let (bhd2,bhs2) = bh2 in
   match bhd2.prevblockhash with
-  | Some(pbh,pbsh,Poburn(lblkh,ltxh,lmedtm,burned)) ->
+  | Some(pbh,Poburn(lblkh,ltxh,lmedtm,burned)) ->
       bhd1.timestamp <= lmedtm
 	&&
-      pbh = hash_blockheaderdata bhd1
-	&&
-      pbsh = hash_blockheadersig bhs1 (*** the next block must also commit to the previous signature ***)
+      pbh = blockheader_id bh1 (*** the next block must also commit to the previous header with signature since the id hashes both the data and signature ***)
 	&&
       blockheader_succ_a bhd1.newledgerroot bhd1.timestamp bhd1.tinfo bh2
   | None -> false
@@ -788,7 +698,7 @@ let rec valid_blockchain_aux blkh bl lmedtm burned =
 	  let (pbhd,pbhs) = pbh in
 	  match bhd.prevblockhash with
 	  | None -> raise NotSupported
-	  | Some(bhdprev,bhsprev,(Poburn(lblk,ltx,lmedtm1,burned1) as pob)) ->
+	  | Some(bhprev,(Poburn(lblk,ltx,lmedtm1,burned1) as pob)) ->
 	      let (tht,sigt) = valid_blockchain_aux (Int64.sub blkh 1L) ((pbh,pbd)::br) lmedtm1 burned1 in
 	      let csm = poburn_stakemod pob in
 	      if blockheader_succ pbh bh then
@@ -832,7 +742,7 @@ let rec valid_blockheaderchain_aux blkh bhl lmedtm burned =
 	  let (pbhd,pbhs) = pbh in
 	  match bhd.prevblockhash with
 	  | None -> false
-	  | Some(bhdprev,bhsprev,(Poburn(lblk,ltx,lmedtm1,burned1) as pob)) ->
+	  | Some(bhprev,(Poburn(lblk,ltx,lmedtm1,burned1) as pob)) ->
 	      let csm = poburn_stakemod pob in
 	      valid_blockheaderchain_aux (Int64.sub blkh 1L) (pbh::bhr) lmedtm1 burned1
 		&& blockheader_succ pbh bh

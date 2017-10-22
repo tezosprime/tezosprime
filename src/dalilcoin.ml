@@ -37,7 +37,7 @@ let rec pblockchain s n c lr m =
   Printf.fprintf s "Difficulty: %s\n" (string_of_big_int (difficulty tar));
   Printf.fprintf s "Timestamp: %Ld\n" tm;
   match c with
-  | Some(h,_,Poburn(lblkh,ltxh,lmedtm,burned)) ->
+  | Some(h,Poburn(lblkh,ltxh,lmedtm,burned)) ->
       Printf.printf "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring ltxh);
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
       begin
@@ -224,7 +224,7 @@ let maxburnnow tm =
 let fstohash a =
   match a with
   | None -> None
-  | Some(h,_,_) -> Some(h)
+  | Some(h,_) -> Some(h)
 
 let compute_staking_chances n fromtm totm =
   let i = ref fromtm in
@@ -481,7 +481,6 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 (*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
 		  let bdnew : blockdelta =
 		    { stakeoutput = stkoutl;
-		      forfeiture = None; (*** leave this as None for now; should check for double signing ***)
 		      prevledgergraft = cgr;
 		      blockdelta_stxl = !otherstxs
 		    }
@@ -538,11 +537,10 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		      with Not_found ->
 			raise (Failure("Was staking for " ^ Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 		  in
-		  DbBlockHeaderData.dbput bhdnewh bhdnew;
-		  DbBlockHeaderSig.dbput bhdnewh bhsnew;
-		  DbBlockDelta.dbput bhdnewh bdnew;
-		  let bhsnewh = hash_blockheadersig bhsnew in
 		  let bhnew = (bhdnew,bhsnew) in
+		  let newblkid = blockheader_id bhnew in
+		  DbBlockHeader.dbput newblkid bhnew;
+		  DbBlockDelta.dbput newblkid bdnew;
 		  begin
 		    let s = Buffer.create 10000 in
 		    seosbf (seo_blockdelta seosb bdnew (s,None));
@@ -567,12 +565,10 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			let (pbhd,pbhs) = get_blockheader pbhh1 in
 			let tmpsucctest bhd1 bhs1 bhd2 =
 			  match bhd2.prevblockhash with
-			  | Some(pbh,pbsh,Poburn(lblkh,ltxh,lmedtm,burned)) ->
+			  | Some(pbh,Poburn(lblkh,ltxh,lmedtm,burned)) ->
 			      bhd2.timestamp = Int64.add bhd1.timestamp (Int64.of_int32 bhd2.deltatime)
 				&&
-			      pbh = hash_blockheaderdata bhd1
-				&&
-			      pbsh = hash_blockheadersig bhs1 (*** the next block must also commit to the previous signature ***)
+			      pbh = blockheader_id (bhd1,bhs1) (*** the next block must also commit to the previous signature ***)
 				&&
 			      let tar1 = bhd1.tinfo in
 			      let tar2 = bhd2.tinfo in
@@ -608,12 +604,12 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 				  | Some(u) ->
 				      begin (*** will need to actually burn u litoshis and wait for a confirmation to know the block hash; fake it for now ***)
 					try
-					  let btx = ltc_createburntx (match pbhh1 with Some(h) -> h | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) bhdnewh u in
+					  let btx = ltc_createburntx (match pbhh1 with Some(h) -> h | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) newblkid u in
 					  let btxhex = Hashaux.string_hexstring btx in
 					  let btxs = ltc_signrawtransaction btxhex in
 					  let h = ltc_sendrawtransaction btxs in
-					  Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring bhdnewh);
-					  publish_block blkh bhdnewh ((bhdnew,bhsnew),bdnew) csnew;
+					  Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid);
+					  publish_block blkh newblkid ((bhdnew,bhsnew),bdnew) csnew;
 					  output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
 					with
 					| InsufficientLtcFunds ->
@@ -779,19 +775,13 @@ let do_command oc l =
 		  Printf.fprintf oc "- %s (blacklisted, presumably invalid) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		else if DbInvalidatedBlocks.dbexists dbh then
 		  Printf.fprintf oc "- %s (marked invalid) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
-		else if DbBlockHeaderData.dbexists dbh then
-		  if DbBlockHeaderSig.dbexists dbh then
-		    if DbBlockDelta.dbexists dbh then
-		      Printf.fprintf oc "+ %s %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
-		    else
-		      begin
-			possibly_request_dalilcoin_block dbh;
-			Printf.fprintf oc "* %s (missing delta) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
-		      end
+		else if DbBlockHeader.dbexists dbh then
+		  if DbBlockDelta.dbexists dbh then
+		    Printf.fprintf oc "+ %s %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		  else
 		    begin
 		      possibly_request_dalilcoin_block dbh;
-		      Printf.fprintf oc "* %s (missing header sig) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
+		      Printf.fprintf oc "* %s (missing delta) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		    end
 		else
 		  begin
@@ -929,7 +919,7 @@ let do_command oc l =
       let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = get_bestnode true in
       begin
 	match pbh with
-	| Some(h,_,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
+	| Some(h,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
 	| None -> Printf.fprintf oc "No blocks yet\n"
       end;
       Printf.fprintf oc "Target: %s\n" (string_of_big_int tar);
@@ -982,9 +972,7 @@ let do_command oc l =
 	    begin
 	      let h = hexstring_hashval hh in
 	      try
-		let bhd = DbBlockHeaderData.dbget h in
-		if not (DbBlockHeaderSig.dbexists h) then
-		  find_and_send_requestdata GetHeader h;
+		let (bhd,_) = DbBlockHeader.dbget h in
 		if not (DbBlockDelta.dbexists h) then
 		  find_and_send_requestdata GetBlockdelta h;
 		Printf.printf "Time: %Ld\n" bhd.timestamp;
@@ -1131,7 +1119,7 @@ let do_command oc l =
       let lr = node_ledgerroot node in
       begin
 	match h with
-	| Some(h,_,_) ->
+	| Some(h,_) ->
 	    Printf.fprintf oc "Height: %Ld\nBlock hash: %s\nLedger root: %s\n" (Int64.sub blkh 1L) (hashval_hexstring h) (hashval_hexstring lr);
 	    flush oc
 	| None ->
@@ -1190,8 +1178,7 @@ let initialize () =
     DbTxSignatures.dbinit();
     DbHConsElt.dbinit();
     DbCTreeElt.dbinit();
-    DbBlockHeaderData.dbinit();
-    DbBlockHeaderSig.dbinit();
+    DbBlockHeader.dbinit();
     DbBlockDelta.dbinit();
     DbInvalidatedBlocks.dbinit();
     DbLtcDacStatus.dbinit();

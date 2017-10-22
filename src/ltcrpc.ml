@@ -423,7 +423,7 @@ module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval 
 let rec possibly_request_dalilcoin_block h =
   try
     let req = ref false in
-    if not (DbBlockHeaderData.dbexists h && DbBlockHeaderSig.dbexists h) then
+    if not (DbBlockHeader.dbexists h) then
       (find_and_send_requestdata GetHeader h; req := true);
     if not (DbBlockDelta.dbexists h) then
       (find_and_send_requestdata GetBlockdelta h; req := true);

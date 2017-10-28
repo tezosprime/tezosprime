@@ -9,6 +9,7 @@ open Utils;;
 open Ser;;
 open Sha256;;
 open Ripemd160;;
+open Hashaux;;
 open Hash;;
 open Net;;
 open Db;;
@@ -271,7 +272,7 @@ let compute_staking_chances n fromtm totm =
 	  List.iter
 	    (fun (stkaddr,h,bday,obl,v) ->
 	      let v2 = Int64.add v (Int64.mul (maxburnnow !i) 1000L) in
-Printf.fprintf !log "Checking for staking of %s at time %Ld\n" (hashval_hexstring h) !i; flush !log;
+              (** Printf.fprintf !log "Checking for staking of %s at time %Ld\n" (hashval_hexstring h) !i; flush !log; **)
 	      let caf = coinagefactor blkhght bday obl in
 	      if gt_big_int (mult_big_int caf (big_int_of_int64 v2)) zero_big_int then
 		begin
@@ -554,7 +555,19 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		    if valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L) then
 		      () (* (Printf.fprintf !log "New block header is valid\n"; flush !log) *)
 		    else
-		      (Printf.fprintf !log "New block header is not valid\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate"); Hashtbl.remove nextstakechances pbhh1; raise StakingProblemPause);
+		      begin
+			let b = Buffer.create 1000 in
+			seosbf (seo_blockheader seosb bhnew (b,None));
+			Printf.fprintf !log "New block header is not valid\nbhnew = %s\nfull header = %s\n" (hashval_hexstring newblkid) (string_hexstring (Buffer.contents b));
+			flush !log;
+			verbose_blockcheck := Some(!Utils.log);
+			valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L);
+			verbose_blockcheck := None;
+			let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
+			dumpstate (Filename.concat datadir "stakedinvalidblockheaderstate");
+			Hashtbl.remove nextstakechances pbhh1;
+			raise StakingProblemPause
+		      end;
 		    if not ((valid_block None None blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L)) = None) then
 		      () (* (Printf.fprintf !log "New block is valid\n"; flush stdout) *)
 		    else

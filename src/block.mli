@@ -39,6 +39,8 @@ val hitval : int64 -> hashval -> stakemod -> big_int
 
 val poburn_stakemod : poburn -> stakemod
 
+val verbose_blockcheck : out_channel option ref
+
 type blockheaderdata = {
     prevblockhash : (hashval * poburn) option;
     newtheoryroot : hashval option;

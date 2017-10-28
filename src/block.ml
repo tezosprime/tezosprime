@@ -88,6 +88,18 @@ let poburn_stakemod p =
   match p with
   | Poburn(h,k,x,y) -> hashpair h k
 
+let verbose_blockcheck = ref None
+
+(*** optional messages sent to an out_channel while checking validity of blocks ***)
+let vbc f =
+  match !verbose_blockcheck with
+  | Some(c) -> f c; flush c
+  | None -> ()
+
+let vbcv v f = vbc f; v
+
+let vbcb v f g = if v then vbc f else vbc g; v
+
 type blockheaderdata = {
     prevblockhash : (hashval * poburn) option;
     newtheoryroot : hashval option;
@@ -314,23 +326,28 @@ let hash_blockheader (bhd,bhs) =
 let blockheader_id bh = hash_blockheader bh
 
 let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm burned =
-  bhd.timestamp <= lmedtm
-    &&
-  bhd.stakeassetid = aid
-    &&
-  match u with
-  | Currency(v) ->
-      begin
-	check_hit blkh csm tinfo bhd bday obl v burned
-	  &&
-	bhd.deltatime > 0l
+  if not (bhd.timestamp <= lmedtm) then
+    vbcv false (fun c -> Printf.fprintf c "Block header has timestamp %Ld after median litecoin time %Ld\n" bhd.timestamp lmedtm)
+  else if not (bhd.stakeassetid = aid) then
+    vbcv false (fun c -> Printf.fprintf c "Block header asset id mismatch. Found %s. Expected %s.\n" (hashval_hexstring bhd.stakeassetid) (hashval_hexstring aid))
+  else
+    match u with
+    | Currency(v) ->
+	begin
+	  if not (check_hit blkh csm tinfo bhd bday obl v burned) then
+	    vbcv false (fun c -> Printf.fprintf c "Block header not a hit.\nblkh = %Ld\ncsm = %s\ntinfo = %s\nbday = %Ld\nobl = %s\nv = %Ld\nburned = %Ld\n" blkh (hashval_hexstring csm) (targetinfo_string tinfo) bday (obligation_string obl) v burned)
+	  else if not (bhd.deltatime > 0l) then
+	    vbcv false (fun c -> Printf.fprintf c "Block header has a bad deltatime %ld\n" bhd.deltatime)
+	  else
+	    true
       end
-  | _ -> false
+  | _ ->
+      vbcv false (fun c -> Printf.fprintf c "staked asset %s of block header was not a currency asset\n" (hashval_hexstring aid))
 
 let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
   let bhdh = hash_blockheaderdata bhd in (*** check that it signs the hash of the data part of the header, distinct form blockheader_id which combines hash of data with hash of sig ***)
   if (try DbInvalidatedBlocks.dbget bhdh with Not_found -> false) then (*** explicitly marked as invalid ***)
-    false
+    vbcv false (fun c -> Printf.fprintf c "Block %s explicitly marked as invalid.\n" (hashval_hexstring bhdh))
   else
     begin
       match bhs.blocksignatendorsement with
@@ -349,9 +366,11 @@ let valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) =
     end
 
 let valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,v) lmedtm burned =
-  valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v)
-    &&
-  valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) lmedtm burned
+  let b1 = valid_blockheader_signat (bhd,bhs) (aid,bday,obl,v) in
+  if b1 then
+    valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,v) lmedtm burned
+  else
+    vbcv false (fun c -> Printf.fprintf c "block header has invalid signature\n")
 
 exception HeaderNoStakedAsset
 exception HeaderStakedAssetNotMin
@@ -361,15 +380,21 @@ let blockheader_stakeasset bhd =
   match ctree_lookup_asset false false bhd.stakeassetid bhd.prevledger bl with
   | Some(a) ->
       let (aid,_,_,_) = a in
+      vbc (fun c -> Printf.fprintf c "found staked asset %s\n" (hashval_hexstring aid));
       if minimal_asset_supporting_ctree bhd.prevledger bl aid 50 then (*** ensure that the ctree contains no extra information; this is a condition to prevent headers from being large by including unnecessary information; also only allow the first 50 assets held at an address to be used for staking ***)
 	a
       else
-	raise HeaderStakedAssetNotMin
+	begin
+	  vbc (fun c -> Printf.fprintf c "ctree in header not minimal for staked asset\n");
+	  raise HeaderStakedAssetNotMin
+	end
   | _ -> 
+      vbc (fun c -> Printf.fprintf c "No staked asset found\n");
       raise HeaderNoStakedAsset
 	
 let valid_blockheader blkh csm tinfo (bhd,bhs) lmedtm burned =
   try
+    vbc (fun c -> Printf.fprintf c "valid_blockheader %Ld %Ld %Ld\n" blkh lmedtm burned);
     valid_blockheader_a blkh csm tinfo (bhd,bhs) (blockheader_stakeasset bhd) lmedtm burned
   with
   | HeaderStakedAssetNotMin -> false
@@ -412,11 +437,11 @@ let blockdelta_hashroot bd =
 let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmedtm burned =
   let ((bhd,bhs),bd) = b in
   (*** The header is valid. ***)
-  if (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u) lmedtm burned
+  if (vbcb (valid_blockheader_a blkh csm tinfo (bhd,bhs) (aid,bday,obl,u) lmedtm burned) (fun c -> Printf.fprintf c "header valid\n") (fun c -> Printf.fprintf c "header invalid\n")
 	&&
-      tx_outputs_valid bd.stakeoutput
+      vbcb (tx_outputs_valid bd.stakeoutput) (fun c -> Printf.fprintf c "stakeoutput valid\n") (fun c -> Printf.fprintf c "stakeoutput invalid\n")
         &&
-      blockdelta_hashroot bd = bhd.blockdeltaroot (*** the header commits to the blockdelta (including all txs and their signatures) ***)
+      vbcb (blockdelta_hashroot bd = bhd.blockdeltaroot) (fun c -> Printf.fprintf c "delta Merkle root valid") (fun c -> Printf.fprintf c "delta Merkle root invalid") (*** the header commits to the blockdelta (including all txs and their signatures) ***)
 	&&
       (*** ensure that if the stake has an explicit obligation (e.g., it is borrowed for staking), then the obligation isn't changed; otherwise the staker could steal the borrowed stake; unchanged copy should be first output ***)
       begin
@@ -629,7 +654,8 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
     None
 
 let valid_block tht sigt blkh csm tinfo (b:block) lmedtm burned =
-  let ((bhd,_),_) = b in
+  let ((bhd,_) as bh,_) = b in
+  vbc (fun c -> Printf.fprintf c "Checking if block %s at height %Ld is valid.\n" (hashval_hexstring (blockheader_id bh)) blkh);
   let stkaddr = p2pkhaddr_addr bhd.stakeaddr in
   try
     valid_block_a tht sigt blkh csm tinfo b (blockheader_stakeasset bhd) stkaddr lmedtm burned

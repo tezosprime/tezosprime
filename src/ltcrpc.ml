@@ -431,8 +431,8 @@ let rec possibly_request_dalilcoin_block h =
   try
     let req = ref false in
     if not (DbBlockHeader.dbexists h) then
-      (find_and_send_requestdata GetHeader h; req := true);
-    if not (DbBlockDelta.dbexists h) then
+      (find_and_send_requestdata GetHeader h; req := true)
+    else if not (DbBlockDelta.dbexists h) then
       (find_and_send_requestdata GetBlockdelta h; req := true);
     if !req then
       begin

@@ -266,7 +266,10 @@ let get_blockdelta h =
   try
     DbBlockDelta.dbget h
   with Not_found -> (*** request it and fail ***)
-    find_and_send_requestdata GetBlockdelta h;
+    if DbBlockHeader.dbexists h then
+      find_and_send_requestdata GetBlockdelta h
+    else
+      find_and_send_requestdata GetHeader h;
     raise GettingRemoteData
 
 (***

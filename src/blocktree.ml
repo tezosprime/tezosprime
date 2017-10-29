@@ -394,19 +394,41 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 		      | None -> (*** should not have happened, delete it from the database and request it again. ***)
 			  DbBlockDelta.dbdelete h;
 			  Hashtbl.add tovalidate h ();
-			  try
-			    find_and_send_requestdata GetBlockdelta h
-			  with Not_found ->
-			    Printf.fprintf !log "No source for block delta of %s; must wait until it is explicitly requested\n" hh
+                          if DbBlockHeader.dbexists h then
+                            begin
+                              try
+                                find_and_send_requestdata GetBlockdelta h
+			      with Not_found ->
+                                Printf.fprintf !log "No source for block delta of %s; must wait until it is explicitly requested\n" hh
+                            end
+                          else
+                            begin
+                              try
+                                Printf.fprintf !log "Do not have header for %s; trying to request it.\n" hh;
+                                find_and_send_requestdata GetHeader h
+                              with Not_found ->
+                                Printf.fprintf !log "No source for block header of %s\n" hh
+                            end
 		    end
 		  else
 		    raise (Failure "unknown thyroot or sigroot while trying to validate block")
 		with Not_found ->
 		  Hashtbl.add tovalidate h ();
-		  try
-		    find_and_send_requestdata GetBlockdelta h
-		  with Not_found ->
-		    Printf.fprintf !log "No source for block delta of %s\n" hh
+                  if DbBlockHeader.dbexists h then
+                    begin
+                      try
+                        find_and_send_requestdata GetBlockdelta h
+                      with Not_found ->
+                        Printf.fprintf !log "No source for block delta of %s; must wait until it is explicitly requested\n" hh
+                    end
+                  else
+                    begin
+                      try
+                        Printf.fprintf !log "Do not have header for %s; trying to request it.\n" hh;
+                        find_and_send_requestdata GetHeader h
+                      with Not_found ->
+                        Printf.fprintf !log "No source for block header of %s\n" hh
+                    end
 	      end
 	    end
 	  else

@@ -594,10 +594,16 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			else
 			  (Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause)
 		  end;
-		  let nw = ltc_medtime() in
-		  let tmtopub = Int64.sub tm nw in
-		  Printf.fprintf !log "tmtopub %Ld\n" tmtopub;
-		  if tmtopub > 1L then Thread.delay (Int64.to_float tmtopub);
+		  begin
+		    try
+		      while true do
+			let nw = ltc_medtime() in
+			let tmtopub = Int64.sub tm nw in
+			Printf.fprintf !log "tmtopub %Ld\n" tmtopub;
+			if tmtopub > 0L then Thread.delay (Int64.to_float tmtopub) else raise Exit
+		      done
+		    with Exit -> ()
+		  end;
 		  let publish_new_block () =
 		    Printf.fprintf !log "called publish_new_block\n";
 		    if List.length !netconns < !Config.minconnstostake then
@@ -1214,7 +1220,9 @@ let initialize () =
 	| Invalid_argument(_) ->
 	    raise (Failure "Bad seed")
       end;
+    Printf.printf "Syncing with ltc\n"; flush stdout;
     ltc_init();
+    Printf.printf "Initializing blocktree\n"; flush stdout;
     initblocktree();
     Printf.printf "Loading wallet\n"; flush stdout;
     Commands.load_wallet();

@@ -360,9 +360,13 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	  let BlocktreeNode(_,_,prevh,thyroot,sigroot,ledgerroot,csm,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = prevnode in
 	  if !blacklisted then (*** child of a blacklisted node, drop and blacklist it ***)
             begin
+	      let newcsm = poburn_stakemod pob in
 	      Printf.fprintf !log "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh;
-	      DbBlacklist.dbput h true;
-	      DbBlockHeader.dbdelete h
+              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
+	      Hashtbl.add blkheadernode (Some(h)) newnode;
+	      possibly_handle_orphan h newnode initialization knownvalid;
+              DbBlacklist.dbput h true;
+	      DbBlockHeader.dbdelete h;
             end
 	  else if
 	    valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned
@@ -437,6 +441,10 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      Printf.fprintf !log "Header %s was invalid, deleting and blacklisting it.\n" hh;
 	      Printf.fprintf !log "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
 	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
+	      verbose_blockcheck := Some(!log);
+	      ignore (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
+	      ignore (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
+	      verbose_blockcheck := None;
               let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
@@ -599,7 +607,7 @@ let rec create_new_node h req =
 	    raise Exit
         end
   with Not_found ->
-    Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
+    Printf.fprintf !log "create_new_node called with %s %b but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h) req;
     raise (Failure "problem in create_new_node")
 and get_or_create_node h req =
   try
@@ -656,7 +664,8 @@ let initblocktree () =
   Hashtbl.add blkheadernode None !genesisblocktreenode;
   try
     ignore (get_bestnode true);
-  with Exit -> ();;
+  with
+  | _ -> ();;
 
 Hashtbl.add msgtype_handler GetHeader
   (fun (sin,sout,cs,ms) ->

@@ -329,7 +329,7 @@ let hash_blockheader (bhd,bhs) =
 let blockheader_id bh = hash_blockheader bh
 
 let valid_blockheader_allbutsignat blkh csm tinfo bhd (aid,bday,obl,u) lmedtm burned =
-  if not (bhd.timestamp <= lmedtm) then
+  if bhd.timestamp > lmedtm then
     vbcv false (fun c -> Printf.fprintf c "Block header has timestamp %Ld after median litecoin time %Ld\n" bhd.timestamp lmedtm)
   else if not (bhd.stakeassetid = aid) then
     vbcv false (fun c -> Printf.fprintf c "Block header asset id mismatch. Found %s. Expected %s.\n" (hashval_hexstring bhd.stakeassetid) (hashval_hexstring aid))
@@ -700,11 +700,12 @@ let cumul_stake cs tar deltm =
 
 let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
   let (bhd2,bhs2) = bh2 in
-  ctree_hashroot bhd2.prevledger = prevledgerroot
+  vbc (fun c -> Printf.fprintf c "Checking if header is valid successor\n");
+  vbcb (ctree_hashroot bhd2.prevledger = prevledgerroot) (fun c -> Printf.fprintf c "hashroot of prevledger matches\n") (fun c -> Printf.fprintf c "prevledger mismatch: computed in bhd2 %s ; prevledgerroot given as %s\n" (hashval_hexstring (ctree_hashroot bhd2.prevledger)) (hashval_hexstring prevledgerroot))
     &&
-  bhd2.timestamp = Int64.add tmstamp1 (Int64.of_int32 bhd2.deltatime)
+  vbcb (bhd2.timestamp = Int64.add tmstamp1 (Int64.of_int32 bhd2.deltatime)) (fun c -> Printf.fprintf c "timestamp matches\n") (fun c -> Printf.fprintf c "timestamp mismatch bhd2 %Ld is not prev %Ld plus delta %ld\n" bhd2.timestamp tmstamp1 bhd2.deltatime)
     &&
-  eq_big_int bhd2.tinfo (retarget tinfo1 bhd2.deltatime)
+  vbcb (eq_big_int bhd2.tinfo (retarget tinfo1 bhd2.deltatime)) (fun c -> Printf.fprintf c "target info matches\n") (fun c -> Printf.fprintf c "target info mismatch %s vs (retarget %s %ld) = %s\n" (string_of_big_int bhd2.tinfo) (string_of_big_int tinfo1) bhd2.deltatime (string_of_big_int (retarget tinfo1 bhd2.deltatime)))
 
 let blockheader_succ bh1 bh2 =
   let (bhd1,bhs1) = bh1 in

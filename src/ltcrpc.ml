@@ -18,9 +18,9 @@ let ltc_oldest_to_consider_height = ref 1299600L
 
 (*** testnet ***)
 let ltctestnet () =
-  ltc_oldest_to_consider := hexstring_hashval "3a8c7310825d19cd19a7458fa699065929ee7334b0dfbaddcddcce885bd7acbe";
-  ltc_oldest_to_consider_time := 1508682183L;
-  ltc_oldest_to_consider_height := 230010L
+  ltc_oldest_to_consider := hexstring_hashval "919ec7177fb09596baa0e89e7156f80d7644133861c19fbc60f9ca02a697e6d0";
+  ltc_oldest_to_consider_time := 1509305778L;
+  ltc_oldest_to_consider_height := 248045L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 

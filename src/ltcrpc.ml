@@ -429,6 +429,7 @@ module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval 
 
 let rec possibly_request_dalilcoin_block h =
   try
+    Printf.fprintf !Utils.log "possibly request dalilcoin block %s\n" (hashval_hexstring h);
     let req = ref false in
     if not (DbBlockHeader.dbexists h) then
       (find_and_send_requestdata GetHeader h; req := true)
@@ -443,8 +444,8 @@ let rec possibly_request_dalilcoin_block h =
 	  | None -> ()
 	with Not_found -> ()
       end
-  with _ ->
-    Printf.fprintf !Utils.log "Problem trying to request block %s\n" (hashval_hexstring h)
+  with e ->
+    Printf.fprintf !Utils.log "Problem trying to request block %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
 
 let rec ltc_process_block h =
   let hh = hexstring_hashval h in

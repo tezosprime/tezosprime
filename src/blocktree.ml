@@ -563,6 +563,8 @@ let publish_block blkh bhh (bh,bd) cs =
   Printf.fprintf !log "publishing block %s\n" (hashval_hexstring bhh); flush !log;
   broadcast_inv [(int_of_msgtype Headers,blkh,bhh);(int_of_msgtype Blockdelta,blkh,bhh)];;
 
+exception NoReq
+
 let rec create_new_node h req =
   try
     let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
@@ -581,7 +583,7 @@ let rec create_new_node h req =
 	possibly_handle_orphan h fnode false false;
 	fnode
       else if not req then
-        raise Not_found
+        raise NoReq
       else
 	begin
 	  Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
@@ -594,7 +596,7 @@ let rec create_new_node h req =
 	end
     with Not_found ->
       if not req then
-        raise Not_found
+        raise NoReq
       else
         begin
           Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
@@ -606,9 +608,19 @@ let rec create_new_node h req =
             Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
 	    raise Exit
         end
-  with Not_found ->
-    Printf.fprintf !log "create_new_node called with %s %b but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h) req;
-    raise (Failure "problem in create_new_node")
+  with
+  | Not_found ->
+      Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
+      flush !log;
+      raise (Failure "problem in create_new_node")
+  | NoReq ->
+      Printf.fprintf !log "do not have block header or delta for %s and cannot currently request it\n" (hashval_hexstring h);
+      flush !log;
+      raise (Failure "delaying create_new_node")
+  | GettingRemoteData ->
+      Printf.fprintf !log "requesting block header or delta for %s\n" (hashval_hexstring h);
+      flush !log;
+      raise (Failure "delaying create_new_node")
 and get_or_create_node h req =
   try
     Hashtbl.find blkheadernode (Some(h))
@@ -672,7 +684,12 @@ Hashtbl.add msgtype_handler GetHeader
     let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
     let i = int_of_msgtype GetHeader in
     let tm = Unix.time() in
-    if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
+    if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
+      begin
+	Printf.fprintf !Utils.log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	flush !Utils.log
+      end
+    else
       try
 	let (bhd,bhs) as bh = DbBlockHeader.dbget h in
 	let s = Buffer.create 1000 in
@@ -917,7 +934,12 @@ Hashtbl.add msgtype_handler GetBlockdelta
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetBlockdelta in
       let tm = Unix.time() in
-      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
+      if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
+	begin
+	  Printf.fprintf !Utils.log "recently sent delta %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	  flush !Utils.log
+	end
+      else
 	try
 	  let blkdel = DbBlockDelta.dbget h in
 	  let bdsb = Buffer.create 100 in

@@ -871,9 +871,13 @@ let find_and_send_requestdata mt h =
 	| Some(cs) ->
             if not cs.banned && List.mem (inv_of_msgtype mt,h) cs.rinv then
 	      if recently_requested (i,h) tm cs.invreq then
-		alrreq := true
+		begin
+		  Printf.fprintf !log "already recently requested from %s\n" cs.addrfrom; flush !log;
+		  alrreq := true
+		end
 	      else
 		begin
+		  Printf.fprintf !log "sending request to %s\n" cs.addrfrom; flush !log;
 		  let mh = queue_msg cs mt ms in
 		  cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 		  raise Exit
@@ -881,7 +885,8 @@ let find_and_send_requestdata mt h =
 	| None -> ())
       !netconns;
     if not !alrreq then raise Not_found
-  with Exit -> ()
+  with Exit ->
+    ()
 
 let broadcast_inv tosend =
   let invmsg = Buffer.create 10000 in

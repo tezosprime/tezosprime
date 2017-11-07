@@ -829,13 +829,13 @@ let netseeker () =
 
 let recently_requested (i,h) nw ir =
   try
-    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 3600.0) ir);
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 991.0) ir);
     true
   with Not_found -> false
 
 let recently_sent (i,h) nw isnt =
   try
-    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 3600.0) isnt);
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 353.0) isnt);
     true
   with Not_found -> false
   

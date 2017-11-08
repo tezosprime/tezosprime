@@ -713,15 +713,23 @@ Hashtbl.add msgtype_handler GetHeaders
     for j = 1 to n do
       let (h,cn) = sei_hashval seis !c in
       c := cn;
-      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
+      if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
+	begin
+	  Printf.fprintf !Utils.log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	  flush !Utils.log
+	end
+      else
 	try
 	  let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
 	  incr m;
 	  bhl := (h,bh)::!bhl;
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
-	with Not_found ->
+	with
+	| Not_found ->
 	  (*** don't have it to send, ignore ***)
 	    ()
+	| e -> (** ignore any other exception ***)
+	    Printf.fprintf !Utils.log "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e)
       done;
     let s = Buffer.create 10000 in
     let co = ref (seo_int8 seosb !m (s,None)) in

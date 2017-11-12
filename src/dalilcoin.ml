@@ -288,8 +288,8 @@ let fstohash a =
   | Some(h,_) -> Some(h)
 
 let compute_staking_chances n fromtm totm =
-  let i = ref fromtm in
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,csm1,tar1,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
+  let i = ref (max fromtm (Int64.add 1L tmstamp)) in
   if !Config.maxburn < 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
     ()
   else

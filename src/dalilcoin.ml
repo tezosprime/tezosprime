@@ -51,6 +51,64 @@ let rec pblockchain s n c lr m =
   | None ->
       List.iter (fun (k,_) -> Printf.fprintf s "[extra child, not yet considered best %s]\n" (hashval_hexstring k)) !chl
 
+let print_consensus_warning s cw =
+  match cw with
+  | ConsensusWarningMissing(h,ph,blkh,hh,hd) ->
+      Printf.fprintf s "Missing Block %Ld %s%s%s%s\n"
+	blkh (hashval_hexstring h)
+	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(if hh then " Have Header" else " Missing Header")
+	(if hd then " Have Delta" else " Missing Delta")
+  | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) ->
+      Printf.fprintf s "Waiting to Validate Block %Ld %s%s%s%s\n"
+	blkh (hashval_hexstring h)
+	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(if hh then " Have Header" else " Missing Header")
+	(if hd then " Have Delta" else " Missing Delta")
+  | ConsensusWarningBlacklist(h,ph,blkh) ->
+      Printf.fprintf s "Blacklisted Block %Ld %s%s\n"
+	blkh (hashval_hexstring h)
+	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+  | ConsensusWarningInvalid(h,ph,blkh) ->
+      Printf.fprintf s "Invalid Block %Ld %s%s\n"
+	blkh (hashval_hexstring h)
+	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+  | ConsensusWarningNoBurn(h) ->
+      Printf.fprintf s "BUG: Mystery unburned block %s\n" (hashval_hexstring h)
+	
+let get_bestnode_print_warnings s req =
+  let (n,cwl) = get_bestnode req in
+  if not (cwl = []) then
+    begin
+      let bh = ref (match node_prevblockhash n with Some(pbh,_) -> Some(pbh) | None -> None) in
+      let cwlnew = ref [] in
+      let cwlorph = ref [] in
+      List.iter
+	    (fun cw ->
+	      match cw with
+	      | ConsensusWarningMissing(h,ph,blkh,hh,hd) ->
+		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
+	      | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) ->
+		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
+	      | ConsensusWarningBlacklist(h,ph,blkh) ->
+		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
+	      | ConsensusWarningInvalid(h,ph,blkh) ->
+		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
+	      | ConsensusWarningNoBurn(h) -> cwlorph := cw::!cwlorph)
+	cwl;
+      if not (!cwlnew = []) then
+	begin
+	  Printf.printf "WARNING: %d new blocks seem to have been mined on top of the current best block:\n" (List.length !cwlnew);
+	  List.iter (print_consensus_warning s) (List.rev !cwlnew);
+	end;
+      if not (!cwlorph = []) then
+	begin
+	  Printf.printf "WARNING: %d blocks are possible orphans:\n" (List.length !cwlorph);
+	  List.iter (print_consensus_warning s) (List.rev !cwlorph);
+	end;
+    end;
+  n
+
 let dumpstate fa =
   let sa = open_out fa in
   Printf.fprintf sa "=========\nNetwork connections: %d\n" (List.length !netconns);
@@ -85,7 +143,7 @@ let dumpstate fa =
     )
     !netconns;
   Printf.fprintf sa "=================\nBlock Chain:\n";
-  pblockchain sa (get_bestnode true) None None 10000;
+  (try pblockchain sa (get_bestnode_print_warnings sa true) None None 10000 with _ -> ());
   dumpblocktreestate sa;
   close_out sa
 
@@ -315,6 +373,29 @@ let compute_staking_chances n fromtm totm =
 exception StakingPause of float
 exception StakingProblemPause
 
+let get_bestnode_cw_exception req e =
+  let (best,cwl) = get_bestnode req in
+  begin
+    try
+      let cw =
+	List.find
+	  (fun cw ->
+	    match cw with
+	    | ConsensusWarningMissing(h,ph,blkh,hh,hd) -> true
+	    | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) -> true
+	    | _ -> false)
+	  cwl
+      in
+      print_consensus_warning !log cw;
+      Printf.fprintf !log "possibly not synced; delaying staking\n";
+      flush !log;
+      raise Exit
+    with
+    | Not_found -> ()
+    | Exit -> raise e
+  end;
+  best
+
 let stakingthread () =
   let sleepuntil = ref (ltc_medtime()) in
   while true do
@@ -324,14 +405,7 @@ let stakingthread () =
       if sleeplen > 1.0 then Thread.delay sleeplen;
       Printf.fprintf !log "Staking after sleeplen %f seconds\n" sleeplen;
       if not (ltc_synced()) then (Printf.fprintf !log "ltc not synced yet; delaying staking\n"; flush !log; raise (StakingPause(60.0)));
-      let best = try get_bestnode false with _ -> Printf.fprintf !log "possibly not synced; delaying staking\n"; flush !log; raise (StakingPause(300.0)) in
-      begin
-	match node_validationstatus best with
-	| InvalidBlock -> find_best_validated_block()
-	| Waiting(tm,_) ->
-	    if tm +. 15.0 < Int64.to_float (ltc_medtime()) then find_best_validated_block()
-	| _ -> ()
-      end;
+      let best = get_bestnode_cw_exception false (StakingPause(300.0)) in
       try
 	let pbhh = node_prevblockhash best in
 	let pbhh1 = fstohash pbhh in
@@ -340,8 +414,9 @@ let stakingthread () =
 	| NextStake(tm,alpha,aid,bday,obl,v,toburn,csnew) ->
 	    begin
 	      let nw = ltc_medtime() in
-Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
-	      if tm >= Int64.add nw 60L then
+	      let pbhtm = node_timestamp best in
+	      Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
+	      if tm >= Int64.add nw 60L || tm <= pbhtm then
 		begin (*** wait for a minute and then reevaluate; would be better to sleep until time to publish or until a new best block is found **)
 		  let tmtopub = Int64.sub tm nw in
 		  output_string !log ((Int64.to_string tmtopub) ^ " seconds until time to publish staked block\n");
@@ -358,7 +433,6 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		  let prevledgerroot = node_ledgerroot best in
 		  let csm0 = node_stakemod best in
 		  let tar0 = node_targetinfo best in
-		  let pbhtm = node_timestamp best in
 		  let deltm = Int64.to_int32 (Int64.sub tm pbhtm) in
 		  let tar = retarget tar0 deltm in
 		  let alpha2 = p2pkhaddr_addr alpha in
@@ -617,7 +691,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 			if tm <= ftm then
 			  begin
 			    if node_validationstatus best = ValidBlock then (*** Don't publish a successor unless the previous block has been fully validated ***)
-			      let currbestnode = try get_bestnode false with Not_found -> Printf.fprintf !log "not synced; delaying staking\n"; flush !log; raise (StakingPause(300.0)) in (*** in case it has changed ***)
+			      let currbestnode = get_bestnode_cw_exception false (StakingPause(300.0)) in
 			      if pbhh = node_prevblockhash currbestnode then (*** if the bestnode has changed, don't publish it ***)
 				begin
 				  match toburn with
@@ -645,7 +719,7 @@ Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
 		      end
 		  in
 		  if node_validationstatus best = ValidBlock then (*** Don't publish a successor unless the previous block has been fully validated ***)
- 	            let currbestnode = try get_bestnode false with Not_found -> Printf.fprintf !log "not synced; delaying staking\n"; flush !log; raise (StakingPause(300.0)) in (*** in case it has changed ***)
+ 	            let currbestnode = get_bestnode_cw_exception false (StakingPause(300.0)) in
 		    if pbhh = node_prevblockhash currbestnode then (*** if the bestnode has changed, don't publish it unless the cumulative stake is higher ***)
 		      publish_new_block()
 		end
@@ -938,7 +1012,7 @@ let do_command oc l =
       Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
       begin
 	try
-	  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = get_bestnode true in
+	  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = get_bestnode_print_warnings oc true in
 	  begin
 	    match pbh with
 	    | Some(h,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
@@ -1042,7 +1116,7 @@ let do_command oc l =
       begin
 	match al with
 	| [] ->
-	    let best = get_bestnode true in
+	    let best = get_bestnode_print_warnings oc true in
 	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
 	    Commands.printctreeinfo currledgerroot
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
@@ -1083,7 +1157,7 @@ let do_command oc l =
 	      | [] ->
 		  let gamma = alpha2 in
 		  let beta = alpha in
-		  let lr = node_ledgerroot (get_bestnode true) in
+		  let lr = node_ledgerroot (get_bestnode_print_warnings oc true) in
 		  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 	      | (gam::r) ->
 		  let gamma = daliladdrstr_addr gam in
@@ -1091,7 +1165,7 @@ let do_command oc l =
 		  match r with
 		  | [] ->
 		      let beta = alpha in
-		      let lr = node_ledgerroot (get_bestnode true) in
+		      let lr = node_ledgerroot (get_bestnode_print_warnings oc true) in
 		      Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		  | (bet::r) ->
 		      let beta2 = daliladdrstr_addr bet in
@@ -1100,7 +1174,7 @@ let do_command oc l =
 		      let beta = (p=1,b4,b3,b2,b1,b0) in
 		      match r with
 		      | [] ->
-			  let lr = node_ledgerroot (get_bestnode true) in
+			  let lr = node_ledgerroot (get_bestnode_print_warnings oc true) in
 			  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		      | [lr] ->
 			  let lr = hexstring_hashval lr in
@@ -1116,7 +1190,7 @@ let do_command oc l =
   | "signtx" ->
       begin
 	match al with
-	| [s] -> Commands.signtx (node_ledgerroot (get_bestnode true)) s
+	| [s] -> Commands.signtx (node_ledgerroot (get_bestnode_print_warnings oc true)) s
 	| _ ->
 	    Printf.fprintf oc "signtx <tx in hex>\n";
 	    flush oc
@@ -1124,7 +1198,7 @@ let do_command oc l =
   | "savetxtopool" ->
       begin
 	match al with
-	| [s] -> Commands.savetxtopool (node_blockheight (get_bestnode true)) (node_ledgerroot (get_bestnode true)) s
+	| [s] -> Commands.savetxtopool (node_blockheight (get_bestnode_print_warnings oc true)) (node_ledgerroot (get_bestnode_print_warnings oc true)) s
 	| _ ->
 	    Printf.fprintf oc "savetxtopool <tx in hex>\n";
 	    flush oc
@@ -1132,13 +1206,13 @@ let do_command oc l =
   | "sendtx" ->
       begin
 	match al with
-	| [s] -> Commands.sendtx (node_blockheight (get_bestnode true)) (node_ledgerroot (get_bestnode true)) s
+	| [s] -> Commands.sendtx (node_blockheight (get_bestnode_print_warnings oc true)) (node_ledgerroot (get_bestnode_print_warnings oc true)) s
 	| _ ->
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc
       end
   | "bestblock" ->
-      let node = get_bestnode true in
+      let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in
       let blkh = node_blockheight node in
       let lr = node_ledgerroot node in
@@ -1152,12 +1226,12 @@ let do_command oc l =
 	    flush oc
       end
   | "difficulty" ->
-      let node = get_bestnode true in
+      let node = get_bestnode_print_warnings oc true in
       let tar = node_targetinfo node in
       let blkh = node_blockheight node in
       Printf.fprintf oc "Current target (for block at height %Ld): %s\n" blkh (string_of_big_int tar);
       flush oc
-  | "blockchain" -> pblockchain oc (get_bestnode true) None None 1000
+  | "blockchain" -> pblockchain oc (get_bestnode_print_warnings oc true) None None 1000
   | _ ->
       (Printf.fprintf oc "Ignoring unknown command: %s\n" c; List.iter (fun a -> Printf.fprintf oc "%s\n" a) al; flush oc);;
 

@@ -60,4 +60,12 @@ val dumpblocktreestate : out_channel -> unit
 
 val create_new_node : hashval -> bool -> blocktree
 val ltc_best_chaintips : unit -> hashval list list
-val get_bestnode : bool -> blocktree
+
+type consensuswarning =
+  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool
+  | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
+  | ConsensusWarningBlacklist of hashval * hashval option * int64
+  | ConsensusWarningInvalid of hashval * hashval option * int64
+  | ConsensusWarningNoBurn of hashval
+
+val get_bestnode : bool -> blocktree * consensuswarning list

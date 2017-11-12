@@ -567,47 +567,7 @@ exception NoReq
 
 let rec create_new_node h req =
   try
-    let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
-    try
-      let (bhd,bhs) = DbBlockHeader.dbget h in
-      if DbBlockDelta.dbexists h then
-	let newcsm = poburn_stakemod pob in
-	let pbh = fstohash bhd.prevblockhash in
-	let par =
-	  match pbh with
-	  | Some(pbh) -> Some(get_or_create_node pbh req)
-	  | None -> Some(!genesisblocktreenode)
-	in
-	let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
-	Hashtbl.add blkheadernode (Some(h)) fnode;
-	possibly_handle_orphan h fnode false false;
-	fnode
-      else if not req then
-        raise NoReq
-      else
-	begin
-	  Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
-	  try
-	    find_and_send_requestdata GetBlockdelta h;
-	    raise GettingRemoteData
-	  with Not_found ->
-	    Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
-	    raise Exit
-	end
-    with Not_found ->
-      if not req then
-        raise NoReq
-      else
-        begin
-          Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
-          try
-	    find_and_send_requestdata GetHeader h;
-	    raise GettingRemoteData
-          with Not_found ->
-	    Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
-            Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
-	    raise Exit
-        end
+    create_new_node_a h req
   with
   | Not_found ->
       Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
@@ -621,6 +581,48 @@ let rec create_new_node h req =
       Printf.fprintf !log "requesting block header or delta for %s\n" (hashval_hexstring h);
       flush !log;
       raise (Failure "delaying create_new_node")
+and create_new_node_a h req =
+  let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
+  try
+    let (bhd,bhs) = DbBlockHeader.dbget h in
+    if DbBlockDelta.dbexists h then
+      let newcsm = poburn_stakemod pob in
+      let pbh = fstohash bhd.prevblockhash in
+      let par =
+	match pbh with
+	| Some(pbh) -> Some(get_or_create_node pbh req)
+	| None -> Some(!genesisblocktreenode)
+      in
+      let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
+      Hashtbl.add blkheadernode (Some(h)) fnode;
+      possibly_handle_orphan h fnode false false;
+      fnode
+    else if not req then
+      raise NoReq
+    else
+      begin
+	Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
+	try
+	  find_and_send_requestdata GetBlockdelta h;
+	  raise GettingRemoteData
+	with Not_found ->
+	  Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	  raise Exit
+      end
+  with Not_found ->
+    if not req then
+      raise NoReq
+    else
+      begin
+        Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
+        try
+	  find_and_send_requestdata GetHeader h;
+	  raise GettingRemoteData
+        with Not_found ->
+	  Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
+          Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	  raise Exit
+      end
 and get_or_create_node h req =
   try
     Hashtbl.find blkheadernode (Some(h))
@@ -635,40 +637,54 @@ let ltc_best_chaintips () =
   let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
   List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
 
+type consensuswarning =
+  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool
+  | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
+  | ConsensusWarningBlacklist of hashval * hashval option * int64
+  | ConsensusWarningInvalid of hashval * hashval option * int64
+  | ConsensusWarningNoBurn of hashval
+
 let get_bestnode req =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
-  let rec get_bestnode_r2 ctips =
+  let rec get_bestnode_r2 ctips ctipsr cwl =
     match ctips with
-    | [] -> raise Not_found
+    | [] -> get_bestnode_r ctipsr cwl
     | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
-	if not (DbBlacklist.dbexists dbh) && not (DbInvalidatedBlocks.dbexists dbh) then
-	  begin
-            try
-	      Hashtbl.find blkheadernode (Some(dbh))
+	begin
+          try
+	    let n = Hashtbl.find blkheadernode (Some(dbh)) in
+	    let BlocktreeNode(_,_,pbh,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
+	    if DbInvalidatedBlocks.dbexists dbh then
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
+	    else if DbBlacklist.dbexists dbh then
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,fstohash pbh,blkh)::cwl)
+	    else
+	      match !vs with
+	      | ValidBlock -> (n,cwl)
+	      | InvalidBlock ->
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
+	      | Waiting(tm,_) ->
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,fstohash pbh,blkh,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
+	  with Not_found ->
+	    try
+	      let (_,oprev,blkh) = DbHeaderLtcBurn.dbget dbh in
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,blkh,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
 	    with Not_found ->
-	      try
-                bestnode := create_new_node dbh req;
-                !bestnode
-	      with Exit -> raise Not_found
-	  end
-	else
-	  get_bestnode_r2 ctipr
-  in
-  let rec get_bestnode_r ctipsl =
+	      Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
+	end
+  and get_bestnode_r ctipsl cwl =
     match ctipsl with
     | [] ->
 	let tm = ltc_medtime() in
 	if tm > Int64.add !Config.genesistimestamp 604800L then
 	  raise (Failure "no valid best chaintip found and past the genesis phase")
 	else
-	  !genesisblocktreenode
+	  (!genesisblocktreenode,cwl)
     | ctips::ctipsr ->
-	try
-	  get_bestnode_r2 ctips
-	with Not_found ->
-	  get_bestnode_r ctipsr
+	get_bestnode_r2 ctips ctipsr cwl
   in
-  get_bestnode_r ctips0l
+  get_bestnode_r ctips0l []
 
 let initblocktree () =
   genesisblocktreenode := BlocktreeNode(None,ref [],None,None,None,!genesisledgerroot,!genesisstakemod,!genesistarget,!Config.genesistimestamp,zero_big_int,1L,ref ValidBlock,ref false,ref []);

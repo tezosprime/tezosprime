@@ -738,6 +738,7 @@ Hashtbl.add msgtype_handler GetHeader
       try
 	let (bhd,bhs) as bh = DbBlockHeader.dbget h in
 	let s = Buffer.create 1000 in
+	Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeader)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
 	seosbf (seo_blockheader seosb bh (seo_hashval seosb h (seo_int8 seosb 1 (s,None))));
 	cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv;
 	let ss = Buffer.contents s in
@@ -768,6 +769,7 @@ Hashtbl.add msgtype_handler GetHeaders
 	  let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
 	  incr m;
 	  bhl := (h,bh)::!bhl;
+	  Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeaders)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with
 	| Not_found ->
@@ -795,6 +797,7 @@ Hashtbl.add msgtype_handler Headers
       let (h,cn) = sei_hashval seis !c in
       let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
       c := cn;
+      Printf.fprintf !log "Headers msg %d %s at time %f\n"j (hashval_hexstring h) tm;
       if not (DbBlockHeader.dbexists h) && (DbHeaderLtcBurn.dbexists h || recently_requested (i,h) tm cs.invreq) then
 	let (bhd,bhs) = bh in
 	if not (blockheader_id bh = h) then
@@ -898,7 +901,7 @@ let rec req_header_batches sout cs m hl nw =
     | (_,h)::hr ->
 	let i = int_of_msgtype GetHeader in
 	let tm = Unix.time() in
-(*	cs.invreq <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq; *) (* Do not put these in the request here, in case it fails and we need to rerequest some individually *)
+	cs.invreq <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 	req_header_batches sout cs (m+1) hr (h::nw)
     | [] -> req_headers sout cs m nw;;
 

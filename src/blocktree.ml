@@ -130,36 +130,51 @@ let add_sigtree sigroot osigt =
   | Some(r),Some(sigt) -> if not (Hashtbl.mem sigtree r) then Hashtbl.add sigtree r sigt
   | _,_ -> ()
 
-let rec collect_inv m cnt tosend n txinv =
-  if !cnt < m then
-    if !cnt mod 5 = 0 && not (txinv = []) then
+let collect_inv m cnt tosend txinv =
+  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let rec collect_inv_r3 m cnt tosend ctips ctipsr txinv =
+    if !cnt < m then
+      begin
+	match ctips with
+	| (bh,_,_,_,_)::ctipr ->
+	    begin
+	      if DbBlockHeader.dbexists bh then
+		begin
+		  tosend := (int_of_msgtype Headers,0L,bh)::!tosend; incr cnt;
+		  if DbBlockDelta.dbexists bh then (tosend := (int_of_msgtype Blockdelta,0L,bh)::!tosend; incr cnt)
+		end;
+	      collect_inv_r3 m cnt tosend ctipr ctipsr txinv
+	    end
+	| [] -> collect_inv_r2 m cnt tosend ctipsr txinv
+      end
+  and collect_inv_r2 m cnt tosend ctipsl txinv =
+    if !cnt < m then
+      begin
+	match ctipsl with
+	| (ctips::ctipsr) -> collect_inv_r3 m cnt tosend ctips ctipsr txinv
+	| [] ->
+	    if not (txinv = []) then collect_inv_r1 m cnt tosend [] txinv
+      end
+  and collect_inv_r1 m cnt tosend ctipsl txinv =
+    if !cnt < m then
       begin
 	match txinv with
 	| (txid::txinvr) ->
 	    tosend := (int_of_msgtype STx,0L,txid)::!tosend; incr cnt;
-	    collect_inv m cnt tosend n txinvr
-	| [] -> incr cnt; collect_inv m cnt tosend n [] (*** can never happen ***)
+	    collect_inv_r1 m cnt tosend ctipsl txinvr
+	| []  ->
+	    if not (ctipsl = []) then
+	      collect_inv_r2 m cnt tosend ctipsl txinv
       end
-    else
-      let BlocktreeNode(par,_,pbh,_,_,_,_,_,_,_,blkh,_,_,_) = n in
-      match pbh with
-      | None -> ()
-      | Some(pbh,_) ->
-	  if DbBlockHeader.dbexists pbh then
-	    begin
-              tosend := (int_of_msgtype Headers,Int64.sub blkh 1L,pbh)::!tosend; incr cnt;
-	      if DbBlockDelta.dbexists pbh then (tosend := (int_of_msgtype Blockdelta,blkh,pbh)::!tosend; incr cnt)
-	    end;
-	  match par with
-	  | None -> ()
-	  | Some(p) -> collect_inv m cnt tosend p txinv
+  in
+  collect_inv_r1 m cnt tosend ctips0l txinv
 
 let send_inv m sout cs =
   let cnt = ref 0 in
   let tosend = ref [] in
   let txinv = ref [] in
   Hashtbl.iter (fun k _ -> txinv := k::!txinv) stxpool;
-  collect_inv m cnt tosend !bestnode !txinv;
+  collect_inv m cnt tosend !txinv;
   let invmsg = Buffer.create 10000 in
   let c = ref (seo_int32 seosb (Int32.of_int !cnt) (invmsg,None)) in
   List.iter

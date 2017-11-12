@@ -498,7 +498,7 @@ and possibly_handle_orphan h n initialization knownvalid =
 
 let rec init_headers_to h =
   if DbInvalidatedBlocks.dbexists h || DbBlacklist.dbexists h then
-    Printf.fprintf !Utils.log "Skipping invalidated or blacklisted header %s" (hashval_hexstring h)
+    Printf.fprintf !log "Skipping invalidated or blacklisted header %s" (hashval_hexstring h)
   else
     try
       let (blkhd1,blkhs1) as blkh1 = DbBlockHeader.dbget h in
@@ -638,7 +638,7 @@ let ltc_best_chaintips () =
   List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
 
 type consensuswarning =
-  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool
+  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool * string
   | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
   | ConsensusWarningBlacklist of hashval * hashval option * int64
   | ConsensusWarningInvalid of hashval * hashval option * int64
@@ -651,8 +651,7 @@ let get_bestnode req =
     | [] -> get_bestnode_r ctipsr cwl
     | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
 	begin
-          try
-	    let n = Hashtbl.find blkheadernode (Some(dbh)) in
+	  let handle_node n =
 	    let BlocktreeNode(_,_,pbh,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
 	    if DbInvalidatedBlocks.dbexists dbh then
 	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
@@ -665,13 +664,26 @@ let get_bestnode req =
 		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
 	      | Waiting(tm,_) ->
 		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,fstohash pbh,blkh,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
+	  in
+	  let handle_exc comm =
+	    begin
+	      try
+		let (_,oprev,blkh) = DbHeaderLtcBurn.dbget dbh in
+		get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,blkh,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+	      with Not_found ->
+		Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
+		get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
+	    end
+	  in
+          try
+	    handle_node (Hashtbl.find blkheadernode (Some(dbh)))
 	  with Not_found ->
 	    try
-	      let (_,oprev,blkh) = DbHeaderLtcBurn.dbget dbh in
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,blkh,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
-	    with Not_found ->
-	      Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
+	      handle_node (create_new_node_a dbh req)
+	    with
+	    | Not_found -> handle_exc "not found"
+	    | NoReq -> handle_exc "not allowed to request"
+	    | GettingRemoteData -> handle_exc "requested from remote node"
 	end
   and get_bestnode_r ctipsl cwl =
     match ctipsl with
@@ -691,6 +703,7 @@ let initblocktree () =
   lastcheckpointnode := !genesisblocktreenode;
   Hashtbl.add blkheadernode None !genesisblocktreenode;
   try
+    let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
     ignore (get_bestnode true);
   with
   | _ -> ();;
@@ -702,8 +715,8 @@ Hashtbl.add msgtype_handler GetHeader
     let tm = Unix.time() in
     if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
       begin
-	Printf.fprintf !Utils.log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	flush !Utils.log
+	Printf.fprintf !log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	flush !log
       end
     else
       try
@@ -731,8 +744,8 @@ Hashtbl.add msgtype_handler GetHeaders
       c := cn;
       if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
 	begin
-	  Printf.fprintf !Utils.log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	  flush !Utils.log
+	  Printf.fprintf !log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	  flush !log
 	end
       else
 	try
@@ -745,7 +758,7 @@ Hashtbl.add msgtype_handler GetHeaders
 	  (*** don't have it to send, ignore ***)
 	    ()
 	| e -> (** ignore any other exception ***)
-	    Printf.fprintf !Utils.log "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e)
+	    Printf.fprintf !log "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e)
       done;
     let s = Buffer.create 10000 in
     let co = ref (seo_int8 seosb !m (s,None)) in
@@ -791,32 +804,32 @@ Hashtbl.add msgtype_handler Headers
 		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_,_) = DbHeaderLtcBurn.dbget prevh in (* previous proof of burn *)
 		      if not (lblkh = lblkh2) then
 			begin
-			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
+			  Printf.fprintf !log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
 			  validsofar := false
 			end;
 		      if not (ltxh = ltxh2) then
 			begin
-			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc tx hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring ltxh) (hashval_hexstring ltxh2);
+			  Printf.fprintf !log "Rejecting incoming header %s since ltc tx hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring ltxh) (hashval_hexstring ltxh2);
 			  validsofar := false
 			end;
 		      if not (lmedtm = lmedtm2) then
 			begin
-			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc median time mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) lmedtm lmedtm2;
+			  Printf.fprintf !log "Rejecting incoming header %s since ltc median time mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) lmedtm lmedtm2;
 			  validsofar := false
 			end;
 		      if not (burned = burned2) then
 			begin
-			  Printf.fprintf !Utils.log "Rejecting incoming header %s since ltc burn amount mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) burned burned2;
+			  Printf.fprintf !log "Rejecting incoming header %s since ltc burn amount mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) burned burned2;
 			  validsofar := false
 			end;
 		    with Not_found ->
-		      Printf.fprintf !Utils.log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevh);
+		      Printf.fprintf !log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevh);
 		      validsofar := false;
 		      dontban := true
 	      end;
 	      if not !validsofar then
 		begin
-		  Printf.printf "Got invalid header %s\n" (hashval_hexstring h);
+		  Printf.fprintf !log "Got invalid header %s\n" (hashval_hexstring h);
 		  let b = Buffer.create 1000 in
 		  seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
 		  Printf.fprintf !log "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
@@ -960,8 +973,8 @@ Hashtbl.add msgtype_handler GetBlockdelta
       let tm = Unix.time() in
       if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
 	begin
-	  Printf.fprintf !Utils.log "recently sent delta %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	  flush !Utils.log
+	  Printf.fprintf !log "recently sent delta %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
+	  flush !log
 	end
       else
 	try
@@ -1055,9 +1068,9 @@ Hashtbl.add msgtype_handler Tx
 	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed Tx]\n"; flush !Utils.log)
+	    (Printf.fprintf !log "misbehaving peer? [malformed Tx]\n"; flush !log)
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested Tx]\n"; flush !Utils.log));;
+	  (Printf.fprintf !log "misbehaving peer? [unrequested Tx]\n"; flush !log));;
 
 Hashtbl.add msgtype_handler GetTxSignatures
     (fun (sin,sout,cs,ms) ->
@@ -1105,11 +1118,11 @@ Hashtbl.add msgtype_handler TxSignatures
 	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    with
 	    | BadOrMissingSignature -> (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-		(Printf.fprintf !Utils.log "misbehaving peer? [malformed TxSignatures]\n"; flush !Utils.log)
+		(Printf.fprintf !log "misbehaving peer? [malformed TxSignatures]\n"; flush !log)
 	    | Not_found -> (*** in this case, we don't have all the spent assets in the database, which means we shouldn't have requested the signatures, ignore ***)
 		()
 	  else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	    (Printf.fprintf !Utils.log "misbehaving peer? [unrequested TxSignatures]\n"; flush !Utils.log)
+	    (Printf.fprintf !log "misbehaving peer? [unrequested TxSignatures]\n"; flush !log)
 	with Not_found -> (*** do not know the tx, so drop the sig ***)
 	  ());;
 

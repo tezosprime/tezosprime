@@ -62,7 +62,7 @@ val create_new_node : hashval -> bool -> blocktree
 val ltc_best_chaintips : unit -> hashval list list
 
 type consensuswarning =
-  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool
+  | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool * string
   | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
   | ConsensusWarningBlacklist of hashval * hashval option * int64
   | ConsensusWarningInvalid of hashval * hashval option * int64

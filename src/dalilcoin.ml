@@ -53,12 +53,13 @@ let rec pblockchain s n c lr m =
 
 let print_consensus_warning s cw =
   match cw with
-  | ConsensusWarningMissing(h,ph,blkh,hh,hd) ->
-      Printf.fprintf s "Missing Block %Ld %s%s%s%s\n"
+  | ConsensusWarningMissing(h,ph,blkh,hh,hd,comm) ->
+      Printf.fprintf s "Missing Block %Ld %s%s%s%s %s\n"
 	blkh (hashval_hexstring h)
 	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
 	(if hh then " Have Header" else " Missing Header")
 	(if hd then " Have Delta" else " Missing Delta")
+	comm
   | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) ->
       Printf.fprintf s "Waiting to Validate Block %Ld %s%s%s%s\n"
 	blkh (hashval_hexstring h)
@@ -86,7 +87,7 @@ let get_bestnode_print_warnings s req =
       List.iter
 	    (fun cw ->
 	      match cw with
-	      | ConsensusWarningMissing(h,ph,blkh,hh,hd) ->
+	      | ConsensusWarningMissing(h,ph,blkh,hh,hd,_) ->
 		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
 	      | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) ->
 		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
@@ -381,7 +382,7 @@ let get_bestnode_cw_exception req e =
 	List.find
 	  (fun cw ->
 	    match cw with
-	    | ConsensusWarningMissing(h,ph,blkh,hh,hd) -> true
+	    | ConsensusWarningMissing(h,ph,blkh,hh,hd,_) -> true
 	    | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) -> true
 	    | _ -> false)
 	  cwl

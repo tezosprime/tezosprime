@@ -699,6 +699,7 @@ let get_bestnode req =
 	    | Not_found -> handle_exc "not found"
 	    | NoReq -> handle_exc "not allowed to request"
 	    | GettingRemoteData -> handle_exc "requested from remote node"
+	    | e -> handle_exc (Printexc.to_string e)
 	end
   and get_bestnode_r ctipsl cwl =
     match ctipsl with

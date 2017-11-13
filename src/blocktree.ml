@@ -865,8 +865,12 @@ Hashtbl.add msgtype_handler Headers
 		  if not !dontban then cs.banned <- true
 		end
 	      else
-		let (pob,_,_) = DbHeaderLtcBurn.dbget h in
-		process_new_header_ab h (hashval_hexstring h) bh bhd bhs a false false pob
+		try
+		  let (pob,_,_) = DbHeaderLtcBurn.dbget h in
+		  process_new_header_ab h (hashval_hexstring h) bh bhd bhs a false false pob
+		with Not_found -> (*** before the pob has been completed; should not have been requested yet ***)
+		  Printf.fprintf !log "Header %s was requested and received before the proof-of-burn was confirmed; ignoring it and waiting\n" (hashval_hexstring h);
+		  flush !log
 	    with
 	    | HeaderStakedAssetNotMin -> (*** here it is safe to blacklist the header's hash since no valid header can have this hash ***)
 		begin
@@ -926,7 +930,8 @@ Hashtbl.add msgtype_handler Inv
 	      let (bhd,bhs) = bh in
 	      process_new_header_a h (hashval_hexstring h) bh blkhd1 blkhs1 false false
 	  with Not_found ->
-	    hl := List.merge (fun (blkh1,_) (blkh2,_) -> compare blkh2 blkh1) !hl [(blkh,h)] (*** reverse order because they will be reversed again when requested ***)
+	    if DbHeaderLtcBurn.dbexists h then (*** only request headers after a pob is completed ***)
+	      hl := List.merge (fun (blkh1,_) (blkh2,_) -> compare blkh2 blkh1) !hl [(blkh,h)] (*** reverse order because they will be reversed again when requested ***)
 	end
       else if i = int_of_msgtype Blockdelta && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && Hashtbl.mem tovalidate h then
 	begin

@@ -69,3 +69,5 @@ val ltc_synced : unit -> bool
 val possibly_request_dalilcoin_block : hashval -> unit
 
 val ltc_tx_confirmed : string -> bool
+
+val ltc_tx_poburn : string -> poburn

@@ -594,3 +594,13 @@ let ltc_tx_confirmed h =
     | Some(i) when i >= 1 -> true
     | _ -> false
   with Not_found -> false
+
+let ltc_tx_poburn h =
+  try
+    let (u,h1,h2,lblkh,confs) = ltc_gettransactioninfo h in
+    match lblkh with
+    | Some(lbh) ->
+	let (prev,tm,hght,txhs) = ltc_getblock lbh in
+	Poburn(hexstring_md256 lbh,hexstring_md256 h,tm,u)
+    | _ -> raise Not_found
+  with _ -> raise Not_found

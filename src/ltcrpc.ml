@@ -469,7 +469,7 @@ let rec ltc_process_block h =
 	      begin
 		try
 		  let (burned,dprev,dnxt) = ltc_gettransactioninfo txh in
-		  if DbHeaderLtcBurn.dbexists dnxt then
+		  if DbHeaderLtcBurn.dbexists dnxt then (*** Problem ifthe block with the original burn was orphaned ***)
 		    Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
 		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		    begin

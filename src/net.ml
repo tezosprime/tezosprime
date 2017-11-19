@@ -46,10 +46,6 @@ type msgtype =
   | CTreeElement
   | HConsElement
   | Asset
-  | Checkpoint
-  | AntiCheckpoint
-  | NewHeader
-  | GetCheckpoint
 
 let msgtype_of_int i =
   try
@@ -57,8 +53,7 @@ let msgtype_of_int i =
       [Version;Verack;Addr;Inv;GetData;MNotFound;GetSTx;GetTx;GetTxSignatures;
        GetBlock;GetBlockdelta;GetBlockdeltah;GetHeader;STx;Tx;TxSignatures;Block;
        Headers;Blockdelta;Blockdeltah;GetAddr;Mempool;Alert;Ping;Pong;Reject;
-       GetCTreeElement;GetHConsElement;GetAsset;CTreeElement;HConsElement;Asset;
-       Checkpoint;AntiCheckpoint;NewHeader;GetHeaders;GetCheckpoint]
+       GetCTreeElement;GetHConsElement;GetAsset;CTreeElement;HConsElement;Asset;GetHeaders]
       i
   with Failure("nth") -> raise Not_found
 
@@ -96,11 +91,7 @@ let int_of_msgtype mt =
   | CTreeElement -> 29
   | HConsElement -> 30
   | Asset -> 31
-  | Checkpoint -> 32
-  | AntiCheckpoint -> 33
-  | NewHeader -> 34
-  | GetHeaders -> 35
-  | GetCheckpoint -> 36
+  | GetHeaders -> 32
 
 let inv_of_msgtype mt =
   try
@@ -116,7 +107,6 @@ let inv_of_msgtype mt =
       | GetCTreeElement -> CTreeElement
       | GetHConsElement -> HConsElement
       | GetAsset -> Asset
-      | GetCheckpoint -> Checkpoint
       | _ -> raise Not_found)
   with Not_found -> (-1)
 
@@ -155,10 +145,6 @@ let string_of_msgtype mt =
   | CTreeElement -> "CTreeElement"
   | HConsElement -> "HConsElement"
   | Asset -> "Asset"
-  | Checkpoint -> "Checkpoint"
-  | AntiCheckpoint -> "AntiCheckpoint"
-  | NewHeader -> "NewHeader"
-  | GetCheckpoint -> "GetCheckpoint"
 
 let myaddr () =
   match !Config.ip with
@@ -892,8 +878,8 @@ let broadcast_inv tosend =
   let invmsg = Buffer.create 10000 in
   let c = ref (seo_int32 seosb (Int32.of_int (List.length tosend)) (invmsg,None)) in
   List.iter
-    (fun (i,blkh,h) ->
-      c := seo_prod3 seo_int8 seo_int64 seo_hashval seosb (i,blkh,h) !c)
+    (fun (i,h) ->
+      c := seo_prod seo_int8 seo_hashval seosb (i,h) !c)
     tosend;
   let invmsgstr = Buffer.contents invmsg in
   Printf.fprintf !log "broadcast_inv Created invmsgstr %s\n" (string_hexstring invmsgstr);

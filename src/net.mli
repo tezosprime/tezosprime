@@ -46,10 +46,6 @@ type msgtype =
   | CTreeElement
   | HConsElement
   | Asset
-  | Checkpoint
-  | AntiCheckpoint
-  | NewHeader
-  | GetCheckpoint
 
 val int_of_msgtype : msgtype -> int
 val string_of_msgtype : msgtype -> string
@@ -114,7 +110,7 @@ val queue_msg : connstate -> msgtype -> string -> hashval
 val queue_reply : connstate -> hashval -> msgtype -> string -> hashval
 val find_and_send_requestdata : msgtype -> hashval -> unit
 val broadcast_requestdata : msgtype -> hashval -> unit
-val broadcast_inv : (int * int64 * hashval) list -> unit
+val broadcast_inv : (int * hashval) list -> unit
 
 val recently_requested : int * hashval -> float -> (int * hashval * float) list -> bool
 val recently_sent : int * hashval -> float -> (int * hashval * float) list -> bool

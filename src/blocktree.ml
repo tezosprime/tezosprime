@@ -574,7 +574,7 @@ let publish_stx txh stx1 =
   Hashtbl.add published_stx txh ();
   broadcast_inv [(int_of_msgtype STx,txh)]
 
-let publish_block blkh bhh (bh,bd) cs =
+let publish_block blkh bhh (bh,bd) =
   Printf.fprintf !log "publishing block %s\n" (hashval_hexstring bhh); flush !log;
   broadcast_inv [(int_of_msgtype Headers,bhh);(int_of_msgtype Blockdelta,bhh)];;
 

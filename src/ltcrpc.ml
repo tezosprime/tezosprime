@@ -399,7 +399,29 @@ let ltc_gettransactioninfo h =
 		      | JsonObj(cl) ->
 			  let hex = json_assoc_string "hex" cl in
 			  if String.length hex >= 132 && hex.[0] = '6' && hex.[1] = 'a' then
-			    (litoshisburned,hexstring_hashval (String.sub hex 4 64),hexstring_hashval (String.sub hex 68 64))
+			    begin
+			      let dprev = hexstring_hashval (String.sub hex 4 64) in
+			      let dnxt = hexstring_hashval (String.sub hex 68 64) in
+			      let lblkh =
+				begin
+				  try
+				    match List.assoc "blockhash" bl with
+				    | JsonStr(lblkh) -> Some(lblkh)
+				    | _ -> None
+				  with Not_found -> None
+				end
+			      in
+			      let confs =
+				begin
+				  try
+				    match List.assoc "confirmations" bl with
+				    | JsonNum(c) -> Some(int_of_string c)
+				    | _ -> None
+				  with _ -> None
+				end
+			      in
+			      (litoshisburned,dprev,dnxt,lblkh,confs)
+			    end
 			  else
 			    begin
 			      Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
@@ -468,7 +490,7 @@ let rec ltc_process_block h =
 	    if not (DbLtcBurnTx.dbexists txhh) then
 	      begin
 		try
-		  let (burned,dprev,dnxt) = ltc_gettransactioninfo txh in
+		  let (burned,dprev,dnxt,lblkh,confs) = ltc_gettransactioninfo txh in
 		  if DbHeaderLtcBurn.dbexists dnxt then (*** Problem ifthe block with the original burn was orphaned ***)
 		    Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
 		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
@@ -565,3 +587,10 @@ let ltc_synced () =
       false
   with Not_found -> false
 
+let ltc_tx_confirmed h =
+  try
+    let (u,h1,h2,lblkh,confs) = ltc_gettransactioninfo h in
+    match confs with
+    | Some(i) when i >= 1 -> true
+    | _ -> false
+  with Not_found -> false

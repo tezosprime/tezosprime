@@ -50,7 +50,7 @@ module DbLtcBlock :
 
 val ltc_getbestblockhash : unit -> string
 val ltc_getblock : string -> string * int64 * int64 * string list
-val ltc_gettransactioninfo : string -> int64 * hashval * hashval
+val ltc_gettransactioninfo : string -> int64 * hashval * hashval * string option * int option
 val ltc_listunspent : unit -> (string * int * string * string * int64) list
 
 exception InsufficientLtcFunds
@@ -67,3 +67,5 @@ val ltc_medtime : unit -> int64
 val ltc_synced : unit -> bool
 
 val possibly_request_dalilcoin_block : hashval -> unit
+
+val ltc_tx_confirmed : string -> bool

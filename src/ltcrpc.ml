@@ -400,7 +400,7 @@ let ltc_gettransactioninfo h =
 			  let hex = json_assoc_string "hex" cl in
 			  if String.length hex >= 132 && hex.[0] = '6' && hex.[1] = 'a' then
 			    begin
-			      let dprev = hexstring_hashval (String.sub hex 4 64) in
+			      let lprevtx = hexstring_hashval (String.sub hex 4 64) in
 			      let dnxt = hexstring_hashval (String.sub hex 68 64) in
 			      let lblkh =
 				begin
@@ -420,7 +420,7 @@ let ltc_gettransactioninfo h =
 				  with _ -> None
 				end
 			      in
-			      (litoshisburned,dprev,dnxt,lblkh,confs)
+			      (litoshisburned,lprevtx,dnxt,lblkh,confs)
 			    end
 			  else
 			    begin
@@ -444,12 +444,11 @@ let ltc_gettransactioninfo h =
 	raise Not_found
   with _ -> raise Not_found
 
-module DbHeaderLtcBurn = Dbbasic2 (struct type t = poburn * hashval option * int64 let basedir = "headerltcburn" let seival = sei_prod3 sei_poburn (sei_option sei_hashval) sei_int64 seic let seoval = seo_prod3 seo_poburn (seo_option seo_hashval) seo_int64 seoc end)
 module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let basedir = "ltcburntx" let seival = sei_prod3 sei_int64 sei_hashval sei_hashval seic let seoval = seo_prod3 seo_int64 seo_hashval seo_hashval seoc end)
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
 
-let rec possibly_request_dalilcoin_block h =
+let possibly_request_dalilcoin_block h =
   try
     Printf.fprintf !Utils.log "possibly request dalilcoin block %s\n" (hashval_hexstring h);
     let req = ref false in
@@ -457,15 +456,6 @@ let rec possibly_request_dalilcoin_block h =
       (find_and_send_requestdata GetHeader h; req := true)
     else if not (DbBlockDelta.dbexists h) then
       (find_and_send_requestdata GetBlockdelta h; req := true);
-    if !req then
-      begin
-	try
-	  let (_,oprev,_) = DbHeaderLtcBurn.dbget h in
-	  match oprev with
-	  | Some(prev) -> possibly_request_dalilcoin_block prev
-	  | None -> ()
-	with Not_found -> ()
-      end
   with e ->
     Printf.fprintf !Utils.log "Problem trying to request block %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
 
@@ -490,15 +480,11 @@ let rec ltc_process_block h =
 	    if not (DbLtcBurnTx.dbexists txhh) then
 	      begin
 		try
-		  let (burned,dprev,dnxt,lblkh,confs) = ltc_gettransactioninfo txh in
-		  if DbHeaderLtcBurn.dbexists dnxt then (*** Problem ifthe block with the original burn was orphaned ***)
-		    Printf.fprintf !Utils.log "Ignoring burn %s for header %s, since a previous burn was already done for this header\n" txh (hashval_hexstring dnxt)
-		  else if dprev = (0l,0l,0l,0l,0l,0l,0l,0l) then
+		  let (burned,lprevtx,dnxt,lblkh,confs) = ltc_gettransactioninfo txh in
+		  if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		    begin
 		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
-		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),None,1L);
-		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
-		      possibly_request_dalilcoin_block dprev;
+		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
 		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
 		      genl := (txhh,burned,dnxt)::!genl
@@ -506,14 +492,16 @@ let rec ltc_process_block h =
 		  else
 		    begin
 		      Printf.fprintf !Utils.log "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt);
-		      let (_,_,pblkh) = DbHeaderLtcBurn.dbget dprev in
-		      Printf.fprintf !Utils.log "New height %Ld\n" (Int64.add pblkh 1L);
-		      DbHeaderLtcBurn.dbput dnxt (Poburn(hh,txhh,tm,burned),Some(dprev),Int64.add pblkh 1L);
-		      DbLtcBurnTx.dbput txhh (burned,dprev,dnxt);
-		      possibly_request_dalilcoin_block dprev;
+		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
 		      possibly_request_dalilcoin_block dnxt;
-		      txhhs := txhh :: !txhhs;
-		      succl := (dprev,txhh,burned,dnxt)::!succl
+		      begin
+			try
+			  let (_,_,dprev) = DbLtcBurnTx.dbget lprevtx in
+			  possibly_request_dalilcoin_block dprev;
+			  txhhs := txhh :: !txhhs;
+			  succl := (dprev,txhh,burned,dnxt)::!succl
+			with _ -> ()
+		      end
 		    end
 		with Not_found ->
 		  Printf.fprintf !Utils.log "Ignoring tx %s which does not appear to be a Dalilcoin burn tx\n" txh
@@ -604,3 +592,54 @@ let ltc_tx_poburn h =
 	Poburn(hexstring_md256 lbh,hexstring_md256 h,tm,u)
     | _ -> raise Not_found
   with _ -> raise Not_found
+
+let ltc_best_chaintips () =
+  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let ctips1l =
+    List.map (fun ctips -> List.filter (fun (h,_,_,_,_) -> not (DbBlacklist.dbexists h) && not (DbInvalidatedBlocks.dbexists h)) ctips) ctips0l
+  in
+  let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
+  List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
+
+let find_dalilcoin_header_ltc_burn h =
+  let tried : (hashval,unit) Hashtbl.t = Hashtbl.create 100 in
+  let rec find_dalilcoin_header_ltc_burn_rec lbhl =
+    match lbhl with
+    | [] -> raise Not_found
+    | lbh::lbhr ->
+	if Hashtbl.mem tried lbh then
+	  find_dalilcoin_header_ltc_burn_rec lbhr
+	else
+	  let (lastchangekey,ctips0l) = ltcdacstatus_dbget lbh in
+	  let ctips1l =
+	    List.map (fun ctips -> List.filter (fun (h,_,_,_,_) -> not (DbBlacklist.dbexists h) && not (DbInvalidatedBlocks.dbexists h)) ctips) ctips0l
+	  in
+	  let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
+	  match ctips2l with
+	  | [] -> raise Not_found
+	  | (bestctips::_) ->
+	      try
+		let (dbh,lbh,ltx,ltm,lhght) = List.find (fun (dbh,_,_,_,_) -> dbh = h) bestctips in
+		let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget ltx in
+		let pob = ltc_tx_poburn (hashval_hexstring ltx) in
+		let optionprevdalblock =
+		  if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
+		    None
+		  else
+		    let (_,_,dprev) = DbLtcBurnTx.dbget lprevtx in
+		    Some(dprev)
+		in
+		(pob,optionprevdalblock)
+	      with Not_found ->
+		let lbhlr = ref lbhl in
+		List.iter
+		  (fun (_,lbh,_,_,_) ->
+		    try
+		      let (prevlbh,_,_,_) = DbLtcBlock.dbget lbh in
+		      lbhlr := prevlbh :: !lbhlr
+		    with Not_found -> ())
+		  bestctips;
+		Hashtbl.add tried lbh ();
+		find_dalilcoin_header_ltc_burn_rec !lbhlr
+  in
+  find_dalilcoin_header_ltc_burn_rec [!ltc_bestblock]

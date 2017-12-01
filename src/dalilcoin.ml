@@ -1306,7 +1306,6 @@ let initialize () =
     DbBlockDelta.dbinit();
     DbInvalidatedBlocks.dbinit();
     DbLtcDacStatus.dbinit();
-    DbHeaderLtcBurn.dbinit();
     DbLtcBurnTx.dbinit();
     DbLtcBlock.dbinit();
     Printf.printf "Initialized.\n"; flush stdout;

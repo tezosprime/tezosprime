@@ -59,7 +59,6 @@ val send_inv : int -> out_channel -> connstate -> unit
 val dumpblocktreestate : out_channel -> unit
 
 val create_new_node : hashval -> bool -> blocktree
-val ltc_best_chaintips : unit -> hashval list list
 
 type consensuswarning =
   | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool * string

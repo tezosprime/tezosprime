@@ -298,7 +298,7 @@ let rec validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel
       vs := Waiting(tm,None)
     end
   else
-    let (Poburn(lblkh,ltxh,lmedtm,burned),_,_) = DbHeaderLtcBurn.dbget h in
+    let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
     let blk = (blkh,blkdel) in
     if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
       begin
@@ -357,7 +357,7 @@ let rec process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid 
       raise (Failure "header does not support staked asset")
 and process_new_header_aa h hh blkh1 blkhd1 blkhs1 a initialization knownvalid =
   if valid_blockheader_signat blkh1 a then
-    let (pob,prevbh,_) = DbHeaderLtcBurn.dbget h in
+    let (pob,prevbh) = find_dalilcoin_header_ltc_burn h in
     process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid pob
   else
     begin
@@ -531,7 +531,7 @@ let rec init_headers h =
     init_headers_to h
   else
     try
-      let (_,prevbh,_) = DbHeaderLtcBurn.dbget h in
+      let (_,prevbh) = find_dalilcoin_header_ltc_burn h in
       match prevbh with
       | Some(prevh) -> init_headers prevh
       | None -> ()
@@ -597,16 +597,19 @@ let rec create_new_node h req =
       flush !log;
       raise (Failure "delaying create_new_node")
 and create_new_node_a h req =
-  let (pob,prevh,blkh) = DbHeaderLtcBurn.dbget h in
+  let (pob,prevh) = find_dalilcoin_header_ltc_burn h in
   try
     let (bhd,bhs) = DbBlockHeader.dbget h in
     if DbBlockDelta.dbexists h then
       let newcsm = poburn_stakemod pob in
       let pbh = fstohash bhd.prevblockhash in
-      let par =
+      let (par,blkh) =
 	match pbh with
-	| Some(pbh) -> Some(get_or_create_node pbh req)
-	| None -> Some(!genesisblocktreenode)
+	| Some(pbh) ->
+	    let par = get_or_create_node pbh req in
+	    (Some(par),node_blockheight par)
+	| None ->
+	    (Some(!genesisblocktreenode),0L)
       in
       let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
       Hashtbl.add blkheadernode (Some(h)) fnode;
@@ -644,14 +647,6 @@ and get_or_create_node h req =
   with Not_found ->
     create_new_node h req
 
-let ltc_best_chaintips () =
-  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
-  let ctips1l =
-    List.map (fun ctips -> List.filter (fun (h,_,_,_,_) -> not (DbBlacklist.dbexists h) && not (DbInvalidatedBlocks.dbexists h)) ctips) ctips0l
-  in
-  let ctips2l = List.filter (fun ctips -> not (ctips = [])) ctips1l in
-  List.map (fun ctips -> List.map (fun (h,_,_,_,_) -> h) ctips) ctips2l
-
 type consensuswarning =
   | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool * string
   | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
@@ -683,8 +678,8 @@ let get_bestnode req =
 	  let handle_exc comm =
 	    begin
 	      try
-		let (_,oprev,blkh) = DbHeaderLtcBurn.dbget dbh in
-		get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,blkh,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
+		get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
 	      with Not_found ->
 		Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
 		get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
@@ -798,7 +793,9 @@ Hashtbl.add msgtype_handler Headers
       let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
       c := cn;
       Printf.fprintf !log "Headers msg %d %s at time %f\n"j (hashval_hexstring h) tm;
-      if not (DbBlockHeader.dbexists h) && (DbHeaderLtcBurn.dbexists h || recently_requested (i,h) tm cs.invreq) then
+      if not (DbBlockHeader.dbexists h) &&
+	((try ignore (find_dalilcoin_header_ltc_burn h); true with Not_found -> false) || recently_requested (i,h) tm cs.invreq)
+      then
 	let (bhd,bhs) = bh in
 	if not (blockheader_id bh = h) then
 	  begin (*** this may be the result of a misbehaving peer ***)
@@ -820,7 +817,7 @@ Hashtbl.add msgtype_handler Headers
 		| None -> ()
 		| Some(prevh,Poburn(lblkh,ltxh,lmedtm,burned)) -> (* commitment to previous proof of burn *)
 		    try
-		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_,_) = DbHeaderLtcBurn.dbget prevh in (* previous proof of burn *)
+		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_) = find_dalilcoin_header_ltc_burn prevh in (* previous proof of burn *)
 		      if not (lblkh = lblkh2) then
 			begin
 			  Printf.fprintf !log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
@@ -866,7 +863,7 @@ Hashtbl.add msgtype_handler Headers
 		end
 	      else
 		try
-		  let (pob,_,_) = DbHeaderLtcBurn.dbget h in
+		  let (pob,_) = find_dalilcoin_header_ltc_burn h in
 		  process_new_header_ab h (hashval_hexstring h) bh bhd bhs a false false pob
 		with Not_found -> (*** before the pob has been completed; should not have been requested yet ***)
 		  Printf.fprintf !log "Header %s was requested and received before the proof-of-burn was confirmed; ignoring it and waiting\n" (hashval_hexstring h);
@@ -930,8 +927,11 @@ Hashtbl.add msgtype_handler Inv
 	      let (bhd,bhs) = bh in
 	      process_new_header_a h (hashval_hexstring h) bh blkhd1 blkhs1 false false
 	  with Not_found ->
-	    if DbHeaderLtcBurn.dbexists h then (*** only request headers after a pob is completed ***)
+	    try
+	      ignore (find_dalilcoin_header_ltc_burn h); (*** only request headers after a pob is completed ***)
 	      hl := h::!hl;
+	    with Not_found ->
+	      ()
 	end
       else if i = int_of_msgtype Blockdelta && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && Hashtbl.mem tovalidate h then
 	begin

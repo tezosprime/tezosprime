@@ -358,7 +358,7 @@ and create_new_node_a h req =
 	    let par = get_or_create_node pbh req in
 	    (Some(par),node_blockheight par)
 	| None ->
-	    (Some(!genesisblocktreenode),0L)
+	    (Some(!genesisblocktreenode),1L)
       in
       let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
       Hashtbl.add blkheadernode (Some(h)) fnode;

@@ -285,16 +285,16 @@ let rec get_bestnode req =
 	  let handle_node n =
 	    let BlocktreeNode(_,_,pbh,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
 	    if DbInvalidatedBlocks.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
 	    else if DbBlacklist.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,fstohash pbh,blkh)::cwl)
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
 	    else
 	      match !vs with
 	      | ValidBlock -> (n,cwl)
 	      | InvalidBlock ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,blkh)::cwl)
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
 	      | Waiting(tm,_) ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,fstohash pbh,blkh,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,fstohash pbh,Int64.sub blkh 1L,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
 	  in
 	  let handle_exc comm =
 	    begin

@@ -526,15 +526,34 @@ let rec init_headers_to h =
     with Not_found ->
       Printf.printf "Could not find header %s\nStarting node without initializing headers.\n" (hashval_hexstring h)
 
-let rec init_headers h =
+let rec init_headers_l ltxh =
+  if not (ltxh = (0l,0l,0l,0l,0l,0l,0l,0l)) then
+    begin
+      try
+	begin
+	  try
+	    let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget ltxh in
+	    if DbBlockHeader.dbexists dnxt then
+	      init_headers_to dnxt
+	    else
+	      init_headers_l lprevtx
+	  with Not_found ->
+	    let (burned,lprevtx,dnxt,lblkh,confs) = ltc_gettransactioninfo (hashval_hexstring ltxh) in
+	    if DbBlockHeader.dbexists dnxt then
+	      init_headers_to dnxt
+	    else
+	      init_headers_l lprevtx
+	end
+      with _ -> ()
+    end
+
+let init_headers h =
   if DbBlockHeader.dbexists h then
     init_headers_to h
   else
     try
-      let (_,prevbh) = find_dalilcoin_header_ltc_burn h in
-      match prevbh with
-      | Some(prevh) -> init_headers prevh
-      | None -> ()
+      let (Poburn(lblkh,ltxh,lmedtm,burned),prevbh) = find_dalilcoin_header_ltc_burn h in
+      init_headers_l ltxh
     with Not_found ->
       Printf.printf "Could not find ltc burn for header %s\nStarting node without initializing headers.\n" (hashval_hexstring h)
 

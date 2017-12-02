@@ -716,7 +716,7 @@ let stakingthread () =
 					| Some(u) ->
 					    begin (*** actually burn u litoshis and wait for a confirmation to know the block hash ***)
 					      try
-						let btx = ltc_createburntx (match pbhh1 with Some(h) -> h | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) newblkid u in
+						let btx = ltc_createburntx (match pbhh with Some(_,Poburn(_,ltxh,_,_)) -> ltxh | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) newblkid u in
 						let btxhex = Hashaux.string_hexstring btx in
 						let btxs = ltc_signrawtransaction btxhex in
 						let h = ltc_sendrawtransaction btxs in
@@ -1097,9 +1097,16 @@ let do_command oc l =
 	      let h = hexstring_hashval hh in
 	      try
 		let (bhd,_) = DbBlockHeader.dbget h in
-		if not (DbBlockDelta.dbexists h) then
-		  find_and_send_requestdata GetBlockdelta h;
 		Printf.printf "Time: %Ld\n" bhd.timestamp;
+		begin
+		  try
+		    let bd = DbBlockDelta.dbget h in
+		    Printf.printf "%d txs\n" (List.length (bd.blockdelta_stxl));
+		    List.iter (fun (tx,txs) -> Printf.printf "%s\n" (hashval_hexstring (hashtx tx))) (bd.blockdelta_stxl);
+		  with Not_found ->
+		    find_and_send_requestdata GetBlockdelta h;
+		    Printf.printf "Missing block delta\n"
+		end
 	      with Not_found ->
 		find_and_send_requestdata GetHeader h
 	    end

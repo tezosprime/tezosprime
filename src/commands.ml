@@ -478,7 +478,8 @@ let printassets_in_ledger oc ledgerroot =
   Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
-  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = !bestnode in
+  let (bn,cwl) = get_bestnode true in
+  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = bn in
   printassets_in_ledger oc ledgerroot
 
 let get_cants_balances_in_ledger oc ledgerroot =

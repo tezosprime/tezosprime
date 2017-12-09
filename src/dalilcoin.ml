@@ -809,8 +809,21 @@ let stakingthread () =
 	sleepuntil := ltc_medtime()
   done;;
 
-let sincetime f =
+let sinceltctime f =
   let snc = Int64.sub (ltc_medtime()) f in
+  if snc >= 172800L then
+    (Int64.to_string (Int64.div snc 86400L)) ^ " days"
+  else if snc >= 7200L then
+    (Int64.to_string (Int64.div snc 7200L)) ^ " hours"
+  else if snc >= 120L then
+    (Int64.to_string (Int64.div snc 60L)) ^ " minutes"
+  else if snc = 1L then
+    "1 second"
+  else
+    (Int64.to_string snc) ^ " seconds";;
+
+let sincetime f =
+  let snc = Int64.sub (Int64.of_float (Unix.time())) f in
   if snc >= 172800L then
     (Int64.to_string (Int64.div snc 86400L)) ^ " days"
   else if snc >= 7200L then

@@ -523,7 +523,7 @@ let handle_msg replyto mt sin sout cs mh m =
 			cs.addrfrom <- addr_from;
 			cs.first_header_height <- fhh;
 			cs.first_full_height <- ffh;
-			cs.last_height <- lh;
+			cs.last_height <- lh
 		      end
 		    else if cs.handshakestep = 4 then
 		      begin
@@ -782,6 +782,18 @@ let netlistener l =
     | _ -> ()
   done
 
+let recently_requested (i,h) nw ir =
+  try
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 991.0) ir);
+    true
+  with Not_found -> false
+
+let recently_sent (i,h) nw isnt =
+  try
+    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 353.0) isnt);
+    true
+  with Not_found -> false
+  
 let netseeker_loop () =
   while true do
     try
@@ -796,7 +808,20 @@ let netseeker_loop () =
 			  !netconns)
 	      with Not_found -> ignore (tryconnectpeer n)
 	      )
-	    knownpeers
+	    knownpeers;
+	  List.iter
+	    (fun (_,_,(_,_,_,gcs)) ->
+	      match !gcs with
+	      | Some(cs) ->
+		  let tm = Unix.time() in
+		  let i = int_of_msgtype GetAddr in
+		  if not (recently_requested (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.invreq) then
+		    begin
+		      cs.invreq <- (i,(0l,0l,0l,0l,0l,0l,0l,0l),tm)::cs.invreq;
+		      ignore (queue_msg cs GetAddr "")
+		    end
+	      | None -> ())
+	    !netconns
 	end;
       if !netconns = [] then
 	begin
@@ -813,18 +838,6 @@ let netseeker () =
   loadknownpeers();
   netseekerth := Some(Thread.create netseeker_loop ())
 
-let recently_requested (i,h) nw ir =
-  try
-    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 991.0) ir);
-    true
-  with Not_found -> false
-
-let recently_sent (i,h) nw isnt =
-  try
-    ignore (List.find (fun (j,k,tm) -> i = j && h = k && nw -. tm < 353.0) isnt);
-    true
-  with Not_found -> false
-  
 let broadcast_requestdata mt h =
   let i = int_of_msgtype mt in
   let msb = Buffer.create 20 in
@@ -841,7 +854,7 @@ let broadcast_requestdata mt h =
                cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq
              end
        | None -> ())
-    !netconns
+    !netconns;;
 
 let find_and_send_requestdata mt h =
   let i = int_of_msgtype mt in
@@ -872,7 +885,7 @@ let find_and_send_requestdata mt h =
       !netconns;
     if not !alrreq then raise Not_found
   with Exit ->
-    ()
+    ();;
 
 let broadcast_inv tosend =
   let invmsg = Buffer.create 10000 in
@@ -890,4 +903,79 @@ let broadcast_inv tosend =
 	  Printf.fprintf !log "broadcast_inv sending to %s\n" cs.addrfrom;
 	  ignore (queue_msg cs Inv invmsgstr)
       | None -> ())
-    !netconns
+    !netconns;;
+
+Hashtbl.add msgtype_handler GetAddr
+    (fun (sin,sout,cs,ms) ->
+      let i = int_of_msgtype Addr in
+      let tm = Unix.time() in
+      if not (recently_sent (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.sentinv) then (*** ignore GetAddr message if we recently sent addresses ***)
+	begin
+	  let pc = ref 0 in
+	  cs.sentinv <- (i,(0l,0l,0l,0l,0l,0l,0l,0l),tm)::cs.sentinv;
+	  let tm64 = Int64.of_float tm in
+	  let yesterday = Int64.sub tm64 86400L in
+	  let currpeers = ref [] in
+	  let oldpeers = ref [] in
+	  Hashtbl.iter
+	    (fun nodeaddr lasttm ->
+	      if not (nodeaddr = "") then
+		if lasttm > yesterday then
+		  currpeers := nodeaddr::!currpeers
+		else
+		  oldpeers := nodeaddr::!oldpeers)
+	    knownpeers;
+	  let cpl = List.length !currpeers in
+	  let opl = List.length !oldpeers in
+	  if cpl > 65535 then
+	    begin
+	      oldpeers := [];
+	      for j = 65535 to cpl do
+		match !currpeers with
+		| (_::r) -> currpeers := r
+		| [] -> ()
+	      done
+	    end;
+	  let cpl = List.length !currpeers in
+	  let opl = List.length !oldpeers in
+	  for j = 65535 to cpl + opl do
+	    match !oldpeers with
+	    | (_::r) -> oldpeers := r
+	    | [] -> ()
+	  done;
+	  let opl = List.length !oldpeers in
+	  let l = !currpeers @ !oldpeers in
+	  let ll = cpl + opl in
+	  let addrmsg = Buffer.create 10000 in
+	  let c = ref (seo_varintb seosb ll (addrmsg,None)) in
+	  List.iter
+	    (fun s ->
+	      let cn = seo_string seosb s !c in
+	      c := cn)
+	    l;
+	  ignore (queue_msg cs Addr (Buffer.contents addrmsg))
+	end);;
+
+Hashtbl.add msgtype_handler Addr
+    (fun (sin,sout,cs,ms) ->
+      let i = int_of_msgtype GetAddr in
+      let tm = Unix.time() in
+      if recently_requested (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.invreq then (*** ignore Addr message unless it was recently requested ***)
+	let c = ref (ms,String.length ms,None,0,0) in
+	let m = ref 0 in
+	let bhl = ref [] in
+	let (n,cn) = sei_varintb seis !c in (*** < 65536 other addresses ***)
+	c := cn;
+	let numc = ref (List.length !netconns) in
+	for j = 1 to n do
+	  let (nodeaddr,cn) = sei_string seis !c in
+	  if not (Hashtbl.mem knownpeers nodeaddr) then
+	    begin
+	      try
+		if !numc < !Config.maxconns then
+		  ignore (tryconnectpeer nodeaddr)
+		else
+		  raise Not_found
+	      with _ -> ()
+	    end
+	done);;

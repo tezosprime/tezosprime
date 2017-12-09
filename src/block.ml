@@ -692,12 +692,6 @@ let retarget tar deltm =
 let difficulty tar =
   div_big_int !max_target tar
 
-(*** cumulative stake ***)
-let cumul_stake cs tar deltm =
-  add_big_int
-    cs
-    (max_big_int unit_big_int (div_big_int !max_target (shift_right_towards_zero_big_int (mult_big_int tar (big_int_of_int32 deltm)) 20)))
-
 let blockheader_succ_a prevledgerroot tmstamp1 tinfo1 bh2 =
   let (bhd2,bhs2) = bh2 in
   vbc (fun c -> Printf.fprintf c "Checking if header is valid successor\n");

@@ -858,12 +858,12 @@ let find_and_send_requestdata mt h =
             if not cs.banned && List.mem (inv_of_msgtype mt,h) cs.rinv then
 	      if recently_requested (i,h) tm cs.invreq then
 		begin
-		  Printf.fprintf !log "already recently requested from %s\n" cs.addrfrom; flush !log;
+		  Printf.fprintf !log "already recently sent request %s %s from %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom; flush !log;
 		  alrreq := true
 		end
 	      else
 		begin
-		  Printf.fprintf !log "sending request to %s\n" cs.addrfrom; flush !log;
+		  Printf.fprintf !log "sending request %s %s to %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom; flush !log;
 		  let mh = queue_msg cs mt ms in
 		  cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 		  raise Exit

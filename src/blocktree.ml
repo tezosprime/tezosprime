@@ -69,10 +69,6 @@ let node_timestamp n =
   let BlocktreeNode(_,_,_,_,_,_,_,_,tm,_,_,_,_,_) = n in
   tm
 
-let node_cumulstk n =
-  let BlocktreeNode(_,_,_,_,_,_,_,_,_,cs,_,_,_,_) = n in
-  cs
-
 let node_blockheight n =
   let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,blkh,_,_,_) = n in
   blkh
@@ -495,13 +491,12 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	    blockheader_succ_a ledgerroot tmstamp currtinfo blkh1
 	  then
 	    begin
-	      let newcumulstake = cumul_stake prevcumulstk currtinfo blkhd1.deltatime in
 	      if not (DbBlockHeader.dbexists h) then DbBlockHeader.dbput h (blkhd1,blkhs1);
 	      Hashtbl.add blkheaders h ();
 	      broadcast_inv [(int_of_msgtype Headers,h)];
 	      let validated = ref (if knownvalid then ValidBlock else Waiting(Unix.time(),None)) in
 	      let newcsm = poburn_stakemod pob in
-	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,newcumulstake,Int64.add blkhght 1L,validated,ref false,ref []) in
+	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      succl := (h,newnode)::!succl;
@@ -576,11 +571,24 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	  Printf.fprintf !log "unexpected Not_found in process_new_header_a %s\n" hh;
 	  raise (Failure "unexpected Not_found in process_new_header_a")
       end
-    with Not_found -> (*** orphan block header, put it on the relevant hash table and request parent ***)
-      Hashtbl.add orphanblkheaders prevblkh (h,blkh1);
-      try
-	find_and_send_requestdata GetHeader h
-      with Not_found -> Printf.fprintf !log "no peer has parent header %s\n" hh
+    with Not_found -> (*** orphan block header, put it on the relevant hash table and possibly request parent ***)
+      match prevblkh with
+      | Some(parblkh) ->
+	  begin
+	    let parblkhh = hashval_hexstring parblkh in
+	    Printf.fprintf !log "Got header %s before parent %s; keeping as orphan and possibly requesting parent\n" hh parblkhh;
+	    Hashtbl.add orphanblkheaders prevblkh (h,blkh1);
+	    try
+	      if DbBlockHeader.dbexists parblkh then
+		process_new_header_b parblkh parblkhh initialization knownvalid
+	      else
+		find_and_send_requestdata GetHeader parblkh
+	    with Not_found -> Printf.fprintf !log "no peer has parent header %s\n" parblkhh
+	  end
+      | None ->
+	  begin
+	    Printf.fprintf !log "Bug: Block header %s is marked as a genesis block, but there is no root to the blocktree.\n" hh
+	  end
   end
 and process_new_header_b h hh initialization knownvalid =
   Printf.fprintf !log "Processing new header %s\n" hh; flush !log;
@@ -605,17 +613,17 @@ and process_new_header h hh initialization knownvalid =
   if not (Hashtbl.mem blkheaders h) then
     process_new_header_b h hh initialization knownvalid
 and possibly_handle_orphan h n initialization knownvalid =
-  try
-    let (k,bh) = Hashtbl.find orphanblkheaders (Some(h)) in
-    let (bhd,bhs) = bh in
-    process_new_header_a k (hashval_hexstring k) bh bhd bhs initialization knownvalid;
-    try
-      let kn = Hashtbl.find blkheadernode (Some(k)) in
-      let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,_,blklstd,chl) = n in
-      chl := (k,kn)::!chl;
-      Hashtbl.remove orphanblkheaders (Some(h))
-    with Not_found -> ()
-  with Not_found -> ()
+  List.iter
+    (fun (k,bh) ->
+      let (bhd,bhs) = bh in
+      process_new_header_a k (hashval_hexstring k) bh bhd bhs initialization knownvalid;
+      try
+	let kn = Hashtbl.find blkheadernode (Some(k)) in
+	let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,_,blklstd,chl) = n in
+	chl := (k,kn)::!chl;
+	Hashtbl.remove orphanblkheaders (Some(h))
+      with Not_found -> ())
+    (Hashtbl.find_all orphanblkheaders (Some(h)))
 
 let rec init_headers_to h =
   if DbInvalidatedBlocks.dbexists h || DbBlacklist.dbexists h then

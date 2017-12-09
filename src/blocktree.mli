@@ -34,7 +34,6 @@ val node_ledgerroot : blocktree -> hashval
 val node_stakemod : blocktree -> stakemod
 val node_targetinfo : blocktree -> targetinfo
 val node_timestamp : blocktree -> int64
-val node_cumulstk : blocktree -> big_int
 val node_blockheight : blocktree -> int64
 val node_validationstatus : blocktree -> validationstatus
 val node_children_ref : blocktree -> (hashval * blocktree) list ref

@@ -124,6 +124,7 @@ let collect_inv m cnt tosend txinv =
   let rec collect_inv_chain tosend n =
     List.iter
       (fun (bh,nch) ->
+	collect_inv_chain tosend nch;
 	if not (Hashtbl.mem inclh bh) then
 	  begin
 	    if DbBlockHeader.dbexists bh then
@@ -132,8 +133,7 @@ let collect_inv m cnt tosend txinv =
 		tosend := (int_of_msgtype Headers,bh)::!tosend;
 		if DbBlockDelta.dbexists bh then (tosend := (int_of_msgtype Blockdelta,bh)::!tosend)
 	      end;
-	  end;	  
-	collect_inv_chain tosend nch)
+	  end)
       !(node_children_ref n)
   in
   let rec collect_inv_r3 m cnt tosend ctips ctipsr txinv =
@@ -183,7 +183,7 @@ let send_inv m sout cs =
   Hashtbl.iter (fun k _ -> txinv := k::!txinv) stxpool;
   collect_inv m cnt tosend !txinv;
   let invmsg = Buffer.create 10000 in
-  let c = ref (seo_int32 seosb (Int32.of_int !cnt) (invmsg,None)) in
+  let c = ref (seo_int32 seosb (Int32.of_int (List.length !tosend)) (invmsg,None)) in
   List.iter
     (fun (i,h) ->
       let cn = seo_prod seo_int8 seo_hashval seosb (i,h) !c in
@@ -367,15 +367,16 @@ and create_new_node_a h req =
     if DbBlockDelta.dbexists h then
       let newcsm = poburn_stakemod pob in
       let pbh = fstohash bhd.prevblockhash in
-      let (par,blkh) =
+      let (par,blkh,chlr) =
 	match pbh with
 	| Some(pbh) ->
 	    let par = get_or_create_node pbh req in
-	    (Some(par),node_blockheight par)
+	    (Some(par),node_blockheight par,node_children_ref par)
 	| None ->
-	    (Some(!genesisblocktreenode),1L)
+	    (Some(!genesisblocktreenode),1L,node_children_ref !genesisblocktreenode)
       in
       let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
+      chlr := (h,fnode)::!chlr;
       Hashtbl.add blkheadernode (Some(h)) fnode;
       possibly_handle_orphan h fnode false false;
       fnode

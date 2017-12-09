@@ -120,19 +120,37 @@ let add_sigtree sigroot osigt =
 
 let collect_inv m cnt tosend txinv =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  let inclh : (hashval,unit) Hashtbl.t = Hashtbl.create 5000 in
+  let rec collect_inv_chain tosend n =
+    List.iter
+      (fun (bh,nch) ->
+	if not (Hashtbl.mem inclh bh) then
+	  begin
+	    if DbBlockHeader.dbexists bh then
+	      begin
+		Hashtbl.add inclh bh ();
+		tosend := (int_of_msgtype Headers,bh)::!tosend;
+		if DbBlockDelta.dbexists bh then (tosend := (int_of_msgtype Blockdelta,bh)::!tosend)
+	      end;
+	  end;	  
+	collect_inv_chain tosend nch)
+      !(node_children_ref n)
+  in
   let rec collect_inv_r3 m cnt tosend ctips ctipsr txinv =
     if !cnt < m then
       begin
 	match ctips with
 	| (bh,_,_,_,_)::ctipr ->
-	    begin
-	      if DbBlockHeader.dbexists bh then
-		begin
-		  tosend := (int_of_msgtype Headers,bh)::!tosend; incr cnt;
-		  if DbBlockDelta.dbexists bh then (tosend := (int_of_msgtype Blockdelta,bh)::!tosend; incr cnt)
-		end;
-	      collect_inv_r3 m cnt tosend ctipr ctipsr txinv
-	    end
+	    if not (Hashtbl.mem inclh bh) then
+	      begin
+		if DbBlockHeader.dbexists bh then
+		  begin
+		    Hashtbl.add inclh bh ();
+		    tosend := (int_of_msgtype Headers,bh)::!tosend; incr cnt;
+		    if DbBlockDelta.dbexists bh then (tosend := (int_of_msgtype Blockdelta,bh)::!tosend; incr cnt)
+		  end;
+	      end;
+	    collect_inv_r3 m cnt tosend ctipr ctipsr txinv
 	| [] -> collect_inv_r2 m cnt tosend ctipsr txinv
       end
   and collect_inv_r2 m cnt tosend ctipsl txinv =
@@ -155,6 +173,7 @@ let collect_inv m cnt tosend txinv =
 	      collect_inv_r2 m cnt tosend ctipsl txinv
       end
   in
+  collect_inv_chain tosend !genesisblocktreenode;
   collect_inv_r1 m cnt tosend ctips0l txinv
 
 let send_inv m sout cs =

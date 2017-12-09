@@ -813,13 +813,17 @@ let netseeker_loop () =
 	    (fun (_,_,(_,_,_,gcs)) ->
 	      match !gcs with
 	      | Some(cs) ->
-		  let tm = Unix.time() in
-		  let i = int_of_msgtype GetAddr in
-		  if not (recently_requested (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.invreq) then
-		    begin
-		      cs.invreq <- (i,(0l,0l,0l,0l,0l,0l,0l,0l),tm)::cs.invreq;
-		      ignore (queue_msg cs GetAddr "")
-		    end
+		  begin
+		    try
+		      let tm = Unix.time() in
+		      let i = int_of_msgtype GetAddr in
+		      if cs.handshakestep = 5 && not (recently_requested (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.invreq) then
+			begin
+			  cs.invreq <- (i,(0l,0l,0l,0l,0l,0l,0l,0l),tm)::cs.invreq;
+			  ignore (queue_msg cs GetAddr "")
+			end
+		    with _ -> ()
+		  end
 	      | None -> ())
 	    !netconns
 	end;

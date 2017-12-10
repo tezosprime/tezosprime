@@ -177,6 +177,7 @@ let banpeer n = Hashtbl.add bannedpeers n ()
 let clearbanned () = Hashtbl.clear bannedpeers
 
 let knownpeers : (string,int64) Hashtbl.t = Hashtbl.create 1000
+let newpeers : string list ref = ref []
 
 let addknownpeer lasttm n =
   if not (n = "") && not (n = myaddr()) && not (List.mem n (getfallbacknodes())) && not (Hashtbl.mem bannedpeers n) then
@@ -802,30 +803,26 @@ let netseeker_loop () =
 	begin
 	  Hashtbl.iter
 	    (fun n oldtm ->
-	      try (*** don't connect to the same peer twice ***)
+	      try (*** don't try to connect to the same peer twice ***)
 		ignore (List.find
 			  (fun (_,_,(_,_,_,gcs)) -> peeraddr !gcs = n)
 			  !netconns)
 	      with Not_found -> ignore (tryconnectpeer n)
 	      )
 	    knownpeers;
-	  List.iter
-	    (fun (_,_,(_,_,_,gcs)) ->
-	      match !gcs with
-	      | Some(cs) ->
-		  begin
-		    try
-		      let tm = Unix.time() in
-		      let i = int_of_msgtype GetAddr in
-		      if cs.handshakestep = 5 && not (recently_requested (i,(0l,0l,0l,0l,0l,0l,0l,0l)) tm cs.invreq) then
-			begin
-			  cs.invreq <- (i,(0l,0l,0l,0l,0l,0l,0l,0l),tm)::cs.invreq;
-			  ignore (queue_msg cs GetAddr "")
-			end
-		    with _ -> ()
-		  end
-	      | None -> ())
-	    !netconns
+	  match !newpeers with
+	  | [] -> ()
+	  | (n::r) ->
+	      newpeers := r;
+	      if not (Hashtbl.mem knownpeers n) then
+		begin
+		  try (*** don't try to connect to the same peer twice ***)
+		    ignore (List.find
+			      (fun (_,_,(_,_,_,gcs)) -> peeraddr !gcs = n)
+			      !netconns)
+		  with Not_found ->
+		    ignore (tryconnectpeer n)
+		end
 	end;
       if !netconns = [] then
 	begin
@@ -833,7 +830,10 @@ let netseeker_loop () =
 	    (fun n -> ignore (tryconnectpeer n))
 	    (if !Config.testnet then testnetfallbacknodes else fallbacknodes)
 	end;
-      Thread.delay 600.
+      if !newpeers = [] || List.length !netconns = !Config.maxconns then
+	Thread.delay 600.
+      else
+	Thread.delay 20.
     with
     | _ -> ()
   done
@@ -973,13 +973,5 @@ Hashtbl.add msgtype_handler Addr
 	let numc = ref (List.length !netconns) in
 	for j = 1 to n do
 	  let (nodeaddr,cn) = sei_string seis !c in
-	  if not (Hashtbl.mem knownpeers nodeaddr) then
-	    begin
-	      try
-		if !numc < !Config.maxconns then
-		  ignore (tryconnectpeer nodeaddr)
-		else
-		  raise Not_found
-	      with _ -> ()
-	    end
+	  if not (Hashtbl.mem knownpeers nodeaddr) then newpeers := nodeaddr::!newpeers
 	done);;

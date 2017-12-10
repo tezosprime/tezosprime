@@ -1063,6 +1063,7 @@ end
 let dalilcoin_addr_jsoninfo alpha =
   let (bn,cwl) = get_bestnode true in
   let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+  let blkh = Int64.sub blkh 1L in
   let jpbh =
     match pbh with
     | None -> JsonObj([("block",JsonStr("genesis"))])
@@ -1089,6 +1090,7 @@ let query q =
 	let dbentries = ref [] in
 	let (bn,cwl) = get_bestnode true in
 	let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+	let blkh = Int64.sub blkh 1L in
 	begin
 	  try
 	    let e = Assets.DbAsset.dbget h in

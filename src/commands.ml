@@ -351,7 +351,7 @@ let importwatchbtcaddr a =
   walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
-let assets_at_address_in_ledger_json alpha ledgerroot blkh numtries =
+let assets_at_address_in_ledger_json alpha ledgerroot blkh =
   let alphas = addr_daliladdrstr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   let warned = ref false in
@@ -359,37 +359,18 @@ let assets_at_address_in_ledger_json alpha ledgerroot blkh numtries =
   let jal = ref [] in
   let alpha_hl = ref (None,-1) in
   let tot = ref 0L in
-  let numtrys = ref numtries in
   let handler f =
     try
-      if !numtrys > 1 then decr numtrys;
-      for i = 1 to !numtrys do
-	try
-	  f();
-	  raise Exit
-	with GettingRemoteData ->
-	  if !netconns = [] then
-	    begin (** ignore if there are no connections **)
-	      if not !warned then
-		begin
-		  jwl := JsonObj([("warning",JsonStr("The complete ledger is not in the local database; some assets in the ledger might not be displayed."))])::!jwl;
-		  warned := true
-		end;
-	      raise Exit
-	    end
-	  else
-	    begin
-              Thread.delay 2.0
-	    end
-      done;
-      if not !warned then
-	begin
-	  jwl := JsonObj([("warning",JsonStr("The complete ledger is not in the local database; some assets in the ledger might not be displayed."))])::!jwl;
-	  warned := true
-	end
-    with Exit -> ()
+      f()
+    with
+    | Not_found ->
+	jwl := JsonObj([("warning",JsonStr("The complete ledger is not in the local database; some assets in the ledger might not be displayed."))])::!jwl;
+	warned := true
+    | e ->
+      jwl := JsonObj([("warning",JsonStr(Printexc.to_string e))])::!jwl;
+      warned := true
   in
-  handler (fun () -> alpha_hl := Ctre.ctree_addr true true alpha ctr None);
+  handler (fun () -> alpha_hl := Ctre.ctree_addr true false alpha ctr None);
   let sumcurr tot a =
     match a with
     | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
@@ -1081,7 +1062,7 @@ let dalilcoin_addr_jsoninfo alpha =
 		 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
 		 ("ltcburned",JsonNum(Int64.to_string burned))])
   in
-  let (jal,jwl) = assets_at_address_in_ledger_json alpha ledgerroot blkh 0 in
+  let (jal,jwl) = assets_at_address_in_ledger_json alpha ledgerroot blkh in
   if jwl = [] then
     JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::jal)
   else

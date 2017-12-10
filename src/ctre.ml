@@ -982,6 +982,12 @@ let get_ctree_element h =
     broadcast_requestdata GetCTreeElement h;
     raise GettingRemoteData
 
+let expand_ctree_element req h =
+  if req then
+    get_ctree_element h
+  else
+    DbCTreeElt.dbget h
+
 let rec octree_S_inv exp req c =
   match c with
   | None -> (None,None)
@@ -1147,7 +1153,7 @@ let rec ctree_pre exp req bl c d z =
       | CLeft(c0) -> if b then (None,d) else ctree_pre exp req br c0 (d+1) z
       | CRight(c1) -> if b then ctree_pre exp req br c1 (d+1) z else (None,d)
       | CBin(c0,c1) -> if b then ctree_pre exp req br c1 (d+1) z else ctree_pre exp req br c0 (d+1) z
-      | CHash(h) -> ctree_pre exp req bl (get_ctree_element h) d z
+      | CHash(h) -> ctree_pre exp req bl (expand_ctree_element req h) d z
 
 let ctree_addr exp req alpha c z =
   ctree_pre exp req (addr_bitseq alpha) c 0 z

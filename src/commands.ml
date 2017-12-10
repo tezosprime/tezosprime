@@ -1166,9 +1166,9 @@ let query q =
 	    in
 	    let j =
 	      if invalid then
-		JsonObj(("type",JsonStr("block header"))::("invalid",JsonBool(true))::jr)
+		JsonObj(("type",JsonStr("blockheader"))::("invalid",JsonBool(true))::jr)
 	      else
-		JsonObj(("type",JsonStr("block header"))::jr)
+		JsonObj(("type",JsonStr("blockheader"))::jr)
 	    in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
@@ -1176,7 +1176,7 @@ let query q =
 	begin
 	  try
 	    let e = Block.DbBlockDelta.dbget h in
-	    let j = JsonObj([("type",JsonStr("block delta"))]) in
+	    let j = JsonObj([("type",JsonStr("blockdelta"))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
@@ -1192,17 +1192,17 @@ let query q =
 	begin
 	  try
 	    let (burned,lprevtx,dnxt) = Ltcrpc.DbLtcBurnTx.dbget h in
-	    let j = JsonObj([("type",JsonStr("ltc burntx"));
+	    let j = JsonObj([("type",JsonStr("ltcburntx"));
 			     ("burned",JsonNum(Int64.to_string burned));
-			     ("previous ltc burntx",JsonStr(hashval_hexstring lprevtx));
-			     ("dalilcoin block",JsonStr(hashval_hexstring dnxt))]) in
+			     ("previousltcburntx",JsonStr(hashval_hexstring lprevtx));
+			     ("dalilblock",JsonStr(hashval_hexstring dnxt))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
 	begin
 	  try
 	    let (prevh,tm,hght,txhhs) = Ltcrpc.DbLtcBlock.dbget h in
-	    let j = JsonObj([("type",JsonStr("ltc block"))]) in
+	    let j = JsonObj([("type",JsonStr("ltcblock"))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
@@ -1218,13 +1218,13 @@ let query q =
       try
 	let d = daliladdrstr_addr q in
 	let j = dalilcoin_addr_jsoninfo d in
-	JsonObj([("response",JsonStr("dalilcoin address"));("info",j)])
+	JsonObj([("response",JsonStr("daliladdress"));("info",j)])
       with _ ->
 	try
 	  let b = btcaddrstr_addr q in
 	  let j = dalilcoin_addr_jsoninfo b in
 	  let d = addr_daliladdrstr b in
-	  JsonObj([("response",JsonStr("bitcoin address"));("dalilcoin address",JsonStr(d));("info",j)])
+	  JsonObj([("response",JsonStr("bitcoin address"));("daliladdress",JsonStr(d));("info",j)])
 	with _ ->
 	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as dalilcoin value"))])
     end

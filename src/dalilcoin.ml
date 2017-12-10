@@ -888,6 +888,16 @@ let parse_command l =
 let do_command oc l =
   let (c,al) = parse_command l in
   match c with
+  | "query" ->
+      begin
+	match al with
+	| [h] ->
+	    let j = Commands.query h in
+	    print_jsonval oc j;
+	    Printf.fprintf oc "\n"
+	| _ ->
+	    raise (Failure("expected query <hashval or address>"))
+      end
   | "ltcstatus" ->
       begin
 	Printf.fprintf oc "ltcbest %s\n" (hashval_hexstring !ltc_bestblock);

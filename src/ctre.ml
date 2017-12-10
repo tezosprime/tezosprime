@@ -225,14 +225,14 @@ let fraenks_string v =
   else
     right_trim '0' ((Int64.to_string f) ^ "." ^ ds)
 
-let rec print_hlist_to_buffer sb blkh hl =
+let rec print_hlist_to_buffer_gen sb blkh hl g =
   match hl with
   | HHash(h) ->
       Buffer.add_string sb "...";
       Buffer.add_string sb (hashval_hexstring h);
       Buffer.add_string sb "...\n"
   | HNil -> ()
-  | HCons((aid,bday,None,Currency(v)),hr) ->
+  | HCons((aid,bday,None,Currency(v)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -242,9 +242,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday None v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)),hr) when b ->
+  | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)) as a,hr) when b ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -267,9 +268,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)),hr) ->
+  | HCons((aid,bday,((Some(delta,locktime,b)) as obl),Currency(v)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -292,9 +294,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday obl v));
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,Bounty(v)),hr) ->
+  | HCons((aid,bday,obl,Bounty(v)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -302,9 +305,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb "] Bounty ";
 	Buffer.add_string sb (fraenks_string v);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))),hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -316,9 +320,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,OwnsObj(k,gamma,None)),hr) ->
+  | HCons((aid,bday,obl,OwnsObj(k,gamma,None)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -328,9 +333,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))),hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -342,9 +348,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_string r);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,OwnsProp(k,gamma,None)),hr) ->
+  | HCons((aid,bday,obl,OwnsProp(k,gamma,None)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -354,17 +361,19 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,OwnsNegProp),hr) ->
+  | HCons((aid,bday,obl,OwnsNegProp) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] owned negation of prop\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,RightsObj(k,r)),hr) ->
+  | HCons((aid,bday,obl,RightsObj(k,r)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -374,9 +383,10 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " rights to use object ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,RightsProp(k,r)),hr) ->
+  | HCons((aid,bday,obl,RightsProp(k,r)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -386,46 +396,53 @@ let rec print_hlist_to_buffer sb blkh hl =
 	Buffer.add_string sb " rights to use prop ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_char sb '\n';
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,Marker),hr) ->
+  | HCons((aid,bday,obl,Marker) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Marker\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,TheoryPublication(gamma,nonce,d)),hr) ->
+  | HCons((aid,bday,obl,TheoryPublication(gamma,nonce,d)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Theory\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,SignaPublication(gamma,nonce,th,d)),hr) ->
+  | HCons((aid,bday,obl,SignaPublication(gamma,nonce,th,d)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Signature\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,DocPublication(gamma,nonce,th,d)),hr) ->
+  | HCons((aid,bday,obl,DocPublication(gamma,nonce,th,d)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Document\n";
-	print_hlist_to_buffer sb blkh hr
+	g a;
+	print_hlist_to_buffer_gen sb blkh hr g
       end
   | HConsH(ah,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring ah);
 	Buffer.add_string sb " *\n";
-	print_hlist_to_buffer sb blkh hr
+	print_hlist_to_buffer_gen sb blkh hr g
       end
+
+let print_hlist_to_buffer sb blkh hl = print_hlist_to_buffer_gen sb blkh hl (fun _ -> ())
 
 let rec print_ctree_all_r f c n br =
   for i = 1 to n do Printf.fprintf f " " done;

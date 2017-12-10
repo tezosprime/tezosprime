@@ -16,6 +16,7 @@ open Script
 open Assets
 open Tx
 open Ctre
+open Block
 open Blocktree
 
 let walletkeys = ref []
@@ -349,6 +350,63 @@ let importwatchbtcaddr a =
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
   walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
+
+let assets_at_address_in_ledger_json alpha ledgerroot blkh numtries =
+  let alphas = addr_daliladdrstr alpha in
+  let ctr = Ctre.CHash(ledgerroot) in
+  let warned = ref false in
+  let jwl = ref [] in
+  let jal = ref [] in
+  let alpha_hl = ref (None,0) in
+  let tot = ref 0L in
+  let numtrys = ref numtries in
+  let handler f =
+    try
+      if !numtrys > 1 then decr numtrys;
+      for i = 1 to !numtrys do
+	try
+	  f();
+	  raise Exit
+	with GettingRemoteData ->
+	  if !netconns = [] then
+	    begin (** ignore if there are no connections **)
+	      if not !warned then
+		begin
+		  jwl := JsonObj([("warning",JsonStr("The complete ledger is not in the local database; some assets in the ledger might not be displayed."))])::!jwl;
+		  warned := true
+		end;
+	      raise Exit
+	    end
+	  else
+	    begin
+              Thread.delay 2.0
+	    end
+      done;
+      if not !warned then
+	begin
+	  jwl := JsonObj([("warning",JsonStr("The complete ledger is not in the local database; some assets in the ledger might not be displayed."))])::!jwl;
+	  warned := true
+	end
+    with Exit -> ()
+  in
+  handler (fun () -> alpha_hl := Ctre.ctree_addr true true alpha ctr None);
+  let sumcurr tot a =
+    match a with
+    | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
+    | _ -> ()
+  in
+  begin
+    match !alpha_hl with
+    | (Some(hl),_) ->
+	let s = Buffer.create 100 in
+	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) (sumcurr tot);
+	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s))]
+    | (None,_) ->
+	jal := [("address",JsonStr(alphas));("contents",JsonStr("empty"))]
+    | _ ->
+	jal := [("address",JsonStr(alphas));("contents",JsonStr("no information"))]
+  end;
+  (!jal,!jwl)
 
 let printassets_in_ledger oc ledgerroot =
   let ctr = Ctre.CHash(ledgerroot) in
@@ -1001,3 +1059,170 @@ begin
 end
   else
     Printf.printf "Invalid tx\n"
+
+let dalilcoin_addr_jsoninfo alpha =
+  let (bn,cwl) = get_bestnode true in
+  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+  let jpbh =
+    match pbh with
+    | None -> JsonObj([("block",JsonStr("genesis"))])
+    | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
+	JsonObj([("block",JsonStr(hashval_hexstring prevh));
+		 ("height",JsonNum(Int64.to_string blkh));
+		 ("ltcblock",JsonStr(hashval_hexstring lblkh));
+		 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+		 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+		 ("ltcburned",JsonNum(Int64.to_string burned))])
+  in
+  let (jal,jwl) = assets_at_address_in_ledger_json alpha ledgerroot blkh 0 in
+  if jwl = [] then
+    JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::jal)
+  else
+    JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::("warnings",JsonArr(jwl))::jal)
+    
+let query q =
+  if String.length q = 64 || String.length q = 40 then
+    begin
+      try
+	let q = if String.length q = 64 then q else "000000000000000000000000" ^ q in
+	let h = hexstring_hashval q in
+	let dbentries = ref [] in
+	let (bn,cwl) = get_bestnode true in
+	let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+	begin
+	  try
+	    let e = Assets.DbAsset.dbget h in
+	    let s = Buffer.create 100 in
+	    print_hlist_to_buffer s blkh (HCons(e,HNil));
+	    let j = JsonObj([("type",JsonStr("asset"));("description",JsonStr(Buffer.contents s))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let e = Tx.DbTx.dbget h in
+	    let j = JsonObj([("type",JsonStr("tx"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let e = Tx.DbTxSignatures.dbget h in
+	    let j = JsonObj([("type",JsonStr("txsig"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let (k,r) = Ctre.DbHConsElt.dbget h in
+	    let j =
+	      match r with
+	      | None ->
+		  JsonObj([("type",JsonStr("hconselt"));("asset",JsonStr(hashval_hexstring k))])
+	      | Some(r) ->
+		  JsonObj([("type",JsonStr("hconselt"));("asset",JsonStr(hashval_hexstring k));("next",JsonStr(hashval_hexstring r))])
+	    in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let e = Ctre.DbCTreeElt.dbget h in
+	    let j = JsonObj([("type",JsonStr("ctreeelt"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let (bhd,bhs) = Block.DbBlockHeader.dbget h in
+	    let invalid = Block.DbInvalidatedBlocks.dbexists h in
+	    let pbh = bhd.prevblockhash in
+	    let alpha = bhd.stakeaddr in
+	    let aid = bhd.stakeassetid in
+	    let timestamp = bhd.timestamp in
+	    let deltatime = bhd.deltatime in
+	    let tinfo = bhd.tinfo in
+	    let jpbh =
+	      match pbh with
+	      | None -> JsonObj([("block",JsonStr("genesis"))])
+	      | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
+		  JsonObj([("block",JsonStr(hashval_hexstring prevh));
+			   ("height",JsonNum(Int64.to_string blkh));
+			   ("ltcblock",JsonStr(hashval_hexstring lblkh));
+			   ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+			   ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+			   ("ltcburned",JsonNum(Int64.to_string burned))])
+	    in
+	    let jr =
+	      [("prevblock",jpbh);
+	       ("stakeaddress",JsonStr(addr_daliladdrstr (p2pkhaddr_addr alpha)));
+	       ("stakeassetid",JsonStr(hashval_hexstring aid));
+	       ("timestamp",JsonNum(Int64.to_string timestamp));
+	       ("deltatime",JsonNum(Int32.to_string deltatime));
+	       ("target",JsonNum(string_of_big_int tinfo));
+	       ("difficulty",JsonNum(string_of_big_int (difficulty tinfo)))]
+	    in
+	    let j =
+	      if invalid then
+		JsonObj(("type",JsonStr("block header"))::("invalid",JsonBool(true))::jr)
+	      else
+		JsonObj(("type",JsonStr("block header"))::jr)
+	    in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let e = Block.DbBlockDelta.dbget h in
+	    let j = JsonObj([("type",JsonStr("block delta"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+(***
+	begin
+	  try
+	    let e = Ltcrpc.DbLtcDacStatus.dbget h in
+	    let j = JsonObj([("type",JsonStr("ltcblock"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+***)
+	begin
+	  try
+	    let (burned,lprevtx,dnxt) = Ltcrpc.DbLtcBurnTx.dbget h in
+	    let j = JsonObj([("type",JsonStr("ltc burntx"));
+			     ("burned",JsonNum(Int64.to_string burned));
+			     ("previous ltc burntx",JsonStr(hashval_hexstring lprevtx));
+			     ("dalilcoin block",JsonStr(hashval_hexstring dnxt))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let (prevh,tm,hght,txhhs) = Ltcrpc.DbLtcBlock.dbget h in
+	    let j = JsonObj([("type",JsonStr("ltc block"))]) in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	if !dbentries = [] then
+	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("No associated information found"))])
+	else
+	  JsonObj([("response",JsonStr("known"));("dbdata",JsonArr(!dbentries))])
+      with _ ->
+	JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as hash value"))])
+    end
+  else
+    begin
+      try
+	let d = daliladdrstr_addr q in
+	let j = dalilcoin_addr_jsoninfo d in
+	JsonObj([("response",JsonStr("dalilcoin address"));("info",j)])
+      with _ ->
+	try
+	  let b = btcaddrstr_addr q in
+	  let j = dalilcoin_addr_jsoninfo b in
+	  let d = addr_daliladdrstr b in
+	  JsonObj([("response",JsonStr("bitcoin address"));("dalilcoin address",JsonStr(d));("info",j)])
+	with _ ->
+	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as dalilcoin value"))])
+    end

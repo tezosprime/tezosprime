@@ -54,3 +54,5 @@ val createsplitlocktx : hashval -> payaddr -> payaddr -> addr -> hashval -> int 
 val signtx : hashval -> string -> unit
 val savetxtopool : int64 -> hashval -> string -> unit
 val sendtx : int64 -> hashval -> string -> unit
+
+val query : string -> jsonval

@@ -357,7 +357,7 @@ let assets_at_address_in_ledger_json alpha ledgerroot blkh numtries =
   let warned = ref false in
   let jwl = ref [] in
   let jal = ref [] in
-  let alpha_hl = ref (None,0) in
+  let alpha_hl = ref (None,-1) in
   let tot = ref 0L in
   let numtrys = ref numtries in
   let handler f =
@@ -401,8 +401,14 @@ let assets_at_address_in_ledger_json alpha ledgerroot blkh numtries =
 	let s = Buffer.create 100 in
 	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) (sumcurr tot);
 	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s))]
-    | (None,_) ->
-	jal := [("address",JsonStr(alphas));("contents",JsonStr("empty"))]
+    | (None,z) ->
+	if z < 0 then
+	  begin
+	    jwl := JsonObj([("warning",JsonStr("Problem obtaining contents of address."))])::!jwl;
+	    jal := [("address",JsonStr(alphas))]
+	  end
+	else
+	  jal := [("address",JsonStr(alphas));("contents",JsonStr("empty"))]
     | _ ->
 	jal := [("address",JsonStr(alphas));("contents",JsonStr("no information"))]
   end;

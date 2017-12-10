@@ -225,7 +225,8 @@ let daliladdrstr_addr b =
     raise (Failure "Not a Dalilcoin address")
 
 let btcaddrstr_addr b =
-  let (_,p,x0,x1,x2,x3,x4,_) = big_int_md256 (frombase58 b) in
+  let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
+  if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Bitcoin address (checksum incorrect)");
   if p = 0l then
     (0,x0,x1,x2,x3,x4)
   else if p = 5l then

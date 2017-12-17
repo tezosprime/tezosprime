@@ -537,6 +537,7 @@ let handle_msg replyto mt sin sout cs mh m =
 			cs.first_header_height <- fhh;
 			cs.first_full_height <- ffh;
 			cs.last_height <- lh;
+			addknownpeer mytm addr_from;
 			!send_inv_fn 5000 sout cs
 		      end
 		    else
@@ -548,7 +549,9 @@ let handle_msg replyto mt sin sout cs mh m =
 		  cs.handshakestep <- 4
 		else if cs.handshakestep = 3 then
 		  begin
+		    let mytm = Int64.of_float (Unix.time()) in
 		    cs.handshakestep <- 5;
+		    addknownpeer mytm cs.addrfrom;
 		    !send_inv_fn 5000 sout cs
 		  end
 		else

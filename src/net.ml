@@ -830,6 +830,22 @@ let netseeker_loop () =
 	    (fun n -> ignore (tryconnectpeer n))
 	    (if !Config.testnet then testnetfallbacknodes else fallbacknodes)
 	end;
+      (*** occasionally send a GetAddr request ***)
+      let i = int_of_msgtype GetAddr in
+      let h0 = (0l,0l,0l,0l,0l,0l,0l,0l) in
+      let tm = Unix.time() in
+      List.iter
+	(fun (_,_,(_,_,_,gcs)) ->
+	  match !gcs with
+	    None -> ()
+	  | Some(cs) ->
+	      if cs.handshakestep = 5 && not (recently_requested (i,h0) tm cs.invreq) then
+		begin
+		  ignore (queue_msg cs GetAddr "");
+		  cs.invreq <- (i,h0,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq
+		end
+	  )
+	!netconns;
       if !newpeers = [] || List.length !netconns = !Config.maxconns then
 	Thread.delay 600.
       else
@@ -957,6 +973,7 @@ Hashtbl.add msgtype_handler GetAddr
 	      let cn = seo_string seosb s !c in
 	      c := cn)
 	    l;
+	  seosbf !c;
 	  ignore (queue_msg cs Addr (Buffer.contents addrmsg))
 	end);;
 

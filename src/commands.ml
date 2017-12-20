@@ -1096,13 +1096,6 @@ let query q =
 	end;
 	begin
 	  try
-	    let e = Tx.DbTxSignatures.dbget h in
-	    let j = JsonObj([("type",JsonStr("txsig"))]) in
-	    dbentries := j::!dbentries
-	  with Not_found -> ()
-	end;
-	begin
-	  try
 	    let (k,r) = Ctre.DbHConsElt.dbget h in
 	    let j =
 	      match r with
@@ -1131,40 +1124,63 @@ let query q =
 	    let timestamp = bhd.timestamp in
 	    let deltatime = bhd.deltatime in
 	    let tinfo = bhd.tinfo in
-	    let jpbh =
+	    let bblkh =
+	      try
+		Some(Int64.sub (node_blockheight (Hashtbl.find blkheadernode (Some(h)))) 1L)
+	      with Not_found ->
+		None
+	    in
+	    let jpb =
 	      match pbh with
-	      | None -> JsonObj([("block",JsonStr("genesis"))])
+	      | None -> []
 	      | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
-		  JsonObj([("block",JsonStr(hashval_hexstring prevh));
-			   ("height",JsonNum(Int64.to_string blkh));
-			   ("ltcblock",JsonStr(hashval_hexstring lblkh));
-			   ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-			   ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-			   ("ltcburned",JsonNum(Int64.to_string burned))])
+		  match bblkh with
+		  | Some(bblkh) ->
+		      [("prevblock",
+			JsonObj([("block",JsonStr(hashval_hexstring prevh));
+				 ("height",JsonNum(Int64.to_string bblkh));
+				 ("ltcblock",JsonStr(hashval_hexstring lblkh));
+				 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+				 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+				 ("ltcburned",JsonNum(Int64.to_string burned))]))]
+		  | None ->
+		      [("prevblock",
+			JsonObj([("block",JsonStr(hashval_hexstring prevh));
+				 ("ltcblock",JsonStr(hashval_hexstring lblkh));
+				 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+				 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+				 ("ltcburned",JsonNum(Int64.to_string burned))]))]
 	    in
 	    let jr =
-	      [("prevblock",jpbh);
-	       ("stakeaddress",JsonStr(addr_daliladdrstr (p2pkhaddr_addr alpha)));
+	      jpb @
+	      [("stakeaddress",JsonStr(addr_daliladdrstr (p2pkhaddr_addr alpha)));
 	       ("stakeassetid",JsonStr(hashval_hexstring aid));
 	       ("timestamp",JsonNum(Int64.to_string timestamp));
 	       ("deltatime",JsonNum(Int32.to_string deltatime));
 	       ("target",JsonStr(string_of_big_int tinfo));
 	       ("difficulty",JsonStr(string_of_big_int (difficulty tinfo)))]
 	    in
-	    let j =
+	    let jr =
 	      if invalid then
-		JsonObj(("type",JsonStr("blockheader"))::("invalid",JsonBool(true))::jr)
+		(("invalid",JsonBool(true))::jr)
 	      else
-		JsonObj(("type",JsonStr("blockheader"))::jr)
+		jr
 	    in
-	    dbentries := j::!dbentries
-	  with Not_found -> ()
-	end;
-	begin
-	  try
-	    let e = Block.DbBlockDelta.dbget h in
-	    let j = JsonObj([("type",JsonStr("blockdelta"))]) in
-	    dbentries := j::!dbentries
+	    begin
+	      try
+		let bd = Block.DbBlockDelta.dbget h in
+		let jcoinstkid = JsonStr(hashval_hexstring(hashtx (coinstake ((bhd,bhs),bd)))) in
+		let jtxhl =
+		  List.map
+		    (fun (tau,stau) -> JsonStr(hashval_hexstring(hashtx tau)))
+		    bd.blockdelta_stxl
+		in
+		let j = JsonObj(("type",JsonStr("block"))::jr @ [("coinstk",jcoinstkid);("txs",JsonArr(jtxhl))]) in
+		dbentries := j::!dbentries
+	      with Not_found ->
+		let j = JsonObj(("type",JsonStr("block"))::jr) in
+		dbentries := j::!dbentries
+	    end
 	  with Not_found -> ()
 	end;
 (***

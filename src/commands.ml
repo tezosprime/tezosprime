@@ -1148,8 +1148,8 @@ let query q =
 	       ("stakeassetid",JsonStr(hashval_hexstring aid));
 	       ("timestamp",JsonNum(Int64.to_string timestamp));
 	       ("deltatime",JsonNum(Int32.to_string deltatime));
-	       ("target",JsonNum(string_of_big_int tinfo));
-	       ("difficulty",JsonNum(string_of_big_int (difficulty tinfo)))]
+	       ("target",JsonStr(string_of_big_int tinfo));
+	       ("difficulty",JsonStr(string_of_big_int (difficulty tinfo)))]
 	    in
 	    let j =
 	      if invalid then

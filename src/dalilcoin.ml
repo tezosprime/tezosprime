@@ -1266,6 +1266,20 @@ let do_command oc l =
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc
       end
+  | "querybestblock" ->
+      let node = get_bestnode_print_warnings oc true in
+      let h = node_prevblockhash node in
+      let blkh = node_blockheight node in
+      let lr = node_ledgerroot node in
+      begin
+	match h with
+	| Some(h,_) ->
+	    print_jsonval oc (JsonObj([("height",JsonNum(Int64.to_string (Int64.sub blkh 1L)));("block",JsonStr(hashval_hexstring h));("ledgerroot",JsonStr(hashval_hexstring lr))]));
+	    flush oc
+	| None ->
+	    print_jsonval oc (JsonObj([("height",JsonNum(Int64.to_string (Int64.sub blkh 1L)));("ledgerroot",JsonStr(hashval_hexstring lr))]));
+	    flush oc
+      end
   | "bestblock" ->
       let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in

@@ -293,14 +293,34 @@ let json_addr_preasset (alpha,(obl,u)) =
 	       ("preasset",json_preasset u)])
   | Some(gamma,lh,r) ->
       JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
-	       ("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
-	       ("lockheight",JsonNum(Int64.to_string lh));
-	       ("reward",JsonBool(r));
+	       ("obligation",JsonObj([("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+				      ("lockheight",JsonNum(Int64.to_string lh));
+				      ("reward",JsonBool(r))]));
 	       ("preasset",json_preasset u)])
-      
+
+let rec json_txouts txh txouts i =
+  match txouts with
+  | [] -> []
+  | (alpha,(obl,u))::txoutr ->
+      let aid = hashpair txh (hashint32 (Int32.of_int i)) in
+      let j =
+	match obl with
+	| None ->
+	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+		     ("assetid",JsonStr(hashval_hexstring aid));
+		     ("preasset",json_preasset u)])
+	| Some(gamma,lh,r) ->
+	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+		     ("assetid",JsonStr(hashval_hexstring aid));
+		     ("obligation",JsonObj([("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+					    ("lockheight",JsonNum(Int64.to_string lh));
+					    ("reward",JsonBool(r))]));
+		     ("preasset",json_preasset u)])
+      in
+      j::json_txouts txh txoutr (i+1)
 
 let json_tx (inpl,outpl) =
-  JsonObj([("vin",JsonArr(List.map json_addr_assetid inpl));("vout",JsonArr(List.map json_addr_preasset outpl))])
+  JsonObj([("vin",JsonArr(List.map json_addr_assetid inpl));("vout",JsonArr(json_txouts (hashtx (inpl,outpl)) outpl 0))])
 
 let json_gensignat_or_ref_option s =
   match s with

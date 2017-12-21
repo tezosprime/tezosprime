@@ -431,6 +431,15 @@ Hashtbl.add msgtype_handler Asset
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
 	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested Asset]\n"; flush !Utils.log));;
 
+let json_obligation obl =
+ match obl with
+ | None -> None
+ | Some(gamma,lh,r) ->
+     Some(JsonObj([("type",JsonStr("obligation"));
+		   ("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+		   ("lockheight",JsonNum(Int64.to_string lh));
+		   ("reward",JsonBool(r))]))
+
 let json_preasset u =
   match u with
   | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("units",JsonNum(Int64.to_string v))])
@@ -449,3 +458,17 @@ let json_preasset u =
   | DocPublication(beta,h,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("doc",json_doc(d))])
   | DocPublication(beta,h,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc(d))])
 
+let json_asset a =
+  let (aid,bday,obl,u) = a in
+  match json_obligation obl with
+  | None ->
+      JsonObj([("type",JsonStr("asset"));
+	       ("assetid",JsonStr(hashval_hexstring aid));
+	       ("bday",JsonNum(Int64.to_string bday));
+	       ("preasset",json_preasset u)])
+  | Some(jobl) ->
+      JsonObj([("type",JsonStr("asset"));
+	       ("assetid",JsonStr(hashval_hexstring aid));
+	       ("bday",JsonNum(Int64.to_string bday));
+	       ("obligation",jobl);
+	       ("preasset",json_preasset u)])

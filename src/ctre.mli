@@ -3,6 +3,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Hash
 open Db
 open Mathdata
@@ -110,3 +111,5 @@ val print_ctree_all : out_channel -> ctree -> unit
 val minimal_asset_supporting_ctree : ctree -> bool list -> hashval -> int -> bool
 
 val hashctree : ctree -> hashval
+
+val json_ctree : ctree -> jsonval

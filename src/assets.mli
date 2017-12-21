@@ -100,4 +100,6 @@ module DbAsset :
 
 val get_asset : hashval -> asset
 
+val json_obligation : obligation -> jsonval option
 val json_preasset : preasset -> jsonval
+val json_asset : asset -> jsonval

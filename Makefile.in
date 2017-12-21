@@ -75,7 +75,7 @@ bin/script.cmi: src/script.mli bin/hash.cmi bin/secp256k1.cmi bin/signat.cmi bin
 bin/tx.cmi: src/tx.mli bin/hash.cmi bin/logic.cmi bin/mathdata.cmi bin/checking.cmi bin/assets.cmi bin/script.cmi bin/db.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/tx.cmi -c src/tx.mli
 
-bin/ctre.cmi: src/ctre.mli bin/hash.cmi bin/logic.cmi bin/mathdata.cmi bin/checking.cmi bin/assets.cmi bin/tx.cmi bin/db.cmi
+bin/ctre.cmi: src/ctre.mli bin/hash.cmi bin/logic.cmi bin/mathdata.cmi bin/checking.cmi bin/assets.cmi bin/tx.cmi bin/db.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/ctre.cmi -c src/ctre.mli
 
 bin/ctregraft.cmi: src/ctregraft.mli bin/hash.cmi bin/ctre.cmi
@@ -159,7 +159,7 @@ bin/assets.cmx: src/assets.ml bin/assets.cmi bin/hash.cmx bin/logic.cmx bin/math
 bin/tx.cmx: src/tx.ml bin/tx.cmi bin/ser.cmx bin/sha256.cmx bin/hash.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/db.cmx bin/net.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/tx.cmx -c src/tx.ml
 
-bin/ctre.cmx: src/ctre.ml bin/ctre.cmi bin/hash.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ser.cmx bin/config.cmx bin/db.cmx bin/net.cmx
+bin/ctre.cmx: src/ctre.ml bin/ctre.cmi bin/hash.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ser.cmx bin/config.cmx bin/db.cmx bin/net.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/ctre.cmx -c src/ctre.ml
 
 bin/ctregraft.cmx: src/ctregraft.ml bin/ctregraft.cmi bin/ser.cmx bin/hash.cmx bin/ctre.cmx
@@ -249,7 +249,7 @@ bin/assets.cmo: src/assets.ml bin/assets.cmi bin/hash.cmo bin/logic.cmo bin/math
 bin/tx.cmo: src/tx.ml bin/tx.cmi bin/ser.cmo bin/sha256.cmo bin/hash.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/db.cmo bin/net.cmo bin/json.cmo
 	$(OCAMLC) -I bin -o bin/tx.cmo -c src/tx.ml
 
-bin/ctre.cmo: src/ctre.ml bin/ctre.cmi bin/hash.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ser.cmo bin/config.cmo bin/db.cmo bin/net.cmo
+bin/ctre.cmo: src/ctre.ml bin/ctre.cmi bin/hash.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ser.cmo bin/config.cmo bin/db.cmo bin/net.cmo bin/json.cmo
 	$(OCAMLC) -I bin -o bin/ctre.cmo -c src/ctre.ml
 
 bin/ctregraft.cmo: src/ctregraft.ml bin/ctregraft.cmi bin/ser.cmo bin/hash.cmo bin/ctre.cmo

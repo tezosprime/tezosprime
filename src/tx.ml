@@ -304,17 +304,15 @@ let rec json_txouts txh txouts i =
   | (alpha,(obl,u))::txoutr ->
       let aid = hashpair txh (hashint32 (Int32.of_int i)) in
       let j =
-	match obl with
+	match json_obligation obl with
 	| None ->
 	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
 		     ("assetid",JsonStr(hashval_hexstring aid));
 		     ("preasset",json_preasset u)])
-	| Some(gamma,lh,r) ->
+	| Some(jobl) ->
 	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
 		     ("assetid",JsonStr(hashval_hexstring aid));
-		     ("obligation",JsonObj([("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
-					    ("lockheight",JsonNum(Int64.to_string lh));
-					    ("reward",JsonBool(r))]));
+		     ("obligation",jobl);
 		     ("preasset",json_preasset u)])
       in
       j::json_txouts txh txoutr (i+1)

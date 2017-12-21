@@ -4,6 +4,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Ser
 open Hashaux
 open Hash
@@ -2391,3 +2392,25 @@ let hashctree c =
   let s = Buffer.create 1000 in
   seosbf (seo_ctree seosb c (s,None));
   Sha256.sha256str (Buffer.contents s)
+
+let rec json_hlist hl =
+  match hl with
+  | HHash(h) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hhash"));("hhash",JsonStr(hashval_hexstring h))])
+  | HNil -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hnil"))])
+  | HCons(a,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hcons"));("first",json_asset a);("rest",json_hlist hl)])
+  | HConsH(h,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
+
+let json_nehlist hl =
+  match hl with
+  | NehHash(h) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehhash"));("nehhash",JsonStr(hashval_hexstring h))])
+  | NehCons(a,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehcons"));("first",json_asset a);("rest",json_hlist hl)])
+  | NehConsH(h,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
+
+let rec json_ctree c =
+  match c with
+  | CLeaf(bl,hl) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cleaf"));("bl",JsonArr(List.map (fun b -> JsonBool(b)) bl));("nehlist",json_nehlist hl)])
+  | CHash(h) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("chash"));("h",JsonStr(hashval_hexstring h))])
+  | CLeft(c0) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cleft"));("left",json_ctree c0)])
+  | CRight(c1) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cright"));("right",json_ctree c1)])
+  | CBin(c0,c1) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cbin"));("left",json_ctree c0);("right",json_ctree c1)])
+

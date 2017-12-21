@@ -2,6 +2,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json
 open Hash
 open Db
 open Mathdata
@@ -99,4 +100,4 @@ module DbAsset :
 
 val get_asset : hashval -> asset
 
-
+val json_preasset : preasset -> jsonval

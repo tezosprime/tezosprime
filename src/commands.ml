@@ -1169,13 +1169,13 @@ let query q =
 	    begin
 	      try
 		let bd = Block.DbBlockDelta.dbget h in
-		let jcoinstkid = JsonStr(hashval_hexstring(hashtx (coinstake ((bhd,bhs),bd)))) in
+		let jcoinstk = json_tx(coinstake ((bhd,bhs),bd)) in
 		let jtxhl =
 		  List.map
 		    (fun (tau,stau) -> JsonStr(hashval_hexstring(hashtx tau)))
 		    bd.blockdelta_stxl
 		in
-		let j = JsonObj(("type",JsonStr("block"))::jr @ [("coinstk",jcoinstkid);("txs",JsonArr(jtxhl))]) in
+		let j = JsonObj(("type",JsonStr("block"))::jr @ [("coinstk",jcoinstk);("txs",JsonArr(jtxhl))]) in
 		dbentries := j::!dbentries
 	      with Not_found ->
 		let j = JsonObj(("type",JsonStr("block"))::jr) in

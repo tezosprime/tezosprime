@@ -3,6 +3,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Hash
 open Secp256k1
 open Signat
@@ -24,3 +25,5 @@ val verify_gensignat : big_int -> gensignat -> addr -> bool
 
 val seo_gensignat : (int -> int -> 'a -> 'a) -> gensignat -> 'a -> 'a
 val sei_gensignat : (int -> 'a -> int * 'a) -> 'a -> gensignat * 'a
+
+val json_gensignat : gensignat -> jsonval

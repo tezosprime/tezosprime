@@ -3,7 +3,9 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Ser
+open Hashaux
 open Sha256
 open Ripemd160
 open Hash
@@ -959,3 +961,40 @@ let sei_gensignat i c =
     else
       let ((beta,escr,scr),c) = sei_prod3 sei_md160 (sei_list sei_int8) (sei_list sei_int8) i c in
       (EndP2shToP2shSignat(beta,escr,scr),c)
+
+let json_pt p =
+  match p with
+  | None -> JsonStr("infpt")
+  | Some(x,y) -> JsonObj([("type",JsonStr("pt"));("x",JsonStr(hexstring_of_big_int x 64));("y",JsonStr(hexstring_of_big_int y 64))])
+
+let json_signat sg =
+  let (r,s) = sg in
+  JsonObj([("type",JsonStr("ecdsasig"));("r",JsonStr(hexstring_of_big_int r 64));("s",JsonStr(hexstring_of_big_int s 64))])
+
+let json_gensignat gs =
+  match gs with
+  | P2pkhSignat(p,c,sg) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("p2pkh"));("pubkey",json_pt p);("compressed",JsonBool(c));("signat",json_signat(sg))])
+  | P2shSignat(scr) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("p2sh"));("script",JsonArr(List.map (fun x -> JsonNum(string_of_int x)) scr))])
+  | EndP2pkhToP2pkhSignat(p,c,q,d,esg,sg) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("endp2pkhtop2pkh"));
+	       ("pubkey1",json_pt p);("compressed1",JsonBool(c));
+	       ("pubkey2",json_pt q);("compressed1",JsonBool(d));
+	       ("endorsementsignat",json_signat(esg));
+	       ("signat",json_signat(sg))])
+  | EndP2pkhToP2shSignat(p,c,beta,esg,scr) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("endp2pkhtop2sh"));
+	       ("pubkey1",json_pt p);("compressed1",JsonBool(c));
+	       ("p2sh",JsonStr(addr_daliladdrstr (md160_p2sh_addr beta)));
+	       ("script",JsonArr(List.map (fun x -> JsonNum(string_of_int x)) scr))])
+  | EndP2shToP2pkhSignat(q,d,escr,sg) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("endp2shtop2pkh"));
+	       ("pubkey2",json_pt q);("compressed1",JsonBool(d));
+	       ("endorsementscript",JsonArr(List.map (fun x -> JsonNum(string_of_int x)) escr));
+	       ("signat",json_signat(sg))])
+  | EndP2shToP2shSignat(beta,escr,scr) ->
+      JsonObj([("type",JsonStr("gensignat"));("gensignattype",JsonStr("endp2shtop2sh"));
+	       ("p2sh",JsonStr(addr_daliladdrstr (md160_p2sh_addr beta)));
+	       ("endorsementscript",JsonArr(List.map (fun x -> JsonNum(string_of_int x)) escr));
+	       ("script",JsonArr(List.map (fun x -> JsonNum(string_of_int x)) scr))])

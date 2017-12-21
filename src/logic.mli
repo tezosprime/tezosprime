@@ -1,3 +1,4 @@
+open Json
 open Hash
 
 type stp =
@@ -59,3 +60,7 @@ type docitem =
 | Docconj of trm
 
 type doc = docitem list
+
+val json_theoryspec : theoryspec -> jsonval
+val json_signaspec : signaspec -> jsonval
+val json_doc : doc -> jsonval

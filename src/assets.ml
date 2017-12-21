@@ -3,6 +3,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json
 open Ser
 open Hash
 open Net
@@ -429,4 +430,22 @@ Hashtbl.add msgtype_handler Asset
 	  cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
 	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested Asset]\n"; flush !Utils.log));;
+
+let json_preasset u =
+  match u with
+  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("units",JsonNum(Int64.to_string v))])
+  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("units",JsonNum(Int64.to_string v))])
+  | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
+  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",JsonNum(Int64.to_string r))])
+  | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
+  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",JsonNum(Int64.to_string r))])
+  | OwnsNegProp -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsnegprop"))])
+  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("units",JsonNum(Int64.to_string r))])
+  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("units",JsonNum(Int64.to_string r))])
+  | Marker -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("marker"))])
+  | TheoryPublication(beta,h,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("theoryspec",json_theoryspec(ts))])
+  | SignaPublication(beta,h,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("signaspec",json_signaspec(ss))])
+  | SignaPublication(beta,h,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec(ss))])
+  | DocPublication(beta,h,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("doc",json_doc(d))])
+  | DocPublication(beta,h,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc(d))])
 

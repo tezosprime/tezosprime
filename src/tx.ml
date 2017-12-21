@@ -3,6 +3,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Ser
 open Sha256
 open Hash
@@ -282,3 +283,32 @@ module DbTx = Dbbasic (struct type t = tx let basedir = "tx" let seival = sei_tx
 
 module DbTxSignatures = Dbbasic (struct type t = gensignat_or_ref option list * gensignat_or_ref option list let basedir = "txsigs" let seival = sei_txsigs seic let seoval = seo_txsigs seoc end);;
 
+let json_addr_assetid (alpha,h) =
+  JsonObj([("address",JsonStr(addr_daliladdrstr alpha));("assetid",JsonStr(hashval_hexstring h))])
+
+let json_addr_preasset (alpha,(obl,u)) =
+  match obl with
+  | None ->
+      JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+	       ("preasset",json_preasset u)])
+  | Some(gamma,lh,r) ->
+      JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+	       ("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+	       ("lockheight",JsonNum(Int64.to_string lh));
+	       ("reward",JsonBool(r));
+	       ("preasset",json_preasset u)])
+      
+
+let json_tx (inpl,outpl) =
+  JsonObj([("vin",JsonArr(List.map json_addr_assetid inpl));("vout",JsonArr(List.map json_addr_preasset outpl))])
+
+let json_gensignat_or_ref_option s =
+  match s with
+  | Some(GenSignatReal(gs)) -> json_gensignat gs
+  | Some(GenSignatRef(n)) -> JsonNum(string_of_int n)
+  | None -> JsonObj([])
+
+let json_txsigs (insigs,outsigs) =
+  JsonObj([("insigs",JsonArr(List.map json_gensignat_or_ref_option insigs));("outsigs",JsonArr(List.map json_gensignat_or_ref_option outsigs))])
+
+let json_stx (tau,stau) = JsonObj([("tx",json_tx tau);("txsigs",json_txsigs stau)])

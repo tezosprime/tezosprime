@@ -3,6 +3,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Hash
 open Db
 open Mathdata
@@ -61,3 +62,7 @@ module DbTxSignatures :
       val dbput : Hash.hashval -> gensignat_or_ref option list * gensignat_or_ref option list -> unit
       val dbdelete : Hash.hashval -> unit
     end
+
+val json_tx : tx -> jsonval
+val json_txsigs : txsigs -> jsonval
+val json_stx : stx -> jsonval

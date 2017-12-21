@@ -116,3 +116,20 @@ let int32_rev x =
        (Int32.logor
 	  (Int32.shift_left (Int32.logand (Int32.shift_right_logical x 16) 0xffl) 8)
 	  (Int32.logand (Int32.shift_right_logical x 24) 0xffl)))
+
+let hexstring_of_big_int x n =
+  let xr = ref x in
+  let r = ref "" in
+  for i = 1 to n do
+    r := Printf.sprintf "%c%s" (hexchar (int32_of_big_int (and_big_int !xr (big_int_of_int 15)))) !r;
+    xr := shift_right_big_int !xr 4
+  done;
+  !r
+
+let big_int_of_hexstring s =
+  let r = ref zero_big_int in
+  for i = 0 to String.length s - 1 do
+    r := add_big_int (shift_left_big_int !r 4) (big_int_of_int32 (hexchar_inv (s.[i])));
+  done;
+  !r
+

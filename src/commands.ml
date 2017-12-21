@@ -1110,7 +1110,7 @@ let query q =
 	begin
 	  try
 	    let e = Ctre.DbCTreeElt.dbget h in
-	    let j = JsonObj([("type",JsonStr("ctreeelt"))]) in
+	    let j = JsonObj([("type",JsonStr("ctreeelt"));("ctree",json_ctree(e))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;

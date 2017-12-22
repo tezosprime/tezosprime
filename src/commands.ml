@@ -1157,6 +1157,7 @@ let query q =
 	       ("stakeassetid",JsonStr(hashval_hexstring aid));
 	       ("timestamp",JsonNum(Int64.to_string timestamp));
 	       ("deltatime",JsonNum(Int32.to_string deltatime));
+	       ("prevledgerroot",JsonStr(hashval_hexstring (ctree_hashroot bhd.prevledger)));
 	       ("target",JsonStr(string_of_big_int tinfo));
 	       ("difficulty",JsonStr(string_of_big_int (difficulty tinfo)))]
 	    in

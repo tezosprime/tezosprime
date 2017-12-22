@@ -818,7 +818,7 @@ let dbledgersnapshot_asset oc realdbdir newdbdir h =
     dbconfig realdbdir;
     DbAsset.dbinit();
   with Not_found ->
-    Printf.fprintf oc "Could not find %s hcons element in database\n" (hashval_hexstring h)
+    Printf.fprintf oc "Could not find %s asset in database\n" (hashval_hexstring h)
 
 let rec dbledgersnapshot_hcons oc realdbdir newdbdir h =
   try

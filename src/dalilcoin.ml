@@ -809,6 +809,56 @@ let stakingthread () =
 	sleepuntil := ltc_medtime()
   done;;
 
+let dbledgersnapshot_asset oc realdbdir newdbdir h =
+  try
+    let a = DbAsset.dbget h in
+    dbconfig newdbdir;
+    DbAsset.dbinit();
+    DbAsset.dbput h a;
+    dbconfig realdbdir;
+    DbAsset.dbinit();
+  with Not_found ->
+    Printf.fprintf oc "Could not find %s hcons element in database\n" (hashval_hexstring h)
+
+let rec dbledgersnapshot_hcons oc realdbdir newdbdir h =
+  try
+    let (ah,hr) = DbHConsElt.dbget h in
+    dbconfig newdbdir;
+    DbHConsElt.dbinit();
+    DbHConsElt.dbput h (ah,hr);
+    dbconfig realdbdir;
+    DbHConsElt.dbinit();
+    dbledgersnapshot_asset oc realdbdir newdbdir ah;
+    match hr with
+    | Some(hr) -> dbledgersnapshot_hcons oc realdbdir newdbdir hr
+    | None -> ()
+  with Not_found ->
+    Printf.fprintf oc "Could not find %s hcons element in database\n" (hashval_hexstring h)
+
+let rec dbledgersnapshot oc realdbdir newdbdir h =
+  try
+    let c = DbCTreeElt.dbget h in
+    dbconfig newdbdir;
+    DbCTreeElt.dbinit();
+    DbCTreeElt.dbput h c;
+    dbconfig realdbdir;
+    DbCTreeElt.dbinit();
+    dbledgersnapshot_ctree oc realdbdir newdbdir c
+  with Not_found ->
+    Printf.fprintf oc "Could not find %s ctree element in database\n" (hashval_hexstring h)
+and dbledgersnapshot_ctree oc realdbdir newdbdir c =
+  match c with
+  | CLeaf(bl,NehHash(h)) ->
+      dbledgersnapshot_hcons oc realdbdir newdbdir h
+  | CLeaf(bl,_) ->
+      Printf.fprintf oc "non element ctree found in database\n"
+  | CHash(h) -> dbledgersnapshot oc realdbdir newdbdir h
+  | CLeft(c0) -> dbledgersnapshot_ctree oc realdbdir newdbdir c0
+  | CRight(c1) -> dbledgersnapshot_ctree oc realdbdir newdbdir c1
+  | CBin(c0,c1) ->
+      dbledgersnapshot_ctree oc realdbdir newdbdir c0;
+      dbledgersnapshot_ctree oc realdbdir newdbdir c1
+
 let sinceltctime f =
   let snc = Int64.sub (ltc_medtime()) f in
   if snc >= 172800L then
@@ -1279,6 +1329,15 @@ let do_command oc l =
 	| None ->
 	    print_jsonval oc (JsonObj([("height",JsonNum(Int64.to_string (Int64.sub blkh 1L)));("ledgerroot",JsonStr(hashval_hexstring lr))]));
 	    flush oc
+      end
+  | "dbledgersnapshot" ->
+      begin
+	match al with
+	| (newdbdir::roots) ->
+	    let realdbdir = !dbdir in
+	    List.iter (fun r -> dbledgersnapshot oc realdbdir newdbdir (hexstring_hashval r)) roots
+	| [] ->
+	    raise (Failure("expected dbledgersnapshot <newdatabasedir> <ledgerroot> [<otherledgerroots>]"))
       end
   | "bestblock" ->
       let node = get_bestnode_print_warnings oc true in

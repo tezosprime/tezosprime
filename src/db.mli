@@ -1,6 +1,7 @@
 open Ser
 open Hash
 
+val dbdir : string ref
 val dbconfig : string -> unit
 
 module type dbtype = functor (M:sig type t val basedir : string val seival : (seict -> t * seict) val seoval : (t -> seoct -> seoct) end) ->

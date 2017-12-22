@@ -1158,8 +1158,19 @@ let query q =
 	       ("timestamp",JsonNum(Int64.to_string timestamp));
 	       ("deltatime",JsonNum(Int32.to_string deltatime));
 	       ("prevledgerroot",JsonStr(hashval_hexstring (ctree_hashroot bhd.prevledger)));
+	       ("newledgerroot",JsonStr(hashval_hexstring bhd.newledgerroot));
 	       ("target",JsonStr(string_of_big_int tinfo));
 	       ("difficulty",JsonStr(string_of_big_int (difficulty tinfo)))]
+	    in
+	    let jr =
+	      match bhd.newtheoryroot with
+	      | Some(r) -> ("newtheoryroot",JsonStr(hashval_hexstring r))::jr
+	      | None -> jr
+	    in
+	    let jr =
+	      match bhd.newsignaroot with
+	      | Some(r) -> ("newsignaroot",JsonStr(hashval_hexstring r))::jr
+	      | None -> jr
 	    in
 	    let jr =
 	      if invalid then

@@ -1,4 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -286,6 +287,14 @@ module DbTxSignatures = Dbbasic (struct type t = gensignat_or_ref option list * 
 let json_addr_assetid (alpha,h) =
   JsonObj([("address",JsonStr(addr_daliladdrstr alpha));("assetid",JsonStr(hashval_hexstring h))])
 
+let addr_assetid_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let alpha = addr_from_json(List.assoc "address" al) in
+      let h = hashval_from_json(List.assoc "assetid" al) in
+      (alpha,h)
+  | _ -> raise (Failure("not a pair of an address with an asset id"))
+
 let json_addr_preasset (alpha,(obl,u)) =
   match obl with
   | None ->
@@ -320,6 +329,35 @@ let rec json_txouts txh txouts i =
 let json_tx (inpl,outpl) =
   JsonObj([("vin",JsonArr(List.map json_addr_assetid inpl));("vout",JsonArr(json_txouts (hashtx (inpl,outpl)) outpl 0))])
 
+let tx_from_json j =
+  match j with
+  | JsonObj(al) ->
+      begin
+	match List.assoc "vin" al,List.assoc "vout" al with
+	| JsonArr(jvinl),JsonArr(jvoutl) ->
+	    (List.map addr_assetid_from_json jvinl,
+	     List.map
+	       (fun jvout ->
+		 match jvout with
+		 | JsonObj(bl) ->
+		     begin
+		       let alpha = addr_from_json (List.assoc "address" bl) in
+		       let u = preasset_from_json (List.assoc "preasset" bl) in
+		       let jobl =
+			 try
+			   let jobl = List.assoc "obligation" bl in
+			   Some(jobl)
+			 with Not_found -> None
+		       in
+		       let obl = obligation_from_json jobl in
+		       (alpha,(obl,u))
+		     end
+		 | _ -> raise Not_found)
+	       jvoutl)
+	| _,_ -> raise (Failure("not a tx"))
+      end
+  | _ -> raise (Failure("not a tx"))
+      
 let json_gensignat_or_ref_option s =
   match s with
   | Some(GenSignatReal(gs)) -> json_gensignat gs

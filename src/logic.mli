@@ -1,3 +1,8 @@
+(* Copyright (c) 2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Distributed under the MIT software license, see the accompanying
+   file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
+
 open Json
 open Hash
 
@@ -64,3 +69,7 @@ type doc = docitem list
 val json_theoryspec : theoryspec -> jsonval
 val json_signaspec : signaspec -> jsonval
 val json_doc : doc -> jsonval
+
+val theoryspec_from_json : jsonval -> theoryspec
+val signaspec_from_json : jsonval -> signaspec
+val doc_from_json : jsonval -> doc

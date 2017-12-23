@@ -1,4 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -66,3 +67,5 @@ module DbTxSignatures :
 val json_tx : tx -> jsonval
 val json_txsigs : txsigs -> jsonval
 val json_stx : stx -> jsonval
+
+val tx_from_json : jsonval -> tx

@@ -1,10 +1,12 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 (* Most of this code is taken directly from Egal. *)
 
 open Big_int
+open Json
 open Secp256k1
 open Hash
 
@@ -22,3 +24,6 @@ val daliladdrstr_addr : string -> addr
 val btcaddrstr_addr : string -> addr
 val fraenks_of_cants : int64 -> string
 val cants_of_fraenks : string -> int64
+
+val addr_from_json : jsonval -> addr
+val payaddr_from_json : jsonval -> payaddr

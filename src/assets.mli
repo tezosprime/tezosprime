@@ -1,4 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -103,3 +104,7 @@ val get_asset : hashval -> asset
 val json_obligation : obligation -> jsonval option
 val json_preasset : preasset -> jsonval
 val json_asset : asset -> jsonval
+
+val obligation_from_json : jsonval option -> obligation
+val preasset_from_json : jsonval -> preasset
+val asset_from_json : jsonval -> asset

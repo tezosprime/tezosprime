@@ -1,8 +1,10 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Hashaux
 open Sha256
 open Ripemd160
@@ -717,3 +719,8 @@ let merkle_root (l:hashval list) : hashval option =
 
 let hashval_rev (x0,x1,x2,x3,x4,x5,x6,x7) =
   (int32_rev x7,int32_rev x6,int32_rev x5,int32_rev x4,int32_rev x3,int32_rev x2,int32_rev x1,int32_rev x0)
+
+let hashval_from_json j =
+  match j with
+  | JsonStr(h) -> hexstring_hashval h
+  | _ -> raise (Failure("not a hashval"))

@@ -1,8 +1,10 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 open Big_int
+open Json
 open Sha256
 
 type md160 = int32 * int32 * int32 * int32 * int32
@@ -87,3 +89,4 @@ val merkle_root : hashval list -> hashval option
 
 val hashval_rev : hashval -> hashval
 
+val hashval_from_json : jsonval -> hashval

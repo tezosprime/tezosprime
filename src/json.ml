@@ -1,6 +1,8 @@
-(* Copyright (c) 2017 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
+
+open Big_int
 
 type jsonval =
   | JsonStr of string
@@ -201,3 +203,31 @@ let parse_jsonval_start(x,i) =
 
 let parse_jsonval x = parse_jsonval_start(x,0)
 
+let bool_from_json j =
+  match j with
+  | JsonBool(b) -> b
+  | _ -> raise (Failure("not a bool"))
+
+let int_from_json j =
+  match j with
+  | JsonStr(v) -> int_of_string v
+  | JsonNum(v) -> int_of_string v
+  | _ -> raise (Failure("not an int"))
+
+let int32_from_json j =
+  match j with
+  | JsonStr(v) -> Int32.of_string v
+  | JsonNum(v) -> Int32.of_string v
+  | _ -> raise (Failure("not an int32"))
+
+let int64_from_json j =
+  match j with
+  | JsonStr(v) -> Int64.of_string v
+  | JsonNum(v) -> Int64.of_string v
+  | _ -> raise (Failure("not an int64"))
+
+let big_int_from_json j =
+  match j with
+  | JsonStr(v) -> big_int_of_string v
+  | JsonNum(v) -> big_int_of_string v
+  | _ -> raise (Failure("not a big int"))

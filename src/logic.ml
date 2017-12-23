@@ -1,3 +1,8 @@
+(* Copyright (c) 2016 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Distributed under the MIT software license, see the accompanying
+   file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
+
 open Json
 open Hash
 
@@ -66,7 +71,7 @@ let rec json_stp a =
   | TpVar(i) -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("tpvar"));("tpvar",JsonNum(string_of_int i))])
   | Base(i) -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("base"));("base",JsonNum(string_of_int i))])
   | TpAll(a) -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("tpall"));("body",json_stp a)])
-  | TpArr(a1,a2) -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("tparr"));("dom",json_stp a1);("dom",json_stp a2)])
+  | TpArr(a1,a2) -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("tparr"));("dom",json_stp a1);("cod",json_stp a2)])
   | Prop -> JsonObj([("type",JsonStr("stp"));("stpcase",JsonStr("prop"))])
 
 let rec json_trm m =
@@ -108,15 +113,151 @@ let json_signaitem x =
 
 let json_docitem x =
   match x with
-  | Docsigna(h) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docsigna"));("signaroot",JsonStr(hashval_hexstring h))])
-  | Docparam(h,a) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docparam"));("trmroot",JsonStr(hashval_hexstring h));("stp",json_stp a)])
-  | Docdef(a,m) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docdef"));("stp",json_stp a);("def",json_trm m)])
-  | Docknown(p) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docknown"));("prop",json_trm p)])
-  | Docpfof(p,d) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docpfof"));("prop",json_trm p);("pf",json_pf d)])
-  | Docconj(p) -> JsonObj([("type",JsonStr("docitem"));("signaitemcase",JsonStr("docconj"));("prop",json_trm p)])
+  | Docsigna(h) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docsigna"));("signaroot",JsonStr(hashval_hexstring h))])
+  | Docparam(h,a) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docparam"));("trmroot",JsonStr(hashval_hexstring h));("stp",json_stp a)])
+  | Docdef(a,m) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docdef"));("stp",json_stp a);("def",json_trm m)])
+  | Docknown(p) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docknown"));("prop",json_trm p)])
+  | Docpfof(p,d) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docpfof"));("prop",json_trm p);("pf",json_pf d)])
+  | Docconj(p) -> JsonObj([("type",JsonStr("docitem"));("docitemcase",JsonStr("docconj"));("prop",json_trm p)])
 
 let json_theoryspec ts = JsonArr(List.map json_theoryitem ts)
 
 let json_signaspec ss = JsonArr(List.map json_signaitem ss)
 
 let json_doc d = JsonArr (List.map json_docitem d)
+
+let rec stp_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "stpcase" al in
+      if c = JsonStr("tpvar") then
+	TpVar(int_from_json(List.assoc "tpvar" al))
+      else if c = JsonStr("base") then
+	Base(int_from_json(List.assoc "base" al))
+      else if c = JsonStr("tpall") then
+	TpAll(stp_from_json(List.assoc "body" al))
+      else if c = JsonStr("tparr") then
+	TpArr(stp_from_json(List.assoc "dom" al),stp_from_json(List.assoc "cod" al))
+      else if c = JsonStr("prop") then
+	Prop
+      else
+	raise (Failure("not an stp"))
+  | _ -> raise (Failure("not an stp"))
+
+let rec trm_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "trmcase" al in
+      if c = JsonStr("db") then
+	DB(int_from_json(List.assoc "db" al))
+      else if c = JsonStr("tmh") then
+	TmH(hashval_from_json(List.assoc "trmroot" al))
+      else if c = JsonStr("prim") then
+	Prim(int_from_json(List.assoc "prim" al))
+      else if c = JsonStr("ap") then
+	Ap(trm_from_json(List.assoc "func" al),trm_from_json(List.assoc "arg" al))
+      else if c = JsonStr("lam") then
+	Lam(stp_from_json(List.assoc "dom" al),trm_from_json(List.assoc "body" al))
+      else if c = JsonStr("imp") then
+	Imp(trm_from_json(List.assoc "ant" al),trm_from_json(List.assoc "suc" al))
+      else if c = JsonStr("all") then
+	All(stp_from_json(List.assoc "dom" al),trm_from_json(List.assoc "body" al))
+      else if c = JsonStr("ttpap") then
+	TTpAp(trm_from_json(List.assoc "func" al),stp_from_json(List.assoc "arg" al))
+      else if c = JsonStr("ttplam") then
+	TTpLam(trm_from_json(List.assoc "fbody" al))
+      else if c = JsonStr("ttpall") then
+	TTpAll(trm_from_json(List.assoc "fbody" al))
+      else
+	raise (Failure("not a trm"))
+  | _ -> raise (Failure("not a trm"))
+
+let rec pf_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "pfcase" al in
+      if c = JsonStr("known") then
+	Known(hashval_from_json(List.assoc "trmroot" al))
+      else if c = JsonStr("hyp") then
+	Hyp(int_from_json(List.assoc "hyp" al))
+      else if c = JsonStr("prap") then
+	PrAp(pf_from_json(List.assoc "func" al),pf_from_json(List.assoc "arg" al))
+      else if c = JsonStr("tmap") then
+	TmAp(pf_from_json(List.assoc "func" al),trm_from_json(List.assoc "arg" al))
+      else if c = JsonStr("tpap") then
+	TpAp(pf_from_json(List.assoc "func" al),stp_from_json(List.assoc "arg" al))
+      else if c = JsonStr("prla") then
+	PrLa(trm_from_json(List.assoc "dom" al),pf_from_json(List.assoc "body" al))
+      else if c = JsonStr("tmla") then
+	TmLa(stp_from_json(List.assoc "dom" al),pf_from_json(List.assoc "body" al))
+      else if c = JsonStr("tpla") then
+	TpLa(pf_from_json(List.assoc "body" al))
+      else
+	raise (Failure("not a pf"))
+  | _ -> raise (Failure("not a pf"))
+
+let theoryitem_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "theoryitemcase" al in
+      if c = JsonStr("thyprim") then
+	Thyprim(stp_from_json(List.assoc "stp" al))
+      else if c = JsonStr("thyaxiom") then
+	Thyaxiom(trm_from_json(List.assoc "prop" al))
+      else if c = JsonStr("thydef") then
+	Thydef(stp_from_json(List.assoc "stp" al),trm_from_json(List.assoc "def" al))
+      else
+	raise (Failure("not a theoryitem"))
+  | _ -> raise (Failure("not a theoryitem"))
+
+let signaitem_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "signaitemcase" al in
+      if c = JsonStr("signasigna") then
+	Signasigna(hashval_from_json(List.assoc "signaroot" al))
+      else if c = JsonStr("signaparam") then
+	Signaparam(hashval_from_json(List.assoc "trmroot" al),stp_from_json(List.assoc "stp" al))
+      else if c = JsonStr("signadef") then
+	Signadef(stp_from_json(List.assoc "stp" al),trm_from_json(List.assoc "def" al))
+      else if c = JsonStr("signaknown") then
+	Signaknown(trm_from_json(List.assoc "prop" al))
+      else
+	raise (Failure("not a signaitem"))
+  | _ -> raise (Failure("not a signaitem"))
+
+let docitem_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let c = List.assoc "docitemcase" al in
+      if c = JsonStr("docsigna") then
+	Docsigna(hashval_from_json(List.assoc "signaroot" al))
+      else if c = JsonStr("docparam") then
+	Docparam(hashval_from_json(List.assoc "trmroot" al),stp_from_json(List.assoc "stp" al))
+      else if c = JsonStr("docdef") then
+	Docdef(stp_from_json(List.assoc "stp" al),trm_from_json(List.assoc "def" al))
+      else if c = JsonStr("docknown") then
+	Docknown(trm_from_json(List.assoc "prop" al))
+      else if c = JsonStr("docpfof") then
+	Docpfof(trm_from_json(List.assoc "prop" al),pf_from_json(List.assoc "pf" al))
+      else if c = JsonStr("docconj") then
+	Docconj(trm_from_json(List.assoc "prop" al))
+      else
+	raise (Failure("not a docitem"))
+  | _ -> raise (Failure("not a docitem"))
+
+let theoryspec_from_json j =
+  match j with
+  | JsonArr(jl) -> List.map theoryitem_from_json jl
+  | _ -> raise (Failure("not a theoryspec"))
+
+let signaspec_from_json j =
+  match j with
+  | JsonArr(jl) -> List.map signaitem_from_json jl
+  | _ -> raise (Failure("not a signaspec"))
+
+let doc_from_json j =
+  match j with
+  | JsonArr(jl) -> List.map docitem_from_json jl
+  | _ -> raise (Failure("not a doc"))
+  

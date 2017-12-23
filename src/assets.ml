@@ -442,21 +442,21 @@ let json_obligation obl =
 
 let json_preasset u =
   match u with
-  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("units",JsonNum(Int64.to_string v))])
-  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("units",JsonNum(Int64.to_string v))])
+  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("cants",JsonNum(Int64.to_string v))])
+  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("cants",JsonNum(Int64.to_string v))])
   | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
   | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",JsonNum(Int64.to_string r))])
   | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
   | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",JsonNum(Int64.to_string r))])
   | OwnsNegProp -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsnegprop"))])
-  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("units",JsonNum(Int64.to_string r))])
-  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("units",JsonNum(Int64.to_string r))])
+  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("objid"));("units",JsonNum(Int64.to_string r))])
+  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("propid"));("units",JsonNum(Int64.to_string r))])
   | Marker -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("marker"))])
-  | TheoryPublication(beta,h,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("theoryspec",json_theoryspec(ts))])
-  | SignaPublication(beta,h,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("signaspec",json_signaspec(ss))])
-  | SignaPublication(beta,h,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec(ss))])
-  | DocPublication(beta,h,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("doc",json_doc(d))])
-  | DocPublication(beta,h,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc(d))])
+  | TheoryPublication(beta,nonce,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryspec",json_theoryspec(ts))])
+  | SignaPublication(beta,nonce,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("signaspec",json_signaspec(ss))])
+  | SignaPublication(beta,nonce,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec(ss))])
+  | DocPublication(beta,nonce,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("doc",json_doc(d))])
+  | DocPublication(beta,nonce,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc(d))])
 
 let json_asset a =
   let (aid,bday,obl,u) = a in
@@ -472,3 +472,100 @@ let json_asset a =
 	       ("bday",JsonNum(Int64.to_string bday));
 	       ("obligation",jobl);
 	       ("preasset",json_preasset u)])
+
+let obligation_from_json j =
+  match j with
+  | None -> None
+  | Some(JsonObj(al)) ->
+      let alpha = payaddr_from_json (List.assoc "lockaddress" al) in
+      let lkh = int64_from_json (List.assoc "lockheight" al) in
+      let r = bool_from_json (List.assoc "reward" al) in
+      Some(alpha,lkh,r)
+  | _ -> raise (Failure("not an obligation"))
+      
+let preasset_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let pat = List.assoc "preassettype" al in
+      if pat = JsonStr("currency") then
+	begin
+	  let v = int64_from_json (List.assoc "cants" al) in
+	  Currency(v)
+	end
+      else if pat = JsonStr("bounty") then
+	begin
+	  let v = int64_from_json (List.assoc "cants" al) in
+	  Bounty(v)
+	end
+      else if pat = JsonStr("ownsobj") then
+	begin
+	  let h = hashval_from_json (List.assoc "objid" al) in
+	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
+	  let jr = (try Some(List.assoc "royalty" al) with Not_found -> None) in
+	  let r = (match jr with Some(jr) -> Some(int64_from_json jr) | None -> None) in
+	  OwnsObj(h,beta,r)
+	end
+      else if pat = JsonStr("ownsprop") then
+	begin
+	  let h = hashval_from_json (List.assoc "propid" al) in
+	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
+	  let jr = (try Some(List.assoc "royalty" al) with Not_found -> None) in
+	  let r = (match jr with Some(jr) -> Some(int64_from_json jr) | None -> None) in
+	  OwnsProp(h,beta,r)
+	end
+      else if pat = JsonStr("ownsnegprop") then
+	OwnsNegProp
+      else if pat = JsonStr("rightsobj") then
+	begin
+	  let h = hashval_from_json (List.assoc "objid" al) in
+	  let r = int64_from_json (List.assoc "units" al) in
+	  RightsObj(h,r)
+	end
+      else if pat = JsonStr("rightsprop") then
+	begin
+	  let h = hashval_from_json (List.assoc "propid" al) in
+	  let r = int64_from_json (List.assoc "units" al) in
+	  RightsProp(h,r)
+	end
+      else if pat = JsonStr("marker") then
+	Marker
+      else if pat = JsonStr("theoryspec") then
+	begin
+	  let beta = payaddr_from_json (List.assoc "publisher" al) in
+	  let nonce = hashval_from_json (List.assoc "nonce" al) in
+	  let ts = theoryspec_from_json (List.assoc "theoryspec" al) in
+	  TheoryPublication(beta,nonce,ts)
+	end
+      else if pat = JsonStr("signaspec") then
+	begin
+	  let beta = payaddr_from_json (List.assoc "publisher" al) in
+	  let nonce = hashval_from_json (List.assoc "nonce" al) in
+	  let jth = (try Some(List.assoc "theoryid" al) with Not_found -> None) in
+	  let th = (match jth with Some(jth) -> Some(hashval_from_json jth) | None -> None) in
+	  let ss = signaspec_from_json (List.assoc "signaspec" al) in
+	  SignaPublication(beta,nonce,th,ss)
+	end
+      else if pat = JsonStr("doc") then
+	begin
+	  let beta = payaddr_from_json (List.assoc "publisher" al) in
+	  let nonce = hashval_from_json (List.assoc "nonce" al) in
+	  let jth = (try Some(List.assoc "theoryid" al) with Not_found -> None) in
+	  let th = (match jth with Some(jth) -> Some(hashval_from_json jth) | None -> None) in
+	  let d = doc_from_json (List.assoc "doc" al) in
+	  DocPublication(beta,nonce,th,d)
+	end
+      else
+	raise (Failure("not a preasset"))
+  | _ -> raise (Failure("not a preasset"))
+
+let asset_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let aid = hashval_from_json (List.assoc "assetid" al) in
+      let bday = int64_from_json (List.assoc "bday" al) in
+      let u = preasset_from_json (List.assoc "preasset" al) in
+      let jobl = (try Some(List.assoc "obligation" al) with Not_found -> None) in
+      let obl = obligation_from_json jobl in
+      (aid,bday,obl,u)
+  | _ ->
+      raise (Failure("not an asset"))

@@ -1,10 +1,12 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 (* Most of this code is taken directly from Egal. *)
 
 open Big_int
+open Json
 open Ser
 open Hashaux
 open Sha256
@@ -314,4 +316,20 @@ let cants_of_fraenks s =
 	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
   done;
   Int64.add (Int64.mul !f 100000000000L) !c
+
+let addr_from_json j =
+  match j with
+  | JsonStr(a) ->
+      if String.length a > 0 && (a.[0] = '1' || a.[0] = '3') then
+	btcaddrstr_addr a
+      else
+	daliladdrstr_addr a
+  | _ -> raise (Failure("not an address"))
+
+let payaddr_from_json j =
+  let (i,a0,a1,a2,a3,a4) = addr_from_json j in
+  if i = 0 || i = 1 then
+    (i=1,a0,a1,a2,a3,a4)
+  else
+    raise (Failure("not a pay address"))
 

@@ -39,7 +39,7 @@ bin/sha256.cmi: src/sha256.mli bin/ser.cmi
 bin/ripemd160.cmi: src/ripemd160.mli bin/sha256.cmi
 	$(OCAMLC) -I bin -o bin/ripemd160.cmi -c src/ripemd160.mli
 
-bin/hash.cmi: src/hash.mli bin/sha256.cmi
+bin/hash.cmi: src/hash.mli bin/sha256.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/hash.cmi -c src/hash.mli
 
 bin/htree.cmi: src/htree.mli bin/hash.cmi
@@ -63,7 +63,7 @@ bin/assets.cmi: src/assets.mli bin/hash.cmi bin/logic.cmi bin/mathdata.cmi bin/c
 bin/secp256k1.cmi: src/secp256k1.mli
 	$(OCAMLC) -I bin -o bin/secp256k1.cmi -c src/secp256k1.mli
 
-bin/cryptocurr.cmi: src/cryptocurr.mli bin/hash.cmi bin/secp256k1.cmi
+bin/cryptocurr.cmi: src/cryptocurr.mli bin/hash.cmi bin/secp256k1.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/cryptocurr.cmi -c src/cryptocurr.mli
 
 bin/signat.cmi: src/signat.mli bin/hash.cmi bin/sha256.cmi bin/secp256k1.cmi
@@ -111,7 +111,7 @@ bin/ser.cmx: src/ser.ml bin/ser.cmi
 bin/secp256k1.cmx: src/secp256k1.ml bin/secp256k1.cmi
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/secp256k1.cmx -c src/secp256k1.ml
 
-bin/cryptocurr.cmx: src/cryptocurr.ml bin/cryptocurr.cmi bin/ser.cmx bin/hashaux.cmx bin/sha256.cmx bin/hash.cmx bin/secp256k1.cmx bin/config.cmx
+bin/cryptocurr.cmx: src/cryptocurr.ml bin/cryptocurr.cmi bin/ser.cmx bin/hashaux.cmx bin/sha256.cmx bin/hash.cmx bin/secp256k1.cmx bin/config.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/cryptocurr.cmx -c src/cryptocurr.ml
 
 bin/signat.cmx: src/signat.ml bin/signat.cmi bin/config.cmx bin/ser.cmx bin/sha256.cmx bin/hash.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/net.cmx
@@ -135,7 +135,7 @@ bin/sha256.cmx: src/sha256.ml bin/sha256.cmi bin/hashaux.cmx bin/ser.cmx bin/uti
 bin/ripemd160.cmx: src/ripemd160.ml bin/ripemd160.cmi bin/hashaux.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/ripemd160.cmx -c src/ripemd160.ml
 
-bin/hash.cmx: src/hash.ml bin/hash.cmi bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/ser.cmx
+bin/hash.cmx: src/hash.ml bin/hash.cmi bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/ser.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/hash.cmx -c src/hash.ml
 
 bin/htree.cmx: src/htree.ml bin/htree.cmi bin/hash.cmx
@@ -201,7 +201,7 @@ bin/ser.cmo: src/ser.ml bin/ser.cmi
 bin/secp256k1.cmo: src/secp256k1.ml bin/secp256k1.cmi
 	$(OCAMLC) -I bin -o bin/secp256k1.cmo -c src/secp256k1.ml
 
-bin/cryptocurr.cmo: src/cryptocurr.ml bin/cryptocurr.cmi bin/ser.cmo bin/hashaux.cmo bin/sha256.cmo bin/hash.cmo bin/secp256k1.cmo bin/config.cmo
+bin/cryptocurr.cmo: src/cryptocurr.ml bin/cryptocurr.cmi bin/ser.cmo bin/hashaux.cmo bin/sha256.cmo bin/hash.cmo bin/secp256k1.cmo bin/config.cmo bin/json.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/cryptocurr.cmo -c src/cryptocurr.ml
 
 bin/signat.cmo: src/signat.ml bin/signat.cmi bin/config.cmo bin/ser.cmo bin/sha256.cmo bin/hash.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/net.cmo
@@ -225,7 +225,7 @@ bin/sha256.cmo: src/sha256.ml bin/sha256.cmi bin/hashaux.cmo bin/ser.cmo bin/uti
 bin/ripemd160.cmo: src/ripemd160.ml bin/ripemd160.cmi bin/hashaux.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/ripemd160.cmo -c src/ripemd160.ml
 
-bin/hash.cmo: src/hash.ml bin/hash.cmi bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/ser.cmo
+bin/hash.cmo: src/hash.ml bin/hash.cmi bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/ser.cmo bin/json.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/hash.cmo -c src/hash.ml
 
 bin/htree.cmo: src/htree.ml bin/htree.cmi bin/hash.cmo

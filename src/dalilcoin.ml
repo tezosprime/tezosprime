@@ -1243,6 +1243,22 @@ let do_command oc l =
 	with Exit ->
 	  Printf.fprintf oc "createtx <inputs as json array> <outputs as json array>\neach input: {\"<addr>\":\"<assetid>\"}\neach output: {\"addr\":\"<addr>\",\"val\":<fraenks>,\"lock\":<height>,\"obligationaddress\":\"<addr>\"}\nwhere lock is optional (default null, unlocked output)\nand obligationaddress is optional (default null, meaning the holder address is implicitly the obligationaddress)\n"
       end
+  | "creategeneraltx" ->
+      begin
+	try
+	  match al with
+	  | [jtxstr] ->
+	      let (jtx,_) = parse_jsonval jtxstr in
+	      let tau = tx_from_json jtx in
+	      let s = Buffer.create 100 in
+	      seosbf (seo_stx seosb (tau,([],[])) (s,None));
+	      let hs = Hashaux.string_hexstring (Buffer.contents s) in
+	      Printf.fprintf oc "%s\n" hs
+	  | _ ->
+	      raise Exit
+	with Exit ->
+	  Printf.fprintf oc "creategeneraltx <tx as json object>\n"
+      end
   | "createsplitlocktx" ->
       begin
 	match al with

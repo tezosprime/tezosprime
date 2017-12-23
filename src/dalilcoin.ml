@@ -809,55 +809,55 @@ let stakingthread () =
 	sleepuntil := ltc_medtime()
   done;;
 
-let dbledgersnapshot_asset oc realdbdir newdbdir h =
-  try
-    let a = DbAsset.dbget h in
-    dbconfig newdbdir;
-    DbAsset.dbinit();
-    DbAsset.dbput h a;
-    dbconfig realdbdir;
-    DbAsset.dbinit();
-  with Not_found ->
-    Printf.fprintf oc "Could not find %s asset in database\n" (hashval_hexstring h)
+let dbledgersnapshot_asset assetfile fin h =
+  if not (Hashtbl.mem fin h) then
+    begin
+      Hashtbl.add fin h ();
+      try
+        let a = DbAsset.dbget h in
+        seocf (seo_asset seoc a (assetfile,None))
+      with Not_found ->
+        Printf.printf "Could not find %s asset in database\n" (hashval_hexstring h)
+    end
 
-let rec dbledgersnapshot_hcons oc realdbdir newdbdir h =
-  try
-    let (ah,hr) = DbHConsElt.dbget h in
-    dbconfig newdbdir;
-    DbHConsElt.dbinit();
-    DbHConsElt.dbput h (ah,hr);
-    dbconfig realdbdir;
-    DbHConsElt.dbinit();
-    dbledgersnapshot_asset oc realdbdir newdbdir ah;
-    match hr with
-    | Some(hr) -> dbledgersnapshot_hcons oc realdbdir newdbdir hr
-    | None -> ()
-  with Not_found ->
-    Printf.fprintf oc "Could not find %s hcons element in database\n" (hashval_hexstring h)
+let rec dbledgersnapshot_hcons (hconseltfile,assetfile) fin h =
+  if not (Hashtbl.mem fin h) then
+    begin
+      Hashtbl.add fin h ();
+      try
+	let (ah,hr) = DbHConsElt.dbget h in
+        seocf (seo_prod seo_hashval (seo_option seo_hashval) seoc (ah,hr) (hconseltfile,None));
+	dbledgersnapshot_asset assetfile fin ah;
+	match hr with
+	| Some(hr) -> dbledgersnapshot_hcons (hconseltfile,assetfile) fin hr
+	| None -> ()
+      with Not_found ->
+	Printf.printf "Could not find %s hcons element in database\n" (hashval_hexstring h)
+    end
 
-let rec dbledgersnapshot oc realdbdir newdbdir h =
-  try
-    let c = DbCTreeElt.dbget h in
-    dbconfig newdbdir;
-    DbCTreeElt.dbinit();
-    DbCTreeElt.dbput h c;
-    dbconfig realdbdir;
-    DbCTreeElt.dbinit();
-    dbledgersnapshot_ctree oc realdbdir newdbdir c
-  with Not_found ->
-    Printf.fprintf oc "Could not find %s ctree element in database\n" (hashval_hexstring h)
-and dbledgersnapshot_ctree oc realdbdir newdbdir c =
+let rec dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h =
+  if not (Hashtbl.mem fin h) && (!snapshot_full || not (supp = [])) then
+    begin
+      Hashtbl.add fin h ();
+      try
+	let c = DbCTreeElt.dbget h in
+	seocf (seo_ctree seoc c (ctreeeltfile,None));
+	dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin supp c
+      with Not_found ->
+	Printf.printf "Could not find %s ctree element in database\n" (hashval_hexstring h)
+    end
+and dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin supp c =
   match c with
   | CLeaf(bl,NehHash(h)) ->
-      dbledgersnapshot_hcons oc realdbdir newdbdir h
+      dbledgersnapshot_hcons (hconseltfile,assetfile) fin h
   | CLeaf(bl,_) ->
-      Printf.fprintf oc "non element ctree found in database\n"
-  | CHash(h) -> dbledgersnapshot oc realdbdir newdbdir h
-  | CLeft(c0) -> dbledgersnapshot_ctree oc realdbdir newdbdir c0
-  | CRight(c1) -> dbledgersnapshot_ctree oc realdbdir newdbdir c1
+      Printf.printf "non element ctree found in database\n"
+  | CHash(h) -> dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h
+  | CLeft(c0) -> dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_false0 supp) c0
+  | CRight(c1) -> dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_true0 supp) c1
   | CBin(c0,c1) ->
-      dbledgersnapshot_ctree oc realdbdir newdbdir c0;
-      dbledgersnapshot_ctree oc realdbdir newdbdir c1
+      dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_false0 supp) c0;
+      dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_true0 supp) c1
 
 let sinceltctime f =
   let snc = Int64.sub (ltc_medtime()) f in
@@ -1330,15 +1330,6 @@ let do_command oc l =
 	    print_jsonval oc (JsonObj([("height",JsonNum(Int64.to_string (Int64.sub blkh 1L)));("ledgerroot",JsonStr(hashval_hexstring lr))]));
 	    flush oc
       end
-  | "dbledgersnapshot" ->
-      begin
-	match al with
-	| (newdbdir::roots) ->
-	    let realdbdir = !dbdir in
-	    List.iter (fun r -> dbledgersnapshot oc realdbdir newdbdir (hexstring_hashval r)) roots
-	| [] ->
-	    raise (Failure("expected dbledgersnapshot <newdatabasedir> <ledgerroot> [<otherledgerroots>]"))
-      end
   | "bestblock" ->
       let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in
@@ -1369,20 +1360,6 @@ let initialize () =
     process_config_file();
     process_config_args(); (*** settings on the command line shadow those in the config file ***)
     if not !Config.testnet then (Printf.printf "Dalilcoin can only be run on testnet for now. Please give the -testnet command line argument.\n"; exit 1);
-    begin
-      match !Config.checkpointskey with
-	None -> ()
-      | Some(w) ->
-	  let (k,b) = privkey_from_wif w in
-	  match smulp k Secp256k1._g with
-	  | Some(x,y) ->
-	      if not b && eq_big_int x checkpointspubkeyx && eq_big_int y checkpointspubkeyy then
-		checkpointsprivkeyk := Some(k)
-	      else
-		raise (Failure "Incorrect testnet checkpointskey given")
-	  | None ->
-	      raise (Failure "Incorrect testnet checkpointskey given")
-    end;
     let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
     if !Config.testnet then
       begin
@@ -1413,6 +1390,135 @@ let initialize () =
     DbLtcBlock.dbinit();
     Printf.printf "Initialized.\n"; flush stdout;
     openlog(); (*** Don't open the log until the config vars are set, so if we know whether or not it's testnet. ***)
+    if !createsnapshot then
+      begin
+	match !snapshot_dir with
+	| None ->
+	    Printf.printf "No snapshot directory given.\n";
+	    !exitfn 1
+	| Some(dir) -> (*** then creating a snapshot ***)
+	    Printf.printf "Creating snapshot.\n"; flush stdout;
+	    let fin : (hashval,unit) Hashtbl.t = Hashtbl.create 10000 in
+	    begin
+	      if Sys.file_exists dir then
+		if Sys.is_directory dir then
+		  ()
+		else
+		  raise (Failure (dir ^ " is a file not a directory"))
+	      else
+		begin
+		  Unix.mkdir dir 0b111111000
+		end
+	    end;
+	    let headerfile = open_out_bin (Filename.concat dir "headers") in
+	    let blockfile = open_out_bin (Filename.concat dir "blocks") in
+	    let ctreeeltfile = open_out_bin (Filename.concat dir "ctreeelts") in
+	    let hconseltfile = open_out_bin (Filename.concat dir "hconselts") in
+	    let assetfile = open_out_bin (Filename.concat dir "assets") in
+	    List.iter
+	      (fun h ->
+		if not (Hashtbl.mem fin h) then
+		  begin
+		    Hashtbl.add fin h ();
+                    try
+		      let bh = DbBlockHeader.dbget h in
+		      let bd = DbBlockDelta.dbget h in
+		      seocf (seo_block seoc (bh,bd) (blockfile,None))
+		    with e ->
+		      Printf.printf "WARNING: Exception called when trying to save block %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
+		  end)
+	      !snapshot_blocks;
+	    List.iter
+	      (fun h ->
+		if not (Hashtbl.mem fin h) then
+		  begin
+		    Hashtbl.add fin h ();
+                    try
+		      let bh = DbBlockHeader.dbget h in
+		      seocf (seo_blockheader seoc bh (headerfile,None));
+		    with e ->
+		      Printf.printf "WARNING: Exception called when trying to save header %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
+		  end)
+	      !snapshot_headers;
+	    let supp = List.map addr_bitseq !snapshot_addresses in
+	    List.iter
+	      (fun h -> dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h)
+	      !snapshot_ledgerroots;
+	    close_out headerfile;
+	    close_out blockfile;
+	    close_out ctreeeltfile;
+	    close_out hconseltfile;
+	    close_out assetfile;
+	    closelog();
+	    !exitfn 0;
+      end;
+    if !importsnapshot then
+      begin
+	match !snapshot_dir with
+	| None ->
+	    Printf.printf "No snapshot directory given.\n";
+	    !exitfn 1
+	| Some(dir) -> (*** then creating a snapshot ***)
+	    Printf.printf "Importing snapshot.\n"; flush stdout;
+	    let headerfile = open_in_bin (Filename.concat dir "headers") in
+	    let blockfile = open_in_bin (Filename.concat dir "blocks") in
+	    let ctreeeltfile = open_in_bin (Filename.concat dir "ctreeelts") in
+	    let hconseltfile = open_in_bin (Filename.concat dir "hconselts") in
+	    let assetfile = open_in_bin (Filename.concat dir "assets") in
+	    begin
+	      try
+		while true do
+		  let ((bh,bd),_) = sei_block seic (blockfile,None) in
+		  let h = blockheader_id bh in
+		  DbBlockHeader.dbput h bh;
+		  DbBlockDelta.dbput h bd;
+		done
+	      with _ -> ()
+	    end;
+	    begin
+	      try
+		while true do
+		  let (bh,_) = sei_blockheader seic (headerfile,None) in
+		  let h = blockheader_id bh in
+		  DbBlockHeader.dbput h bh;
+		done
+	      with _ -> ()
+	    end;
+	    begin
+	      try
+		while true do
+		  let (c,_) = sei_ctree seic (ctreeeltfile,None) in
+		  let h = ctree_hashroot c in
+		  DbCTreeElt.dbput h c;
+		done
+	      with _ -> ()
+	    end;
+	    begin
+	      try
+		while true do
+		  let ((ah,hr),_) = sei_prod sei_hashval (sei_option sei_hashval) seic (hconseltfile,None) in
+		  let h = nehlist_hashroot (NehConsH(ah,match hr with None -> HNil | Some(hr) -> HHash(hr))) in
+		  DbHConsElt.dbput h (ah,hr)
+		done
+	      with _ -> ()
+	    end;
+	    begin
+	      try
+		while true do
+		  let (a,_) = sei_asset seic (assetfile,None) in
+		  let h = hashasset a in
+		  DbAsset.dbput h a;
+		done
+	      with _ -> ()
+	    end;
+	    close_in headerfile;
+	    close_in blockfile;
+	    close_in ctreeeltfile;
+	    close_in hconseltfile;
+	    close_in assetfile;
+	    closelog();
+	    !exitfn 0;
+      end;
     if !Config.seed = "" && !Config.lastcheckpoint = "" then
       begin
 	raise (Failure "Need either a seed (to validate the genesis block) or a lastcheckpoint (to start later in the blockchain); have neither")

@@ -3,6 +3,9 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Hash
+open Cryptocurr
+
 let stringconfigvars = [
 ("seed",fun x -> Config.seed := x);
 ("lastcheckpoint",fun x -> Config.lastcheckpoint := x);
@@ -39,7 +42,6 @@ let int64configvars = [
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);
 ("randomseed",fun x -> Config.randomseed := x);
-("checkpointskey",fun x -> Config.checkpointskey := x);
 ];;
 let intoptionconfigvars = [
 ("socks",fun x -> Config.socks := x)
@@ -181,12 +183,105 @@ let datadir_from_command_line () =
     with Not_found -> ()
   done;;
 
+exception CreateSnapshot of int;;
+exception ImportSnapshot of int;;
+
+let createsnapshot = ref false;;
+let importsnapshot = ref false;;
+let snapshot_dir = ref None;;
+let snapshot_headers = ref [];;
+let snapshot_blocks = ref [];;
+let snapshot_ledgerroots = ref [];;
+let snapshot_full = ref true;;
+let snapshot_addresses = ref [];;
+
 let process_config_args () =
   let a = Array.length Sys.argv in
-  for i = 1 to a-1 do
-    let arg = Sys.argv.(i) in
-    if String.length arg > 1 && arg.[0] = '-' then
-      try
-	process_config_line (String.sub arg 1 ((String.length arg) - 1))
-      with Not_found -> ()
-  done;;
+  try
+    for i = 1 to a-1 do
+      let arg = Sys.argv.(i) in
+      if arg = "-createsnapshot" then
+	raise (CreateSnapshot(i))
+      else if arg = "-importsnapshot" then
+	raise (ImportSnapshot(i))
+      else if String.length arg > 1 && arg.[0] = '-' then
+	try
+	  process_config_line (String.sub arg 1 ((String.length arg) - 1))
+	with Not_found -> ()
+    done
+  with
+  | CreateSnapshot(i) -> (*** dalilcoin is being started only to take a snapshot of the current state; this can be used to help new people easily bootstrap with partial or full databases; the snapshot requires dalilcoin to otherwise not be running so that the database remains fixed during the creation of the snapshot ***)
+      createsnapshot := true;
+      let ledgerrooteql = String.length "-ledgerroot=" in
+      let headereql = String.length "-header=" in
+      let blockeql = String.length "-block=" in
+      let addresseql = String.length "-address=" in
+      if i+1 >= a then
+	begin
+	  Printf.printf "Expected -createsnapshot <newsnapshotdirectory> [-ledgerroot=<hashval>]* [-block=<hashval>]* [-header=<hashval>]* [-address=<address>]*\n";
+	  exit 1
+	end;
+      snapshot_dir := Some(Sys.argv.(i+1));
+      for j = i+2 to a-1 do
+	let arg = Sys.argv.(j) in
+	let argl = String.length arg in
+	if argl > ledgerrooteql && String.sub arg 0 ledgerrooteql = "-ledgerroot=" then
+	  begin
+	    let hh = String.sub arg ledgerrooteql (argl-ledgerrooteql) in
+	    try
+	      let h = hexstring_hashval hh in
+	      snapshot_ledgerroots := h::!snapshot_ledgerroots
+	    with _ ->
+	      Printf.printf "Could not understand %s as a ledgerroot\n" hh;
+	      exit 1
+	  end
+	else if argl > headereql && String.sub arg 0 headereql = "-header=" then
+	  begin
+	    let hh = String.sub arg headereql (argl-headereql) in
+	    try
+	      let h = hexstring_hashval hh in
+	      snapshot_headers := h::!snapshot_headers
+	    with _ ->
+	      Printf.printf "Could not understand %s as a header\n" hh;
+	      exit 1
+	  end
+	else if argl > blockeql && String.sub arg 0 blockeql = "-block=" then
+	  begin
+	    let hh = String.sub arg blockeql (argl-blockeql) in
+	    try
+	      let h = hexstring_hashval hh in
+	      snapshot_blocks := h::!snapshot_blocks
+	    with _ ->
+	      Printf.printf "Could not understand %s as a block\n" hh;
+	      exit 1
+	  end
+	else if argl > addresseql && String.sub arg 0 addresseql = "-address=" then
+	  begin
+	    snapshot_full := false; (*** if at least one specific address to support is given, then assume a partial snapshot of the ledger is desired ***)
+	    let a = String.sub arg addresseql (argl-addresseql) in
+	    try
+	      let alpha =
+		if String.length a > 0 && (a.[0] = '1' || a.[0] = '3') then
+		  btcaddrstr_addr a
+		else
+		  daliladdrstr_addr a
+	      in
+	      snapshot_addresses := alpha::!snapshot_addresses
+	    with _ ->
+	      Printf.printf "Could not understand %s as an address\n" a;
+	      exit 1
+	  end
+	else
+	  begin
+	    Printf.printf "Could not understand %s\n" arg;
+	    exit 1
+	  end
+      done
+  | ImportSnapshot(i) -> (*** dalilcoin is being started only to import a snapshot into the local database ***)
+      importsnapshot := true;
+      if not (i = a-2) then
+	begin
+	  Printf.printf "Expected -importsnapshot <snapshotdirectory>\n";
+	  exit 1
+	end;
+      snapshot_dir := Some(Sys.argv.(i+1))

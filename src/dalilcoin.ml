@@ -809,10 +809,18 @@ let stakingthread () =
 	sleepuntil := ltc_medtime()
   done;;
 
+(*** if only one ledger root is in the snapshot, assets, hconselts and ctreeelts will not be revisited, so no need to waste memory by saving them in fin ***)
+let snapshot_fin_mem fin h = 
+  (List.length !snapshot_ledgerroots > 1) && Hashtbl.mem fin h
+
+let snapshot_fin_add fin h =
+  if List.length !snapshot_ledgerroots > 1 then
+    Hashtbl.add fin h ()
+
 let dbledgersnapshot_asset assetfile fin h =
-  if not (Hashtbl.mem fin h) then
+  if not (snapshot_fin_mem fin h) then
     begin
-      Hashtbl.add fin h ();
+      snapshot_fin_add fin h;
       try
         let a = DbAsset.dbget h in
         seocf (seo_asset seoc a (assetfile,None))
@@ -821,9 +829,9 @@ let dbledgersnapshot_asset assetfile fin h =
     end
 
 let rec dbledgersnapshot_hcons (hconseltfile,assetfile) fin h =
-  if not (Hashtbl.mem fin h) then
+  if not (snapshot_fin_mem fin h) then
     begin
-      Hashtbl.add fin h ();
+      snapshot_fin_add fin h;
       try
 	let (ah,hr) = DbHConsElt.dbget h in
         seocf (seo_prod seo_hashval (seo_option seo_hashval) seoc (ah,hr) (hconseltfile,None));
@@ -836,9 +844,9 @@ let rec dbledgersnapshot_hcons (hconseltfile,assetfile) fin h =
     end
 
 let rec dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h =
-  if not (Hashtbl.mem fin h) && (!snapshot_full || not (supp = [])) then
+  if not (snapshot_fin_mem fin h) && (!snapshot_full || not (supp = [])) then
     begin
-      Hashtbl.add fin h ();
+      snapshot_fin_add fin h;
       try
 	let c = DbCTreeElt.dbget h in
 	seocf (seo_ctree seoc c (ctreeeltfile,None));
@@ -858,6 +866,48 @@ and dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin supp c =
   | CBin(c0,c1) ->
       dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_false0 supp) c0;
       dbledgersnapshot_ctree (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_true0 supp) c1
+
+let rec dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin supp c sl =
+  if not (sl = []) then
+    match c with
+    | CLeaf(bl,NehHash(h)) ->
+	dbledgersnapshot_hcons (hconseltfile,assetfile) fin h
+    | CLeaf(bl,_) ->
+	Printf.printf "non element ctree found in database\n"
+    | CHash(h) -> dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h
+    | CLeft(c0) -> dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_false0 supp) c0 (strip_bitseq_false0 sl)
+    | CRight(c1) -> dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_true0 supp) c1 (strip_bitseq_true0 sl)
+    | CBin(c0,c1) ->
+	dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_false0 supp) c0 (strip_bitseq_false0 sl);
+	dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin (strip_bitseq_true0 supp) c1 (strip_bitseq_true0 sl)
+
+let dbledgersnapshot_shards (ctreeeltfile,hconseltfile,assetfile) fin supp h sl =
+  if not (snapshot_fin_mem fin h) && (!snapshot_full || not (supp = [])) then
+    begin
+      snapshot_fin_add fin h;
+      try
+	let c = DbCTreeElt.dbget h in
+	seocf (seo_ctree seoc c (ctreeeltfile,None));
+	dbledgersnapshot_ctree_shards (ctreeeltfile,hconseltfile,assetfile) fin supp c sl
+      with Not_found ->
+	Printf.printf "Could not find %s ctree element in database\n" (hashval_hexstring h)
+    end
+
+let dbledgersnapshot_ctree_top (ctreeeltfile,hconseltfile,assetfile) fin supp h s =
+  match s with
+  | None -> dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h
+  | Some(sl) ->
+      let bitseq j =
+	let r = ref [] in
+	for i = 0 to 8 do
+	  if ((j lsr i) land 1) = 1 then
+	    r := true::!r
+	  else
+	    r := false::!r
+	done;
+	!r
+      in
+      dbledgersnapshot_shards (ctreeeltfile,hconseltfile,assetfile) fin supp h (List.map bitseq sl)
 
 let sinceltctime f =
   let snc = Int64.sub (ltc_medtime()) f in
@@ -1458,7 +1508,7 @@ let initialize () =
 	      !snapshot_headers;
 	    let supp = List.map addr_bitseq !snapshot_addresses in
 	    List.iter
-	      (fun h -> dbledgersnapshot (ctreeeltfile,hconseltfile,assetfile) fin supp h)
+	      (fun h -> dbledgersnapshot_ctree_top (ctreeeltfile,hconseltfile,assetfile) fin supp h !snapshot_shards)
 	      !snapshot_ledgerroots;
 	    close_out headerfile;
 	    close_out blockfile;

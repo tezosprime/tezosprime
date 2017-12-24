@@ -194,6 +194,7 @@ let snapshot_blocks = ref [];;
 let snapshot_ledgerroots = ref [];;
 let snapshot_full = ref true;;
 let snapshot_addresses = ref [];;
+let snapshot_shards = ref None;;
 
 let process_config_args () =
   let a = Array.length Sys.argv in
@@ -216,6 +217,7 @@ let process_config_args () =
       let headereql = String.length "-header=" in
       let blockeql = String.length "-block=" in
       let addresseql = String.length "-address=" in
+      let shardeql = String.length "-shard=" in
       if i+1 >= a then
 	begin
 	  Printf.printf "Expected -createsnapshot <newsnapshotdirectory> [-ledgerroot=<hashval>]* [-block=<hashval>]* [-header=<hashval>]* [-address=<address>]*\n";
@@ -269,6 +271,19 @@ let process_config_args () =
 	      snapshot_addresses := alpha::!snapshot_addresses
 	    with _ ->
 	      Printf.printf "Could not understand %s as an address\n" a;
+	      exit 1
+	  end
+	else if argl > shardeql && String.sub arg 0 shardeql = "-shard=" then
+	  begin
+	    let s = String.sub arg shardeql (argl-shardeql) in
+	    try
+	      let i = int_of_string s in
+	      if i < 0 || i > 511 then raise Exit;
+	      match !snapshot_shards with
+	      | None -> snapshot_shards := Some([i])
+	      | Some(il) -> if not (List.mem i il) then snapshot_shards := Some(i::il)
+	    with _ ->
+	      Printf.printf "Could not understand %s as an shard (int in [0,511])\n" s;
 	      exit 1
 	  end
 	else

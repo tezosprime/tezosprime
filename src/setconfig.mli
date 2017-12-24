@@ -16,3 +16,5 @@ val snapshot_blocks : hashval list ref
 val snapshot_ledgerroots : hashval list ref
 val snapshot_full : bool ref
 val snapshot_addresses : addr list ref
+val snapshot_shards : int list option ref
+

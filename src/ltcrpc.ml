@@ -549,7 +549,6 @@ let rec ltc_process_block h =
 	  (List.rev pbds);
 	if !change then
 	  begin
-	    Printf.fprintf !Utils.log "bds %d\n" (List.length !bds);
 	    DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
 	  end
 	else if not (prevkey = !ltc_oldest_to_consider) then

@@ -20,16 +20,12 @@ type msgtype =
   | GetData
   | MNotFound
   | GetSTx
-  | GetTx
-  | GetTxSignatures
   | GetHeader
   | GetHeaders
   | GetBlock
   | GetBlockdelta
   | GetBlockdeltah
   | STx
-  | Tx
-  | TxSignatures
   | Block
   | Headers
   | Blockdelta
@@ -50,8 +46,8 @@ type msgtype =
 let msgtype_of_int i =
   try
     List.nth
-      [Version;Verack;Addr;Inv;GetData;MNotFound;GetSTx;GetTx;GetTxSignatures;
-       GetBlock;GetBlockdelta;GetBlockdeltah;GetHeader;STx;Tx;TxSignatures;Block;
+      [Version;Verack;Addr;Inv;GetData;MNotFound;GetSTx;
+       GetBlock;GetBlockdelta;GetBlockdeltah;GetHeader;STx;Block;
        Headers;Blockdelta;Blockdeltah;GetAddr;Mempool;Alert;Ping;Pong;Reject;
        GetCTreeElement;GetHConsElement;GetAsset;CTreeElement;HConsElement;Asset;GetHeaders]
       i
@@ -66,15 +62,11 @@ let int_of_msgtype mt =
   | GetData -> 4
   | MNotFound -> 5
   | GetSTx -> 6
-  | GetTx -> 7
-  | GetTxSignatures -> 8
   | GetBlock -> 9
   | GetBlockdelta -> 10
   | GetBlockdeltah -> 11
   | GetHeader -> 12
   | STx -> 13
-  | Tx -> 14
-  | TxSignatures -> 15
   | Block -> 16
   | Headers -> 17
   | Blockdelta -> 18
@@ -97,9 +89,7 @@ let inv_of_msgtype mt =
   try
     int_of_msgtype
       (match mt with
-      | GetTx -> Tx
       | GetSTx -> STx
-      | GetTxSignatures -> TxSignatures
       | GetBlock -> Block
       | GetHeader -> Headers
       | GetHeaders -> Headers
@@ -119,16 +109,12 @@ let string_of_msgtype mt =
   | GetData -> "GetData"
   | MNotFound -> "MNotFound"
   | GetSTx -> "GetSTx"
-  | GetTx -> "GetTx"
-  | GetTxSignatures -> "GetTxSignatures"
   | GetBlock -> "GetBlock"
   | GetBlockdelta -> "GetBlockdelta"
   | GetBlockdeltah -> "GetBlockdeltah"
   | GetHeader -> "GetHeader"
   | GetHeaders -> "GetHeaders"
   | STx -> "STx"
-  | Tx -> "Tx"
-  | TxSignatures -> "TxSignatures"
   | Block -> "Block"
   | Headers -> "Headers"
   | Blockdelta -> "Blockdelta"

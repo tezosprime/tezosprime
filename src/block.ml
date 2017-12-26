@@ -428,7 +428,7 @@ let txl_of_block b =
   (coinstake b,List.map (fun (tx,_) -> tx) bd.blockdelta_stxl)
 
 let rec stxl_hashroot stxl =
-  merkle_root (List.map (fun (tau,tausigs) -> hashpair (hashtx tau) (hashtxsigs tausigs)) stxl)
+  merkle_root (List.map hashstx stxl)
 
 let blockdelta_hashroot bd =
   hashpair

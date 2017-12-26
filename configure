@@ -77,6 +77,7 @@ echo let maxburn = ref 0L >> src/config.ml
 echo let maxburnrate = ref 0L >> src/config.ml
 echo let ltctxfee = ref 100000L >> src/config.ml
 echo let mintimebetweenburns = ref 0L >> src/config.ml
+echo let minrelayfee = ref 0L >> src/config.ml
 echo let burnifleq = ref 2 >> src/config.ml
 if [ $SEED ]; then
     echo let seed = ref \"$SEED\" >> src/config.ml

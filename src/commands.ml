@@ -751,7 +751,7 @@ let printtx txid =
     printtx_a tau
   with Not_found ->
     try
-      let tau = DbTx.dbget txid in
+      let (tau,_) = DbSTx.dbget txid in
       Printf.printf "Tx %s in local database.\n" (hashval_hexstring txid);
       printtx_a tau
     with Not_found ->
@@ -1038,12 +1038,12 @@ let sendtx blkh lr staustr =
       let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
       if tx_signatures_valid blkh al (tau,tausg) then
-	let txh = hashtx tau in
+	let stxh = hashstx stau in
 	let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
-	seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
+	seocf (seo_prod seo_hashval seo_stx seoc (stxh,(tau,tausg)) (ch,None));
 	close_out ch;
-	publish_stx txh stau;
-	Printf.printf "%s\n" (hashval_hexstring txh);
+	publish_stx stxh stau;
+	Printf.printf "%s\n" (hashval_hexstring stxh);
 	flush stdout;
       else
 	Printf.printf "Invalid or incomplete signatures\n"
@@ -1093,10 +1093,16 @@ let query q =
 	end;
 	begin
 	  try
-	    let e = Tx.DbTx.dbget h in
-	    let j = JsonObj([("type",JsonStr("tx"))]) in
+	    let e = Tx.DbSTx.dbget h in
+	    let j = JsonObj([("type",JsonStr("stx"))]) in
 	    dbentries := j::!dbentries
-	  with Not_found -> ()
+	  with Not_found ->
+	    try
+	      let e = Hashtbl.find stxpool h in
+	      let j = JsonObj([("type",JsonStr("stx"))]) in
+	      dbentries := j::!dbentries
+	    with Not_found ->
+	      ()
 	end;
 	begin
 	  try

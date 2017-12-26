@@ -39,6 +39,9 @@ let int64configvars = [
 ("ltctxfee",fun x -> Config.ltctxfee := x);
 ("mintimebetweenburns",fun x -> Config.mintimebetweenburns := x)
 ];;
+let cantsoffraenksconfigvars = [
+("minrelayfee",fun x -> Config.minrelayfee := x)
+];;
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);
 ("randomseed",fun x -> Config.randomseed := x);
@@ -109,6 +112,17 @@ let process_config_line l =
 	    end
 	  )
 	int64configvars;
+      List.iter
+	(fun (v,r) ->
+	  let vl = String.length v in
+	  if ll > 1 + vl && String.sub l 0 (vl) = v && l.[vl] = '=' then
+	    begin
+	      setl := v::!setl;
+	      r (cants_of_fraenks (String.sub l (vl+1) (ll-(vl+1))));
+	      raise Done
+	    end
+	  )
+	cantsoffraenksconfigvars;
       List.iter
 	(fun (v,r) ->
 	  let vl = String.length v in

@@ -20,16 +20,12 @@ type msgtype =
   | GetData
   | MNotFound
   | GetSTx
-  | GetTx
-  | GetTxSignatures
   | GetHeader
   | GetHeaders
   | GetBlock
   | GetBlockdelta
   | GetBlockdeltah
   | STx
-  | Tx
-  | TxSignatures
   | Block
   | Headers
   | Blockdelta

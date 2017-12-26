@@ -46,21 +46,14 @@ val sei_stx : (int -> 'a -> int * 'a) -> 'a -> stx * 'a
 
 val hashtxsigs : txsigs -> hashval
 
-module DbTx :
-    sig
-      val dbinit : unit -> unit
-      val dbget : Hash.hashval -> tx
-      val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> tx -> unit
-      val dbdelete : Hash.hashval -> unit
-    end
+val hashstx : stx -> hashval
 
-module DbTxSignatures :
+module DbSTx :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> gensignat_or_ref option list * gensignat_or_ref option list
+      val dbget : Hash.hashval -> stx
       val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> gensignat_or_ref option list * gensignat_or_ref option list -> unit
+      val dbput : Hash.hashval -> stx -> unit
       val dbdelete : Hash.hashval -> unit
     end
 

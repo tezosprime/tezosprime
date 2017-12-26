@@ -280,9 +280,15 @@ let hashtxsigs g =
   seosbf (seo_txsigs seosb g (s,None));
   sha256str (Buffer.contents s)
 
-module DbTx = Dbbasic (struct type t = tx let basedir = "tx" let seival = sei_tx seic let seoval = seo_tx seoc end)
+(***
+ The hash of signed tx does depend on the signatures, and this hash is used as the id of the tx
+ (e.g., by Inv, STx and GetSTx network messages).
+ But the assetid created by the tx only depends on the hashtx of tau (see add_vout in assets.ml).
+ Since the assetid is what is referenced when spent by future txs, we have behavior like segwit.
+***)
+let hashstx (tau,tausigs) = hashpair (hashtx tau) (hashtxsigs tausigs)
 
-module DbTxSignatures = Dbbasic (struct type t = gensignat_or_ref option list * gensignat_or_ref option list let basedir = "txsigs" let seival = sei_txsigs seic let seoval = seo_txsigs seoc end);;
+module DbSTx = Dbbasic (struct type t = stx let basedir = "stx" let seival = sei_stx seic let seoval = seo_stx seoc end)
 
 let json_addr_assetid (alpha,h) =
   JsonObj([("address",JsonStr(addr_daliladdrstr alpha));("assetid",JsonStr(hashval_hexstring h))])

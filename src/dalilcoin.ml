@@ -1445,8 +1445,7 @@ let initialize () =
     let dbdir = Filename.concat datadir "db" in
     dbconfig dbdir; (*** configure the database ***)
     DbAsset.dbinit();
-    DbTx.dbinit();
-    DbTxSignatures.dbinit();
+    DbSTx.dbinit();
     DbHConsElt.dbinit();
     DbCTreeElt.dbinit();
     DbBlockHeader.dbinit();

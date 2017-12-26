@@ -199,37 +199,6 @@ let rec insertnewdelayed (tm,n) btnl =
   | (tm2,n2)::btnr when tm < tm2 -> (tm,n)::btnl
   | (tm2,n2)::btnr -> (tm2,n2)::insertnewdelayed (tm,n) btnr
 
-let process_new_tx h hh =
-  try
-    let tx1 = DbTx.dbget h in
-    let txid = hashtx tx1 in
-    if not (txid = h) then (*** wrong hash, remove it but don't blacklist the (wrong) hashval ***)
-      begin
-        Printf.fprintf !log "WARNING: Received tx with different hash as advertised, removing %s\nThis may be due to a bug or due to a misbehaving peer.\n" hh; flush !log;
-	DbTx.dbdelete h;
-	DbTxSignatures.dbdelete h;
-      end
-    else if tx_valid tx1 then
-      begin (*** checking the validity of signatures and support depend on the current ledger; delay this here in favor of checking them before including them in a block we're actively trying to stake; note that the relevant properties are checked when they are included in a block as part of checking a block is valid ***)
-	let txsigs1 = DbTxSignatures.dbget h in
-        Hashtbl.add stxpool txid (tx1,txsigs1);
-      end
-    else
-      (*** in this case, reject the tx since it's definitely not valid ***)
-     begin
-       DbBlacklist.dbput h true;
-       DbTx.dbdelete h;
-       DbTxSignatures.dbdelete h;
-     end
-  with (*** in some cases, failure should lead to blacklist and removal of the tx, but it's not clear which cases; if it's in a block we might need to distinguish between definitely incorrect vs. possibly incorrect ***)
-  | Not_found ->
-      Printf.fprintf !log "Problem with tx, deleting it\n"; flush !log;
-      DbTx.dbdelete h;
-      DbTxSignatures.dbdelete h;
-  | e ->
-      Printf.fprintf !log "exception %s\n" (Printexc.to_string e); flush !log;
-      ()
-
 let rec prev_nth_node i n =
   if i <= 0 then
     Some(n)
@@ -701,8 +670,7 @@ let rec blacklist_from h n =
 let publish_stx txh stx1 =
   let (tx1,txsigs1) = stx1 in
   if not (Hashtbl.mem stxpool txh) then Hashtbl.add stxpool txh stx1;
-  DbTx.dbput txh tx1;
-  DbTxSignatures.dbput txh txsigs1;
+  DbSTx.dbput txh stx1;
   Hashtbl.add published_stx txh ();
   broadcast_inv [(int_of_msgtype STx,txh)]
 
@@ -947,23 +915,14 @@ Hashtbl.add msgtype_handler Inv
 	end
       else if i = int_of_msgtype STx && not (DbArchived.dbexists h) then
 	begin
-	  if DbTx.dbexists h then
-	    if not (DbTxSignatures.dbexists h) then
-	      begin
-		let tm = Unix.time() in
-                cs.invreq <- (int_of_msgtype GetTxSignatures,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
-		let s = Buffer.create 1000 in
-		seosbf (seo_hashval seosb h (s,None));
-		ignore (queue_msg cs GetTxSignatures (Buffer.contents s))
-	      end
-            else ()
-          else
+	  if not (DbSTx.dbexists h) && not (Hashtbl.mem stxpool h) then
  	    begin
 	      let tm = Unix.time() in
-              cs.invreq <- (int_of_msgtype GetTx,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
+              cs.invreq <- (int_of_msgtype GetSTx,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
               let s = Buffer.create 1000 in
 	      seosbf (seo_hashval seosb h (s,None));
-	      ignore (queue_msg cs GetTx (Buffer.contents s))
+	      Printf.fprintf !log "Sending GetSTx %s to %s at %f\n" (hashval_hexstring h) cs.realaddr tm;
+	      ignore (queue_msg cs GetSTx (Buffer.contents s))
 	    end
 	end
     done;
@@ -1030,104 +989,74 @@ Hashtbl.add msgtype_handler Blockdelta
 	    Printf.fprintf !log "Problem handling Blockdelta, presumably with getting corresponding blocktree node: %s\n" (Printexc.to_string e)
 	end);;
 
-Hashtbl.add msgtype_handler GetTx
+Hashtbl.add msgtype_handler GetSTx
     (fun (sin,sout,cs,ms) ->
       let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      let i = int_of_msgtype GetTx in
+      let i = int_of_msgtype GetSTx in
       let tm = Unix.time() in
       if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
 	try
-	  let (tau,_) = Hashtbl.find stxpool h in
-	  let tausb = Buffer.create 100 in
-	  seosbf (seo_tx seosb tau (seo_hashval seosb h (tausb,None)));
-	  let tauser = Buffer.contents tausb in
-	  Printf.fprintf !log "Sending Tx (from pool) %s\n" (hashval_hexstring h);
-	  ignore (queue_msg cs Tx tauser);
+	  let stau = Hashtbl.find stxpool h in
+	  let stausb = Buffer.create 100 in
+	  seosbf (seo_stx seosb stau (seo_hashval seosb h (stausb,None)));
+	  let stauser = Buffer.contents stausb in
+	  Printf.fprintf !log "Sending Signed Tx (from pool) %s\n" (hashval_hexstring h);
+	  ignore (queue_msg cs STx stauser);
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
 	  try
-	    let tau = DbTx.dbget h in
-	    let tausb = Buffer.create 100 in
-	    seosbf (seo_tx seosb tau (seo_hashval seosb h (tausb,None)));
-	    let tauser = Buffer.contents tausb in
-	    Printf.fprintf !log "Sending Tx (from db) %s\n" (hashval_hexstring h);
-	    ignore (queue_msg cs Tx tauser);
+	    let stau = DbSTx.dbget h in
+	    let stausb = Buffer.create 100 in
+	    seosbf (seo_stx seosb stau (seo_hashval seosb h (stausb,None)));
+	    let stauser = Buffer.contents stausb in
+	    Printf.fprintf !log "Sending Signed Tx (from db) %s\n" (hashval_hexstring h);
+	    ignore (queue_msg cs STx stauser);
 	    cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	  with Not_found ->
 	    Printf.fprintf !log "Unknown Tx %s\n" (hashval_hexstring h);
 	    ());;
 
-Hashtbl.add msgtype_handler Tx
+Hashtbl.add msgtype_handler STx
     (fun (sin,sout,cs,ms) ->
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      let i = int_of_msgtype GetTx in
+      let i = int_of_msgtype GetSTx in
       let tm = Unix.time() in
-      if not (DbTx.dbexists h) then (*** if we already have it, abort ***)
+      Printf.fprintf !log "Got Signed Tx %s from %s at %f\n" (hashval_hexstring h) cs.realaddr tm;
+      if not (DbSTx.dbexists h) && not (Hashtbl.mem stxpool h) then (*** if we already have it, abort ***)
 	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
-          let (tau,_) = sei_tx seis r in
-	  if hashtx tau = h then
-	    begin
-  	      DbTx.dbput h tau;
-	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
-	    end
+          let (((tauin,tauout) as tau,_) as stau,_) = sei_stx seis r in
+	  if hashstx stau = h then
+	    if tx_valid tau then
+	      begin
+		try
+		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
+		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
+		  let unsupportederror alpha h = Printf.fprintf !log "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h) in
+		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
+		  if tx_signatures_valid blkh al stau then
+		    begin
+		      let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		      let fee = Int64.sub 0L nfee in
+		      if fee >= !Config.minrelayfee then
+			begin
+			  Hashtbl.add stxpool h stau;
+			  Printf.fprintf !log "Accepting tx %s into pool\n" (hashval_hexstring h);
+			  flush !log
+			end
+		      else
+			(Printf.fprintf !log "ignoring tx %s with low fee of %Ld cants\n" (hashval_hexstring h) fee; flush !log)
+		    end
+		  else
+		    (Printf.fprintf !log "ignoring tx %s since signatures are not valid at the current block height of %Ld\n" (hashval_hexstring h) blkh; flush !log)
+		with _ ->
+		  (Printf.fprintf !log "misbehaving peer? [Tx %s unsupported]\n" (hashval_hexstring h); flush !log)
+	      end
+	    else
+	      (Printf.fprintf !log "misbehaving peer? [invalid Tx %s]\n" (hashval_hexstring h); flush !log)
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
 	    (Printf.fprintf !log "misbehaving peer? [malformed Tx]\n"; flush !log)
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !log "misbehaving peer? [unrequested Tx]\n"; flush !log));;
-
-Hashtbl.add msgtype_handler GetTxSignatures
-    (fun (sin,sout,cs,ms) ->
-      let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      Printf.fprintf !log "Processing GetTxSignatures %s\n" (hashval_hexstring h);
-      let i = int_of_msgtype GetTxSignatures in
-      let tm = Unix.time() in
-      if not (recently_sent (i,h) tm cs.sentinv) then (*** don't resend ***)
-	try
-	  let (_,s) = Hashtbl.find stxpool h in
-	  let ssb = Buffer.create 100 in
-	  seosbf (seo_txsigs seosb s (seo_hashval seosb h (ssb,None)));
-	  let sser = Buffer.contents ssb in
-	  Printf.fprintf !log "Sending TxSignatures (from pool) %s\n" (hashval_hexstring h);
-	  ignore (queue_msg cs TxSignatures sser);
-	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
-	with Not_found ->
-	  try
-	    let s = DbTxSignatures.dbget h in
-	    let ssb = Buffer.create 100 in
-	    seosbf (seo_txsigs seosb s (seo_hashval seosb h (ssb,None)));
-	    let sser = Buffer.contents ssb in
-	    Printf.fprintf !log "Sending TxSignatures (from db) %s\n" (hashval_hexstring h);
-	    ignore (queue_msg cs TxSignatures sser);
-	    cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
-	with Not_found ->
-	  Printf.fprintf !log "Unknown TxSignatures %s\n" (hashval_hexstring h);
-	  ());;
-
-Hashtbl.add msgtype_handler TxSignatures
-    (fun (sin,sout,cs,ms) ->
-      let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
-      let i = int_of_msgtype GetTxSignatures in
-      if not (DbTxSignatures.dbexists h) then (*** if we already have it, abort ***)
-	try
-	  let ((tauin,_) as tau) = DbTx.dbget h in
-	  let tm = Unix.time() in
-	  if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
-            let (s,_) = sei_txsigs seis r in
-	    try
-	      let al = List.map (fun (_,aid) -> DbAsset.dbget aid) tauin in
-	      ignore (tx_signatures_valid_asof_blkh al (tau,s)); (*** signatures valid at some block height ***)
-              Hashtbl.add stxpool h (tau,s);
-  	      DbTxSignatures.dbput h s;
-	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
-	    with
-	    | BadOrMissingSignature -> (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-		(Printf.fprintf !log "misbehaving peer? [malformed TxSignatures]\n"; flush !log)
-	    | Not_found -> (*** in this case, we don't have all the spent assets in the database, which means we shouldn't have requested the signatures, ignore ***)
-		()
-	  else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	    (Printf.fprintf !log "misbehaving peer? [unrequested TxSignatures]\n"; flush !log)
-	with Not_found -> (*** do not know the tx, so drop the sig ***)
-	  ());;
+	  (Printf.fprintf !log "misbehaving peer? [unrequested Tx %s]\n" (hashval_hexstring h); flush !log));;
 
 let dumpblocktreestate sa =
   Printf.fprintf sa "=========\nstxpool:\n";

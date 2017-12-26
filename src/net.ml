@@ -981,3 +981,11 @@ Hashtbl.add msgtype_handler Addr
 	  let (nodeaddr,cn) = sei_string seis !c in
 	  if not (Hashtbl.mem knownpeers nodeaddr) then newpeers := nodeaddr::!newpeers
 	done);;
+
+Hashtbl.add msgtype_handler Ping
+  (fun (sin,sout,cs,ms) ->
+    let tm = Unix.time() in
+    if tm -. cs.lastmsgtm >= 3600 then
+      ignore (queue_msg cs Pong ""));;
+
+Hashtbl.add msgtype_handler Pong (fun _ -> ());;

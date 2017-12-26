@@ -530,7 +530,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 			with Not_found -> true
 		      end
 		    in
-		    let aal = ctree_lookup_input_assets false false inpl tr in
+		    let aal = ctree_lookup_input_assets false false inpl tr (fun _ _ -> ()) in
 		    let al = List.map (fun (_,a) -> a) aal in
 		    norew
 		      && sgvb
@@ -634,7 +634,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	(*** The total inputs and outputs match up with the declared fee. ***)
 	let tau = tx_of_block b in (*** let tau be the combined tx of the block ***)
 	let (inpl,outpl) = tau in
-	let aal = ctree_lookup_input_assets false false inpl tr in
+	let aal = ctree_lookup_input_assets false false inpl tr (fun _ _ -> ()) in
 	let al = List.map (fun (_,a) -> a) aal in
 	(*** Originally I added totalfees to the out_cost, but this was wrong since the totalfees are in the stake output which is already counted in out_cost. I don't really need totalfees to be explicit. ***)
 	if out_cost outpl = Int64.add (asset_value_sum blkh al) (rewfn blkh) then

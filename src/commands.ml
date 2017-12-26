@@ -827,7 +827,7 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
   let alpha2 = payaddr_addr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   match ctree_lookup_asset true false aid ctr (addr_bitseq alpha2) with
-  | None -> Printf.printf "Could not find asset %s at %s\n" (hashval_hexstring aid) (addr_daliladdrstr alpha2); flush stdout
+  | None -> Printf.printf "Could not find asset %s at %s in ledger %s\n" (hashval_hexstring aid) (addr_daliladdrstr alpha2) (hashval_hexstring ledgerroot); flush stdout
   | Some(_,bday,obl,Currency(v)) ->
       if v > fee then
 	begin
@@ -996,7 +996,8 @@ let rec signtx_outs taue outpl sl rl rsl co =
 let signtx lr taustr =
   let s = hexstring_string taustr in
   let (((tauin,tauout) as tau,(tausgin,tausgout) as tausg),_) = sei_stx seis (s,String.length s,None,0,0) in (*** may be partially signed ***)
-  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr))) in
+  let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
   let tauh = hashtx tau in
   let tauh2 = if !Config.testnet then hashtag tauh 288l else tauh in
   let taue = hashval_big_int tauh2 in
@@ -1016,7 +1017,8 @@ let savetxtopool blkh lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg),_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
-    let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr))) in
+    let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+    let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
     if tx_signatures_valid blkh al (tau,tausg) then
       let txh = hashtx tau in
       let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
@@ -1032,19 +1034,20 @@ let sendtx blkh lr staustr =
   Printf.printf "sendtx 1\n";
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
-begin
-    let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr))) in
-    if tx_signatures_valid blkh al (tau,tausg) then
-      let txh = hashtx tau in
-      let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
-      seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
-      close_out ch;
-      publish_stx txh stau;
-      Printf.printf "%s\n" (hashval_hexstring txh);
-      flush stdout;
-    else
-      Printf.printf "Invalid or incomplete signatures\n"
-end
+    begin
+      let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+      let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
+      if tx_signatures_valid blkh al (tau,tausg) then
+	let txh = hashtx tau in
+	let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
+	seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
+	close_out ch;
+	publish_stx txh stau;
+	Printf.printf "%s\n" (hashval_hexstring txh);
+	flush stdout;
+      else
+	Printf.printf "Invalid or incomplete signatures\n"
+    end
   else
     Printf.printf "Invalid tx\n"
 

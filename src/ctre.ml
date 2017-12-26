@@ -143,61 +143,61 @@ let rec print_hlist_gen f hl g =
   | HNil -> ()
   | HCons((aid,bday,obl,Currency(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] Currency %s fraenk%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (fraenks_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Currency %s fraenk%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (fraenks_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,Bounty(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] Bounty %s fraenk%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (fraenks_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Bounty %s fraenk%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (fraenks_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s fraenk%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (fraenks_of_cants r) (if r = 100000000000L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsNegProp) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] OwnsNegProp\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday;
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsNegProp\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday;
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,RightsObj(k,r)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] RightsObj %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
+	Printf.fprintf f "%s: (id %s) [%Ld] RightsObj %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,RightsProp(k,r)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld] RightsProp %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
+	Printf.fprintf f "%s: (id %s) [%Ld] RightsProp %s %Ld\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) r;
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,v) as a,hr) ->
       begin
-	Printf.fprintf f "%s: %s [%Ld]\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday;
+	Printf.fprintf f "%s: (id %s) [%Ld]\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday;
 	g a;
 	print_hlist_gen f hr g
       end
@@ -773,7 +773,7 @@ let rec hlist_lookup_asset_gen exp req p hl =
 	end
       else
 	None
-  | HCons(_,hr) -> hlist_lookup_asset_gen exp req p hr
+  | HCons(a,hr) -> hlist_lookup_asset_gen exp req p hr
   | _ -> None
 
 let nehlist_lookup_asset_gen exp req p hl = hlist_lookup_asset_gen exp req p (nehlist_hlist hl)
@@ -1400,8 +1400,10 @@ let rec ctree_supports_asset exp req a tr bl =
 
 let rec ctree_lookup_asset_gen exp req p tr bl =
   match tr with
-  | CLeaf(br,hl) when br = bl -> nehlist_lookup_asset_gen exp req p hl
-  | CLeaf(_,_) -> None
+  | CLeaf(br,hl) when br = bl ->
+      nehlist_lookup_asset_gen exp req p hl
+  | CLeaf(_,_) ->
+      None
   | CHash(h) ->
       if exp then
 	if req then
@@ -1469,13 +1471,14 @@ exception NotSupported
 
 (*** exp is a boolean indicating whether expanding hash abbrevs should be tried ***)
 (*** req is a boolean indicating whether or not missing data should be requested of peers ***)
-let rec ctree_lookup_input_assets exp req inpl tr =
+let rec ctree_lookup_input_assets exp req inpl tr nsf =
   match inpl with
   | [] -> []
   | (alpha,k)::inpr ->
       match ctree_lookup_asset exp req k tr (addr_bitseq alpha) with
-      | Some(a) -> (alpha,a)::ctree_lookup_input_assets exp req inpr tr
+      | Some(a) -> (alpha,a)::ctree_lookup_input_assets exp req inpr tr nsf
       | None ->
+	  nsf alpha k;
 	  raise NotSupported
 
 (*** exp is a boolean indicating whether expanding hash abbrevs should be tried ***)
@@ -1922,7 +1925,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 
 let ctree_supports_tx exp req tht sigt blkh tx tr =
   let (inpl,outpl) = tx in
-  let aal = ctree_lookup_input_assets exp req inpl tr in
+  let aal = ctree_lookup_input_assets exp req inpl tr (fun _ _ -> ()) in
   let al = List.map (fun (_,a) -> a) aal in
   ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr
 

@@ -565,6 +565,7 @@ let connlistener (s,sin,sout,gcs) =
 	match !gcs with
 	| Some(cs) ->
 	    let tm = Unix.time() in
+	    Printf.fprintf !log "got msg %s from %s at time %f\n" (string_of_msgtype mt) cs.realaddr tm; flush !log;
             let f = open_out_gen [Open_wronly;Open_creat;Open_append] 0o644
                             (!Config.datadir ^ (if !Config.testnet then "/testnet/reclog_" else "/reclog_") ^ (string_hexstring cs.addrfrom)) in
             output_value f tm;

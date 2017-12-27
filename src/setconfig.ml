@@ -199,6 +199,7 @@ let datadir_from_command_line () =
 
 exception CreateSnapshot of int;;
 exception ImportSnapshot of int;;
+exception CheckLedger of int;;
 
 let createsnapshot = ref false;;
 let importsnapshot = ref false;;
@@ -209,6 +210,7 @@ let snapshot_ledgerroots = ref [];;
 let snapshot_full = ref true;;
 let snapshot_addresses = ref [];;
 let snapshot_shards = ref None;;
+let check_ledger = ref None;;
 
 let process_config_args () =
   let a = Array.length Sys.argv in
@@ -219,6 +221,8 @@ let process_config_args () =
 	raise (CreateSnapshot(i))
       else if arg = "-importsnapshot" then
 	raise (ImportSnapshot(i))
+      else if arg = "-checkledger" then
+	raise (CheckLedger(i))
       else if String.length arg > 1 && arg.[0] = '-' then
 	try
 	  process_config_line (String.sub arg 1 ((String.length arg) - 1))
@@ -314,3 +318,10 @@ let process_config_args () =
 	  exit 1
 	end;
       snapshot_dir := Some(Sys.argv.(i+1))
+  | CheckLedger(i) ->
+      if not (i = a-2) then
+	begin
+	  Printf.printf "Expected -importsnapshot <ledgerroot>\n";
+	  exit 1
+	end;
+      check_ledger := Some(hexstring_hashval Sys.argv.(i+1))

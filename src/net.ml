@@ -581,26 +581,36 @@ let connlistener (s,sin,sout,gcs) =
 	  Printf.fprintf !log "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y;
 	  flush !log;
 	  Unix.close s;
+	  close_in sin;
+	  close_out sout;
 	  raise Exit
       | End_of_file -> (*** close connection ***)
 	  Printf.fprintf !log "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs);
 	  flush !log;
 	  Unix.close s;
+	  close_in sin;
+	  close_out sout;
 	  raise Exit
       | ProtocolViolation(x) -> (*** close connection ***)
 	  Printf.fprintf !log "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x;
 	  flush !log;
 	  Unix.close s;
+	  close_in sin;
+	  close_out sout;
 	  raise Exit
       | SelfConnection -> (*** detected a self-connection attempt, close ***)
 	  Printf.fprintf !log "Stopping potential self-connection\n";
 	  flush !log;
 	  Unix.close s;
+	  close_in sin;
+	  close_out sout;
 	  raise Exit
       | DupConnection -> (*** detected a duplicate connection attempt, close ***)
 	  Printf.fprintf !log "Stopping potential duplicate connection\n";
 	  flush !log;
 	  Unix.close s;
+	  close_in sin;
+	  close_out sout;
 	  raise Exit
       | exc -> (*** report but ignore all other exceptions ***)
 	  Printf.fprintf !log "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc);
@@ -623,9 +633,10 @@ let connsender (s,sin,sout,gcs) =
 		done;
 		Mutex.unlock cs.connmutex;
 	      with
-	      | _ ->
+	      | e ->
 		  Condition.wait cs.sendqueuenonempty cs.connmutex;
 		  Mutex.unlock cs.connmutex;
+		  raise e
 	    end
 	| None -> raise End_of_file (*** connection died; this probably shouldn't happen, as we should have left this thread when it died ***)
       with

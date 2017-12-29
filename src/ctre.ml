@@ -216,16 +216,6 @@ let right_trim c s =
   done;
   String.sub s 0 (!l+1)
 
-let fraenks_string v =
-  let f = Int64.div v 1000000000000L in
-  let d = Int64.sub v f in
-  let ds = Int64.to_string d in
-  let l = String.length ds in
-  if l < 12 then
-    right_trim '0' ((Int64.to_string f) ^ "." ^ (String.make (12-l) '0') ^ ds)
-  else
-    right_trim '0' ((Int64.to_string f) ^ "." ^ ds)
-
 let rec print_hlist_to_buffer_gen sb blkh hl g =
   match hl with
   | HHash(h) ->
@@ -239,7 +229,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Currency ";
-	Buffer.add_string sb (fraenks_string v);
+	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_string sb "; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday None v));
 	Buffer.add_char sb '\n';
@@ -255,7 +245,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency (Reward, Locked) "
 	else
 	  Buffer.add_string sb "] Currency (Reward) ";
-	Buffer.add_string sb (fraenks_string v);
+	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_string sb " spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime < blkh then
@@ -281,7 +271,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency (Locked) "
 	else
 	  Buffer.add_string sb "] Currency ";
-	Buffer.add_string sb (fraenks_string v);
+	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_string sb " spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime < blkh then
@@ -304,7 +294,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Bounty ";
-	Buffer.add_string sb (fraenks_string v);
+	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_char sb '\n';
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
@@ -319,7 +309,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
-	Buffer.add_string sb (fraenks_string r);
+	Buffer.add_string sb (fraenks_of_cants r);
 	Buffer.add_char sb '\n';
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
@@ -347,7 +337,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
-	Buffer.add_string sb (fraenks_string r);
+	Buffer.add_string sb (fraenks_of_cants r);
 	Buffer.add_char sb '\n';
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g

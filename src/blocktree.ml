@@ -256,11 +256,16 @@ type consensuswarning =
   | ConsensusWarningBlacklist of hashval * hashval option * int64
   | ConsensusWarningInvalid of hashval * hashval option * int64
   | ConsensusWarningNoBurn of hashval
+  | ConsensusWarningTerminal
 
 exception NoReq
 
 let rec get_bestnode req =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+  if ctips0l = [] then
+    begin
+      Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\n"
+    end;
   let rec get_bestnode_r2 ctips ctipsr cwl =
     match ctips with
     | [] -> get_bestnode_r ctipsr cwl
@@ -312,7 +317,13 @@ let rec get_bestnode req =
     | ctips::ctipsr ->
 	get_bestnode_r2 ctips ctipsr cwl
   in
-  get_bestnode_r ctips0l []
+  let cwl =
+    if ctips0l = [] then
+      [ConsensusWarningTerminal]
+    else
+      []
+  in
+  get_bestnode_r ctips0l cwl
 and create_new_node h req =
   try
     create_new_node_a h req

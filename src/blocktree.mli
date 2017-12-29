@@ -61,5 +61,6 @@ type consensuswarning =
   | ConsensusWarningBlacklist of hashval * hashval option * int64
   | ConsensusWarningInvalid of hashval * hashval option * int64
   | ConsensusWarningNoBurn of hashval
+  | ConsensusWarningTerminal
 
 val get_bestnode : bool -> blocktree * consensuswarning list

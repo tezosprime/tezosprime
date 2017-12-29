@@ -76,6 +76,8 @@ let print_consensus_warning s cw =
 	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
   | ConsensusWarningNoBurn(h) ->
       Printf.fprintf s "BUG: Mystery unburned block %s\n" (hashval_hexstring h)
+  | ConsensusWarningTerminal ->
+      Printf.fprintf s "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	
 let get_bestnode_print_warnings s req =
   let (n,cwl) = get_bestnode req in
@@ -95,7 +97,9 @@ let get_bestnode_print_warnings s req =
 		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
 	      | ConsensusWarningInvalid(h,ph,blkh) ->
 		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
-	      | ConsensusWarningNoBurn(h) -> cwlorph := cw::!cwlorph)
+	      | ConsensusWarningNoBurn(h) -> cwlorph := cw::!cwlorph
+	      | ConsensusWarningTerminal ->
+		  Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n")
 	cwl;
       if not (!cwlnew = []) then
 	begin
@@ -1009,6 +1013,10 @@ let do_command oc l =
 	      !ltc_bestblock
 	in
 	let (lastchangekey,zll) = ltcdacstatus_dbget h in
+	if zll = [] then
+	  begin
+	    Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
+	  end;
 	let i = ref 0 in
 	List.iter
 	  (fun zl ->

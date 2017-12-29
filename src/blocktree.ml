@@ -750,6 +750,15 @@ Hashtbl.add msgtype_handler GetHeaders
     ignore (queue_msg cs Headers ss)
   );;
 
+let deserialize_exc_protect cs f =
+  try
+    f()
+  with e ->
+    Printf.fprintf !log "Deserialization exception: %s\nDisconnecting and banning node %s\n" (Printexc.to_string e) cs.realaddr;
+    flush !log;
+    cs.banned <- true;
+    raise e;;
+
 Hashtbl.add msgtype_handler Headers
   (fun (sin,sout,cs,ms) ->
     let c = ref (ms,String.length ms,None,0,0) in
@@ -759,7 +768,7 @@ Hashtbl.add msgtype_handler Headers
     let i = int_of_msgtype GetHeader in
     for j = 1 to n do
       let (h,cn) = sei_hashval seis !c in
-      let (bh,cn) = sei_blockheader seis cn in (*** deserialize if only to get to the next one ***)
+      let (bh,cn) = deserialize_exc_protect cs (fun () -> sei_blockheader seis cn) in (*** deserialize if only to get to the next one ***)
       c := cn;
       Printf.fprintf !log "Headers msg %d %s at time %f\n"j (hashval_hexstring h) tm;
       if not (DbBlockHeader.dbexists h) &&
@@ -970,17 +979,17 @@ Hashtbl.add msgtype_handler Blockdelta
 		begin
 		  match par with
 		  | None -> (*** genesis node, parent implicitly valid ***)
-		      let (blkdel,_) = sei_blockdelta seis r in
+		      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
 		      validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
 		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
 		      match !vsp with
 		      | InvalidBlock -> raise Not_found
 		      | Waiting(_,_) ->
-			  let (blkdel,_) = sei_blockdelta seis r in
+			  let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
 			  vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
 		      | ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
 			  begin
-			    let (blkdel,_) = sei_blockdelta seis r in
+			    let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
 			    validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
 			  end
 		end
@@ -1024,7 +1033,7 @@ Hashtbl.add msgtype_handler STx
       Printf.fprintf !log "Got Signed Tx %s from %s at %f\n" (hashval_hexstring h) cs.realaddr tm;
       if not (DbSTx.dbexists h) && not (Hashtbl.mem stxpool h) then (*** if we already have it, abort ***)
 	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
-          let (((tauin,tauout) as tau,_) as stau,_) = sei_stx seis r in
+          let (((tauin,tauout) as tau,_) as stau,_) = deserialize_exc_protect cs (fun () -> sei_stx seis r) in
 	  if hashstx stau = h then
 	    if tx_valid tau then
 	      begin

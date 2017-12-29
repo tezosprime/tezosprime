@@ -532,7 +532,7 @@ let rec ltc_process_block h =
 	  (fun pbdl ->
 	    let pbdl2 =
 	      List.filter
-		(fun (bh,lbh,ltx,ltm,lhght) -> if Int64.sub tm ltm <= 604800L && Int64.sub hght lhght <= 4032L then true else (change := true; false))
+		(fun (bh,lbh,ltx,ltm,lhght) -> if Int64.sub tm ltm <= 604800L || Int64.sub hght lhght <= 4032L then true else (change := true; false)) (*** only allow building on blocks from the past week (either <= 604800 seconds in ltc median block time or 4032 ltc blocks) ***)
 		pbdl
 	    in
 	    if not (pbdl2 = []) then bds := pbdl2 :: !bds;

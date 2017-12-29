@@ -1013,7 +1013,8 @@ let do_command oc l =
 	      !ltc_bestblock
 	in
 	let (lastchangekey,zll) = ltcdacstatus_dbget h in
-	if zll = [] then
+	let tm = ltc_medtime() in
+	if zll = [] && tm > Int64.add !Config.genesistimestamp 604800L then
 	  begin
 	    Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	  end;

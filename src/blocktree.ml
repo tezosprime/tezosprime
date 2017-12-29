@@ -318,7 +318,8 @@ let rec get_bestnode req =
 	get_bestnode_r2 ctips ctipsr cwl
   in
   let cwl =
-    if ctips0l = [] then
+    let tm = ltc_medtime() in
+    if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
       [ConsensusWarningTerminal]
     else
       []

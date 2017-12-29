@@ -12,15 +12,15 @@ open Db
 open Block
 
 (*** mainnet ***)
-let ltc_oldest_to_consider = ref (hexstring_hashval "77ea3ccb88201e4a09a7ec6523ee7d9882032b1b682ec33351b6cae0c73dd442")
-let ltc_oldest_to_consider_time = ref 1508682622L
-let ltc_oldest_to_consider_height = ref 1299600L
+let ltc_oldest_to_consider = ref (hexstring_hashval "61d447ed41c7df3d7c724fcfbef71242ae74b8b3defafe4541853d0fdcd2ce7a")
+let ltc_oldest_to_consider_time = ref 1514554868L
+let ltc_oldest_to_consider_height = ref 1341062L
 
 (*** testnet ***)
 let ltctestnet () =
-  ltc_oldest_to_consider := hexstring_hashval "57504f92b496f9f75bda43556a4dabe06deefa47315ba107a7f262b2f4b3651d";
-  ltc_oldest_to_consider_time := 1512208339L;
-  ltc_oldest_to_consider_height := 277422L
+  ltc_oldest_to_consider := hexstring_hashval "f9670b601b5b167a5042e413b86078590bffda15a4c1a684a1a404f21fffe236";
+  ltc_oldest_to_consider_time := 1514554868L;
+  ltc_oldest_to_consider_height := 312735L
 
 let ltc_bestblock = ref (0l,0l,0l,0l,0l,0l,0l,0l)
 

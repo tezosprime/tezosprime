@@ -28,7 +28,7 @@ do
 			    echo "-dalilcoindir=<dir> (to specify the install directory)"
 			    echo "-datadir=<dir> (to specify the default directory for Dalilcoin data)"
 			    echo "-genesistime=<int> (to specify the genesis time stamp; regularly updated for the testnet)"
-			    echo "-seed=<20 bytes as a hexstring> (to specify the seed that is hashed to determine the genesis stake modifiers)"
+			    echo "-seed=<32 bytes as a hexstring> (to specify the seed that is hashed to determine the genesis stake modifiers)"
 			    echo "-randomseed=<string> (a user provided string to seed OCaml's Random module)"
 			    exit 1
 			fi
@@ -71,7 +71,7 @@ echo let prompt = ref \"\> \" >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else
-    echo let genesistimestamp = ref 1506165875L >> src/config.ml
+    echo let genesistimestamp = ref 1514554868L >> src/config.ml
 fi
 echo let maxburn = ref 0L >> src/config.ml
 echo let maxburnrate = ref 0L >> src/config.ml

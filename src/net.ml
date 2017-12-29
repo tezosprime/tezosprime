@@ -626,15 +626,15 @@ let connsender (s,sin,sout,gcs) =
 	| Some(cs) ->
 	    begin
 	      try
+		Condition.wait cs.sendqueuenonempty cs.connmutex;
 		Mutex.lock cs.connmutex;
 		while true do
 		  let (mh,replyto,mt,m) = Queue.take cs.sendqueue in
 		  send_msg sout mh replyto mt m
-		done;
-		Mutex.unlock cs.connmutex;
+		done
 	      with
+	      | Queue.Empty -> Mutex.unlock cs.connmutex
 	      | e ->
-		  Condition.wait cs.sendqueuenonempty cs.connmutex;
 		  Mutex.unlock cs.connmutex;
 		  raise e
 	    end

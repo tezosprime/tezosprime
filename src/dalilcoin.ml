@@ -1001,8 +1001,14 @@ let do_command oc l =
       end
   | "ltcstatus" ->
       begin
-	Printf.fprintf oc "ltcbest %s\n" (hashval_hexstring !ltc_bestblock);
-	let (lastchangekey,zll) = ltcdacstatus_dbget !ltc_bestblock in
+	let h =
+	  match al with
+	  | [hh] -> hexstring_hashval hh
+	  | _ ->
+	      Printf.fprintf oc "ltcbest %s\n" (hashval_hexstring !ltc_bestblock);
+	      !ltc_bestblock
+	in
+	let (lastchangekey,zll) = ltcdacstatus_dbget h in
 	let i = ref 0 in
 	List.iter
 	  (fun zl ->

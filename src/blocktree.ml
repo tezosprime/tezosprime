@@ -262,7 +262,8 @@ exception NoReq
 
 let rec get_bestnode req =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
-  if ctips0l = [] then
+  let tm = ltc_medtime() in
+  if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
     begin
       Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\n"
     end;

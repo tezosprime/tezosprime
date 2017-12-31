@@ -624,12 +624,14 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	end)
     then
       if (begin (*** The root of the transformed ctree is the newledgerroot in the header. ***)
-	    let (cstk,txl) = txl_of_block b in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	    match tx_octree_trans false false blkh cstk (txl_octree_trans false false blkh txl (Some(tr))) with (*** "false false" disallows database lookups and remote requests ***)
-	    | Some(tr2) ->
-		bhd.newledgerroot = ctree_hashroot tr2
-	    | None -> false
-	  end)
+	let (cstk,txl) = txl_of_block b in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
+	try
+	  match tx_octree_trans false false blkh cstk (txl_octree_trans false false blkh txl (Some(tr))) with (*** "false false" disallows database lookups and remote requests ***)
+	  | Some(tr2) ->
+	      bhd.newledgerroot = ctree_hashroot tr2
+	  | None -> false
+	with MaxAssetsAtAddress -> false (** extra condition preventing addresses from holding too many assets **)
+      end)
       then
 	(*** The total inputs and outputs match up with the declared fee. ***)
 	let tau = tx_of_block b in (*** let tau be the combined tx of the block ***)

@@ -583,13 +583,13 @@ let get_cants_balances_in_ledger oc ledgerroot =
       | HNil -> ()
       | HConsH(ah,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot (get_asset ah)
       | HCons(a,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot a
-      | HHash(hh) -> hlist_sumcurr tot (get_hlist_element hh)
+      | HHash(hh,_) -> hlist_sumcurr tot (get_hlist_element hh)
     in
     let rec nehlist_sumcurr tot (hl:nehlist) =
       match hl with
       | NehConsH(ah,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot (get_asset ah)
       | NehCons(a,hr) -> hlist_sumcurr tot hr; asset_sumcurr tot a
-      | NehHash(hh) -> nehlist_sumcurr tot (get_nehlist_element hh)
+      | NehHash(hh,_) -> nehlist_sumcurr tot (get_nehlist_element hh)
     in
     List.iter
       (fun (k,b,(x,y),w,h,z) ->
@@ -639,7 +639,7 @@ let printhconselt h =
     let (aid,k) = DbHConsElt.dbget h in
     Printf.printf "assetid %s\n" (hashval_hexstring aid);
     match k with
-    | Some(k) -> Printf.printf "next hcons elt %s\n" (hashval_hexstring k)
+    | Some(k,l) -> Printf.printf "next hcons elt %s[%d]\n" (hashval_hexstring k) l
     | None -> Printf.printf "last on the list\n"
   with Not_found ->
     Printf.printf "No hcons elt %s found\n" (hashval_hexstring h)
@@ -685,7 +685,7 @@ let printctreeinfo h =
 	incr ah;
 	match k with
 	| None -> ()
-	| Some(k) ->
+	| Some(k,_) ->
 	    try
 	      hconseltinfo (DbHConsElt.dbget k)
 	    with Not_found ->
@@ -700,7 +700,7 @@ let printctreeinfo h =
 	      ctreeeltinfo (DbCTreeElt.dbget h)
 	    with Not_found -> incr ch
 	  end
-      | CLeaf(_,NehHash(h)) ->
+      | CLeaf(_,NehHash(h,_)) ->
 	  begin
 	    try
 	      incr l;
@@ -1111,8 +1111,8 @@ let query q =
 	      match r with
 	      | None ->
 		  JsonObj([("type",JsonStr("hconselt"));("asset",JsonStr(hashval_hexstring k))])
-	      | Some(r) ->
-		  JsonObj([("type",JsonStr("hconselt"));("asset",JsonStr(hashval_hexstring k));("next",JsonStr(hashval_hexstring r))])
+	      | Some(r,l) ->
+		  JsonObj([("type",JsonStr("hconselt"));("asset",JsonStr(hashval_hexstring k));("next",JsonStr(hashval_hexstring r));("nextlen",JsonStr(string_of_int l))])
 	    in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()

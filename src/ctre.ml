@@ -33,6 +33,9 @@ let close_to_unlocked = 8L
  ***)
 let reward_locktime = 32L
 
+let max_assets_at_address = 32 (** preventing having long lists of assets with a small hard limit **)
+exception MaxAssetsAtAddress
+
 let coinagefactor blkh bday obl =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
     maximum_age_sqr
@@ -61,47 +64,60 @@ let coinagefactor blkh bday obl =
 
 let coinage blkh bday obl v = mult_big_int (coinagefactor blkh bday obl) (big_int_of_int64 v)
 
-type hlist = HHash of hashval | HNil | HCons of asset * hlist | HConsH of hashval * hlist
+type hlist = HHash of hashval * int | HNil | HCons of asset * hlist | HConsH of hashval * hlist
+
+let rec hlist_len hl =
+  match hl with
+  | HHash(_,l) -> l
+  | HNil -> 0
+  | HCons(_,hr) -> hlist_len hr
+  | HConsH(_,hr) -> hlist_len hr
 
 let rec hlist_hashroot hl =
   match hl with
-  | HHash(h) -> Some(h)
+  | HHash(h,l) -> Some(h,l)
   | HNil -> None
   | HCons(a,hr) ->
       begin
 	match hlist_hashroot hr with
-	| None -> Some(hashtag (hashasset a) 3l)
-	| Some(k) -> Some(hashtag (hashpair (hashasset a) k) 4l)
+	| None -> Some(hashtag (hashasset a) 3l,1)
+	| Some(k,l) -> Some(hashtag (hashpair (hashasset a) k) (Int32.of_int (4096 + l)),1+l)
       end
   | HConsH(h,hr) ->
       begin
 	match hlist_hashroot hr with
-	| None -> Some(hashtag h 3l)
-	| Some(k) -> Some(hashtag (hashpair h k) 4l)
+	| None -> Some(hashtag h 3l,1)
+	| Some(k,l) -> Some(hashtag (hashpair h k) (Int32.of_int (4096 + l)),1+l)
       end
 
-type nehlist = NehHash of hashval | NehCons of asset * hlist | NehConsH of hashval * hlist
+type nehlist = NehHash of hashval * int | NehCons of asset * hlist | NehConsH of hashval * hlist
+
+let nehlist_len hl =
+  match hl with
+  | NehHash(_,l) -> l
+  | NehCons(_,hr) -> 1+hlist_len hr
+  | NehConsH(_,hr) -> 1+hlist_len hr
 
 let nehlist_hlist hl =
   match hl with
-  | NehHash(h) -> HHash h
+  | NehHash(h,l) -> HHash(h,l)
   | NehCons(a,hr) -> HCons(a,hr)
   | NehConsH(h,hr) -> HConsH(h,hr)
 
 let nehlist_hashroot hl =
   match hl with
-  | NehHash(h) -> h
+  | NehHash(h,l) -> (h,l)
   | NehCons(a,hr) ->
       begin
 	match hlist_hashroot hr with
-	| None -> hashtag (hashasset a) 3l
-	| Some(k) -> hashtag (hashpair (hashasset a) k) 4l
+	| None -> (hashtag (hashasset a) 3l,1)
+	| Some(k,l) -> (hashtag (hashpair (hashasset a) k) (Int32.of_int (4096+l)),1+l)
       end
   | NehConsH(h,hr) ->
       begin
 	match hlist_hashroot hr with
-	| None -> hashtag h 3l
-	| Some(k) -> hashtag (hashpair h k) 4l
+	| None -> (hashtag h 3l,1)
+	| Some(k,l) -> (hashtag (hashpair h k) (Int32.of_int (4096+l)),1+l)
       end
 
 let rec in_hlist a hl =
@@ -128,8 +144,8 @@ type ctree =
 let rec print_ctree_r c n =
   for i = 1 to n do Printf.printf " " done;
   match c with
-  | CLeaf(bl,NehHash(h)) -> Printf.printf "Leaf %s\n" (hashval_hexstring h)
-  | CLeaf(bl,hl) -> Printf.printf "Leaf ...\n"
+  | CLeaf(bl,NehHash(h,l)) -> Printf.printf "Leaf %s[%d]\n" (hashval_hexstring h) l
+  | CLeaf(bl,hl) -> Printf.printf "Leaf ...[%d]\n" (nehlist_len hl)
   | CHash(h) -> Printf.printf "H %s\n" (hashval_hexstring h)
   | CLeft(c0) -> Printf.printf "L\n"; print_ctree_r c0 (n+1)
   | CRight(c1) -> Printf.printf "R\n"; print_ctree_r c1 (n+1)
@@ -139,7 +155,7 @@ let print_ctree c = print_ctree_r c 0
 
 let rec print_hlist_gen f hl g =
   match hl with
-  | HHash(h) -> Printf.fprintf f "...%s...\n" (hashval_hexstring h)
+  | HHash(h,l) -> Printf.fprintf f "...%s[%d]...\n" (hashval_hexstring h) l
   | HNil -> ()
   | HCons((aid,bday,obl,Currency(v)) as a,hr) ->
       begin
@@ -218,7 +234,7 @@ let right_trim c s =
 
 let rec print_hlist_to_buffer_gen sb blkh hl g =
   match hl with
-  | HHash(h) ->
+  | HHash(h,l) ->
       Buffer.add_string sb "...";
       Buffer.add_string sb (hashval_hexstring h);
       Buffer.add_string sb "...\n"
@@ -456,7 +472,7 @@ let rec ctree_hashroot c =
 	  else
 	    hashopair1 h None
 	)
-	bl (nehlist_hashroot hl)
+	bl (let (h,_) = nehlist_hashroot hl in h)
   | CHash(h) -> h
   | CLeft(c0) -> hashopair1 (ctree_hashroot c0) None
   | CRight(c1) -> hashopair2 None (ctree_hashroot c1)
@@ -516,9 +532,10 @@ let rec hlist_new_assets nw old =
 (** * serialization **)
 let rec seo_hlist o hl c =
   match hl with
-  | HHash(h) -> (* 00 *)
+  | HHash(h,l) -> (* 00 *)
       let c = o 2 0 c in
-      seo_hashval o h c
+      seo_hashval o h c;
+      seo_int8 o l c
   | HNil -> (* 01 *)
       let c = o 2 1 c in
       c
@@ -535,7 +552,8 @@ let rec sei_hlist i c =
   let (x,c) = i 2 c in
   if x = 0 then
     let (h,c) = sei_hashval i c in
-    (HHash(h),c)
+    let (l,c) = sei_int8 i c in
+    (HHash(h,l),c)
   else if x = 1 then
       (HNil,c)
   else if x = 2 then
@@ -549,9 +567,10 @@ let rec sei_hlist i c =
 
 let seo_nehlist o hl c =
   match hl with
-  | NehHash(h) -> (* 0 *)
+  | NehHash(h,l) -> (* 0 *)
       let c = o 1 0 c in
-      seo_hashval o h c
+      seo_hashval o h c;
+      seo_int8 o l c
   | NehCons(a,hr) -> (* 1 0 *)
       let c = o 2 1 c in
       let c = seo_asset o a c in
@@ -565,7 +584,8 @@ let sei_nehlist i c =
   let (x,c) = i 1 c in
   if x = 0 then
     let (h,c) = sei_hashval i c in
-    (NehHash(h),c)
+    let (l,c) = sei_int8 i c in
+    (NehHash(h,l),c)
   else
     let (y,c) = i 1 c in
     if y = 0 then
@@ -624,12 +644,12 @@ let rec sei_ctree i c =
 let rec reduce_hlist_to_approx al hl =
   match hl with
   | HNil -> HNil
-  | HHash(h) -> HHash(h)
+  | HHash(h,l) -> HHash(h,l)
   | HCons((h1,bh1,o1,u1),hr) ->
       if al = [] then
 	begin
 	  match hlist_hashroot hl with
-	  | Some h -> HHash(h)
+	  | Some(h,l) -> HHash(h,l)
 	  | None -> raise (Failure("Impossible"))
 	end
       else
@@ -678,10 +698,10 @@ exception FoundHashval of hashval
 module DbHConsElt =
   Dbbasic
     (struct
-      type t = hashval * hashval option
+      type t = hashval * (hashval * int) option
       let basedir = "hconselt"
-      let seival = sei_prod sei_hashval (sei_option sei_hashval) seic
-      let seoval = seo_prod seo_hashval (seo_option seo_hashval) seoc
+      let seival = sei_prod sei_hashval (sei_option (sei_prod sei_hashval sei_int8)) seic
+      let seoval = seo_prod seo_hashval (seo_option (seo_prod seo_hashval seo_int8)) seoc
     end)
 
 let get_hcons_element h =
@@ -697,24 +717,24 @@ let rec save_hlist_elements hl =
       let ah = hashasset a in
       DbAsset.dbput ah a;
       let h = save_hlist_elements hr in
-      let r =
+      let (r,l) =
 	match h with
-	| None -> hashtag ah 3l
-	| Some(k) -> hashtag (hashpair ah k) 4l
+	| None -> (hashtag ah 3l,1)
+	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
-      Some(r)
+      Some(r,l)
   | HConsH(ah,hr) ->
       let h = save_hlist_elements hr in
-      let r =
+      let (r,l) =
 	match h with
-	| None -> hashtag ah 3l
-	| Some(k) -> hashtag (hashpair ah k) 4l
+	| None -> (hashtag ah 3l,1)
+	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
-      Some(r)
+      Some(r,l)
   | HNil -> None
-  | HHash(r) -> Some(r)
+  | HHash(r,l) -> Some(r,l)
 
 let save_nehlist_elements hl =
   match hl with
@@ -722,23 +742,23 @@ let save_nehlist_elements hl =
       let ah = hashasset a in
       DbAsset.dbput ah a;
       let h = save_hlist_elements hr in
-      let r = 
+      let (r,l) = 
 	match h with
-	| None -> hashtag ah 3l
-	| Some(k) -> hashtag (hashpair ah k) 4l
+	| None -> (hashtag ah 3l,1)
+	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
-      r
+      (r,l)
   | NehConsH(ah,hr) ->
       let h = save_hlist_elements hr in
-      let r = 
+      let (r,l) = 
 	match h with
-	| None -> hashtag ah 3l
-	| Some(k) -> hashtag (hashpair ah k) 4l
+	| None -> (hashtag ah 3l,1)
+	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
-      r
-  | NehHash(r) -> r
+      (r,l)
+  | NehHash(r,l) -> (r,l)
 
 (** exp: bool indicating if hashes should be expanded, req: bool indicating if missing hashes should be requested from peers;
   raises Not_found if exp was true but a hash was not in the database;
@@ -753,12 +773,12 @@ let rec hlist_lookup_asset_gen exp req p hl =
 	hlist_lookup_asset_gen exp req p (HCons(a,hr))
       else
 	hlist_lookup_asset_gen exp req p hr (* Skip this one and search for another asset satisfying p. Note: This means that if the asset with id h satisfies p, we will miss it. This is even the case when p a means assetid a = h *)
-  | HHash(h) ->
+  | HHash(h,l) ->
       if exp then
 	begin
 	  let (h1,h2) = if req then get_hcons_element h else DbHConsElt.dbget h in
 	  match h2 with
-	  | Some(h2) -> hlist_lookup_asset_gen exp req p (HConsH(h1,HHash(h2)))
+	  | Some(h2,l2) -> hlist_lookup_asset_gen exp req p (HConsH(h1,HHash(h2,l2)))
 	  | None -> hlist_lookup_asset_gen exp req p (HConsH(h1,HNil))
 	end
       else
@@ -817,7 +837,7 @@ let rec ctree_element_a tr i =
   if i > 0 then
     begin
       match tr with
-      | CLeaf(_,NehHash(_)) -> true
+      | CLeaf(_,NehHash(_,_)) -> true
       | CLeft(tr0) -> ctree_element_a tr0 (i-1)
       | CRight(tr1) -> ctree_element_a tr1 (i-1)
       | CBin(tr0,tr1) -> ctree_element_a tr0 (i-1) && ctree_element_a tr1 (i-1)
@@ -835,7 +855,7 @@ let rec save_ctree_elements_a tr i =
   if i > 0 then
     match tr with
     | CLeaf(bl,hl) ->
-	let h = save_nehlist_elements hl in
+	let (h,l) = save_nehlist_elements hl in
 	let r = List.fold_right
 	    (fun b h ->
 	      if b then
@@ -845,7 +865,7 @@ let rec save_ctree_elements_a tr i =
 	    )
 	    bl h
 	in
-	let tr2 = CLeaf(bl,NehHash(h)) in
+	let tr2 = CLeaf(bl,NehHash(h,l)) in
 	(tr2,r)
     | CLeft(trl) ->
 	let (trl2,hl) = save_ctree_elements_a trl (i-1) in
@@ -877,22 +897,22 @@ let save_ctree_elements tr =
 
 let load_hlist_element h =
   match DbHConsElt.dbget h with
-  | (ah,Some(k)) -> HConsH(ah,HHash(k))
+  | (ah,Some(k,l)) -> HConsH(ah,HHash(k,l))
   | (ah,None) -> HConsH(ah,HNil)
 
 let load_nehlist_element h =
   match DbHConsElt.dbget h with
-  | (ah,Some(k)) -> NehConsH(ah,HHash(k))
+  | (ah,Some(k,l)) -> NehConsH(ah,HHash(k,l))
   | (ah,None) -> NehConsH(ah,HNil)
 
 let get_hlist_element h =
   match get_hcons_element h with
-  | (ah,Some(k)) -> HConsH(ah,HHash(k))
+  | (ah,Some(k,l)) -> HConsH(ah,HHash(k,l))
   | (ah,None) -> HConsH(ah,HNil)
 
 let get_nehlist_element h =
   match get_hcons_element h with
-  | (ah,Some(k)) -> NehConsH(ah,HHash(k))
+  | (ah,Some(k,l)) -> NehConsH(ah,HHash(k,l))
   | (ah,None) -> NehConsH(ah,HNil)
 
 (**
@@ -920,14 +940,14 @@ let rec remove_assets_hlist exp req hl spent =
 	    remove_assets_hlist exp req (HCons(a,hr)) spent
 	else (** assume h is not an asset to be removed (if it is, spent will be nonempty when we get to the end) **)
 	  HConsH(h,remove_assets_hlist exp req hr spent)
-    | HHash(h) ->
+    | HHash(h,l) ->
 	if exp then
 	  if req then
 	    let (h1,h2) = get_hcons_element h in
-	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr,l) -> HHash(hr,l) | None -> HNil)) spent
 	  else
 	    let (h1,h2) = DbHConsElt.dbget h in
-	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr) -> HHash(hr) | None -> HNil)) spent
+	    remove_assets_hlist exp req (HConsH(h1,match h2 with Some(hr,l) -> HHash(hr,l) | None -> HNil)) spent
 	else
 	  raise Not_found (*** spent is nonempty, but we cannot continue, so not enough information is on the hl ***)
     | _ ->
@@ -954,7 +974,9 @@ let rec super_element_to_element_a tr i =
   if i > 0 then
     begin
       match tr with
-      | CLeaf(bl,hl) -> CLeaf(bl,NehHash(nehlist_hashroot hl))
+      | CLeaf(bl,hl) ->
+	  let (h,l) = nehlist_hashroot hl in
+	  CLeaf(bl,NehHash(h,l))
       | CLeft(tr0) -> CLeft(super_element_to_element_a tr0 (i-1))
       | CRight(tr1) -> CRight(super_element_to_element_a tr1 (i-1))
       | CBin(tr0,tr1) -> CBin(super_element_to_element_a tr0 (i-1),super_element_to_element_a tr1 (i-1))
@@ -1026,10 +1048,12 @@ let rec tx_octree_trans_ exp req n inpl outpl c =
 	  | _ -> raise (Failure "not a ctree 0")
 	end
       in
-      let hl2 = hlist_new_assets (List.map (fun (x,y) -> y) outpl) (remove_assets_hlist exp req hl (List.map (fun (x,y) -> y) inpl)) in
-      match hl2 with
+      let hl2 = remove_assets_hlist exp req hl (List.map (fun (x,y) -> y) inpl) in
+      if List.length outpl + hlist_len hl2 > max_assets_at_address then raise MaxAssetsAtAddress;
+      let hl3 = hlist_new_assets (List.map (fun (x,y) -> y) outpl) hl2 in
+      match hl3 with
       | HNil -> None
-      | HHash(h) -> Some(CLeaf([],NehHash(h)))
+      | HHash(h,l) -> Some(CLeaf([],NehHash(h,l)))
       | HCons(a,hr) -> Some(CLeaf([],NehCons(a,hr)))
       | HConsH(h,hr) -> Some(CLeaf([],NehConsH(h,hr)))
     end
@@ -1062,14 +1086,14 @@ let rec expand_hlist req hl z =
   | _,Some(i) when i <= 0 ->
       begin
 	match hlist_hashroot hl with
-	| Some(h) -> HHash(h)
+	| Some(h,l) -> HHash(h,l)
 	| None -> HNil
       end
   | HNil,_ -> HNil
-  | HHash(h),_ ->
+  | HHash(h,l),_ ->
       begin
 	match if req then get_hcons_element h else DbHConsElt.dbget h with
-	| (h1,Some(h2)) -> expand_hlist req (HConsH(h1,HHash(h2))) z
+	| (h1,Some(h2,l2)) -> expand_hlist req (HConsH(h1,HHash(h2,l2))) z
 	| (h1,None) -> expand_hlist req (HConsH(h1,HNil)) z
       end
   | HCons(a,hr),None -> HCons(a,expand_hlist req hr None)
@@ -1083,11 +1107,13 @@ let rec expand_hlist req hl z =
 
 let rec expand_nehlist req hl z =
   match hl,z with
-  | _,Some(i) when i <= 0 -> NehHash(nehlist_hashroot hl)
-  | NehHash(h),_ ->
+  | _,Some(i) when i <= 0 ->
+      let (h,l) = nehlist_hashroot hl in
+      NehHash(h,l)
+  | NehHash(h,l),_ ->
       begin
 	match if req then get_hcons_element h else DbHConsElt.dbget h with
-	| (h1,Some(h2)) -> expand_nehlist req (NehConsH(h1,HHash(h2))) z
+	| (h1,Some(h2,l2)) -> expand_nehlist req (NehConsH(h1,HHash(h2,l2))) z
 	| (h1,None) -> expand_nehlist req (NehConsH(h1,HNil)) z
       end
   | NehCons(a,hr),None -> NehCons(a,expand_hlist req hr None)
@@ -1098,7 +1124,7 @@ let rec expand_nehlist req hl z =
 let rec truncate_hlist hl i =
   if i <= 0 then
     match hlist_hashroot hl with
-    | Some(h) -> HHash(h)
+    | Some(h,l) -> HHash(h,l)
     | None -> HNil
   else
     match hl with
@@ -1108,7 +1134,8 @@ let rec truncate_hlist hl i =
 
 let truncate_nehlist hl i =
   if i <= 0 then
-    NehHash(nehlist_hashroot hl)
+    let (h,l) = nehlist_hashroot hl in
+    NehHash(h,l)
   else
     match hl with
     | NehCons(a,hr) -> NehCons(a,truncate_hlist hr (i-1))
@@ -1236,18 +1263,18 @@ let rec hlist_full_approx exp req hl =
 	  end
       else
 	false
-  | HHash(h) ->
+  | HHash(h,l) ->
       if exp then
 	if req then
 	  begin
 	    match get_hcons_element h with
-	    | (h1,Some(h2)) -> hlist_full_approx exp req (HHash(h2))
+	    | (h1,Some(h2,l2)) -> hlist_full_approx exp req (HHash(h2,l2))
 	    | (h1,None) -> true
 	  end
 	else
 	  begin
 	    match DbHConsElt.dbget h with
-	    | (h1,Some(h2)) -> hlist_full_approx exp req (HHash(h2))
+	    | (h1,Some(h2,l2)) -> hlist_full_approx exp req (HHash(h2,l2))
 	    | (h1,None) -> true
 	  end
       else
@@ -1276,18 +1303,18 @@ let nehlist_full_approx exp req hl =
 	  end
       else
 	false
-  | NehHash(h) ->
+  | NehHash(h,l) ->
       if exp then
 	if req then
 	  begin
 	    match get_hcons_element h with
-	    | (h1,Some(h2)) -> hlist_full_approx exp req (HHash(h2))
+	    | (h1,Some(h2,l2)) -> hlist_full_approx exp req (HHash(h2,l2))
 	    | (h1,None) -> true
 	  end
 	else
 	  begin
 	    match DbHConsElt.dbget h with
-	    | (h1,Some(h2)) -> hlist_full_approx exp req (HHash(h2))
+	    | (h1,Some(h2,l2)) -> hlist_full_approx exp req (HHash(h2,l2))
 	    | (h1,None) -> true
 	  end
       else
@@ -1922,35 +1949,35 @@ let ctree_supports_tx exp req tht sigt blkh tx tr =
 let rec hlist_lub hl1 hl2 =
   match hl1 with
   | HNil -> HNil
-  | HHash(_) -> hl2
+  | HHash(_,_) -> hl2
   | HCons(a1,hr1) ->
       begin
 	match hl2 with
 	| HNil -> raise (Failure "incompatible hlists")
-	| HHash(_) -> hl1
+	| HHash(_,_) -> hl1
 	| HCons(_,hr2) -> HCons(a1,hlist_lub hr1 hr2)
 	| HConsH(_,hr2) -> HCons(a1,hlist_lub hr1 hr2)
       end
   | HConsH(h1,hr1) ->
       match hl2 with
       | HNil -> raise (Failure "incompatible hlists")
-      | HHash(_) -> hl1
+      | HHash(_,_) -> hl1
       | HCons(a2,hr2) -> HCons(a2,hlist_lub hr1 hr2)
       | HConsH(_,hr2) -> HConsH(h1,hlist_lub hr1 hr2)
 
 let nehlist_lub hl1 hl2 =
   match hl1 with
-  | NehHash(_) -> hl2
+  | NehHash(_,_) -> hl2
   | NehCons(a1,hr1) ->
       begin
 	match hl2 with
-	| NehHash(_) -> hl1
+	| NehHash(_,_) -> hl1
 	| NehCons(_,hr2) -> NehCons(a1,hlist_lub hr1 hr2)
 	| NehConsH(_,hr2) -> NehCons(a1,hlist_lub hr1 hr2)
       end
   | NehConsH(h1,hr1) ->
       match hl2 with
-      | NehHash(_) -> hl1
+      | NehHash(_,_) -> hl1
       | NehCons(a2,hr2) -> NehCons(a2,hlist_lub hr1 hr2)
       | NehConsH(_,hr2) -> NehConsH(h1,hlist_lub hr1 hr2)
 
@@ -2040,7 +2067,7 @@ let rec hlist_reduce_to_min_support aidl hl =
   | [] ->
       begin
 	match hlist_hashroot hl with
-	| Some(h) -> HHash(h)
+	| Some(h,l) -> HHash(h,l)
 	| None -> HNil
       end
   | _ ->
@@ -2062,7 +2089,7 @@ let rec hlist_reduce_to_min_support aidl hl =
 	      with
 	      | _ -> HConsH(h,hlist_reduce_to_min_support aidl hr)
 	    end
-	| HHash(h) -> (*** do a partial lookup ***)
+	| HHash(h,_) -> (*** do a partial lookup ***)
 	    hlist_reduce_to_min_support aidl (get_hlist_element h)
 	| _ -> hl
       end
@@ -2072,13 +2099,13 @@ let rec get_full_hlist hl =
   | HNil -> HNil
   | HCons(a,hr) -> HCons(a,get_full_hlist hr)
   | HConsH(h,hr) -> HCons(get_asset h,get_full_hlist hr)
-  | HHash(h) -> get_full_hlist (get_hlist_element h)
+  | HHash(h,_) -> get_full_hlist (get_hlist_element h)
 
 let rec get_full_nehlist hl =
   match hl with
   | NehCons(a,hr) -> NehCons(a,get_full_hlist hr)
   | NehConsH(h,hr) -> NehCons(get_asset h,get_full_hlist hr)
-  | NehHash(h) -> get_full_nehlist (get_nehlist_element h)
+  | NehHash(h,_) -> get_full_nehlist (get_nehlist_element h)
       
 let rec ctree_reduce_to_min_support n inpl outpl full c =
   if n > 0 then
@@ -2141,7 +2168,7 @@ let rec ctree_reduce_to_min_support n inpl outpl full c =
   else if full = [] then
     begin
       match c with
-      | CLeaf([],NehHash(h)) -> 
+      | CLeaf([],NehHash(h,_)) -> 
 	  if inpl = [] then
 	    c
 	  else
@@ -2158,7 +2185,8 @@ let rec ctree_reduce_to_min_support n inpl outpl full c =
 	    end
       | CLeaf([],(NehCons((h,bh,o,u),hr) as hl)) ->
 	  if inpl = [] then
-	    CLeaf([],NehHash(nehlist_hashroot hl))
+	    let (h,l) = nehlist_hashroot hl in
+	    CLeaf([],NehHash(h,l))
 	  else
 	    let aidl = List.map (fun (_,k) -> k) inpl in
 	    if List.mem h aidl then
@@ -2167,7 +2195,8 @@ let rec ctree_reduce_to_min_support n inpl outpl full c =
 	      CLeaf([],NehConsH(hashasset (h,bh,o,u),hlist_reduce_to_min_support aidl hr))
       | CLeaf([],(NehConsH(h,hr) as hl)) ->
 	  if inpl = [] then
-	    CLeaf([],NehHash(nehlist_hashroot hl))
+	    let (h,l) = nehlist_hashroot hl in
+	    CLeaf([],NehHash(h,l))
 	  else
 	    let aidl = List.map (fun (_,k) -> k) inpl in
 	    let ((aid,_,_,_) as a) = get_asset h in
@@ -2263,7 +2292,7 @@ let rec minimal_asset_supporting_hlist hl aid n =
   if n > 0 then
     match hl with
     | HCons(a,HNil) -> assetid a = aid
-    | HCons(a,HHash(_)) -> assetid a = aid
+    | HCons(a,HHash(_,_)) -> assetid a = aid
     | HConsH(_,hr) -> minimal_asset_supporting_hlist hr aid (n-1)
     | _ -> false
   else
@@ -2273,7 +2302,7 @@ let rec minimal_asset_supporting_nehlist hl aid n =
   if n > 0 then
     match hl with
     | NehCons(a,HNil) -> assetid a = aid
-    | NehCons(a,HHash(_)) -> assetid a = aid
+    | NehCons(a,HHash(_,_)) -> assetid a = aid
     | NehConsH(_,hr) -> minimal_asset_supporting_hlist hr aid (n-1)
     | _ -> false
   else
@@ -2319,7 +2348,7 @@ Hashtbl.add msgtype_handler GetHConsElement
 	try
 	  let hk = DbHConsElt.dbget h in
 	  let hksb = Buffer.create 100 in
-	  seosbf (seo_prod seo_hashval (seo_option seo_hashval) seosb hk (seo_hashval seosb h (hksb,None)));
+	  seosbf (seo_prod seo_hashval (seo_option (seo_prod seo_hashval seo_int8)) seosb hk (seo_hashval seosb h (hksb,None)));
 	  let hkser = Buffer.contents hksb in
 	  ignore (queue_msg cs HConsElement hkser);
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
@@ -2332,11 +2361,11 @@ Hashtbl.add msgtype_handler HConsElement
       if not (DbHConsElt.dbexists h) then (*** if we already have it, abort ***)
 	let tm = Unix.time() in
 	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
-          let (hk,_) = sei_prod sei_hashval (sei_option sei_hashval) seis r in
+          let (hk,_) = sei_prod sei_hashval (sei_option (sei_prod sei_hashval sei_int8)) seis r in
 	  let hkh =
 	    match hk with
 	    | (h1,None) -> hashtag h1 3l
-	    | (h1,Some(k1)) -> hashtag (hashpair h1 k1) 4l
+	    | (h1,Some(k1,l1)) -> hashtag (hashpair h1 k1) (Int32.of_int (2048+l1))
 	  in
 	  if hkh = h then
 	    begin
@@ -2388,14 +2417,14 @@ let hashctree c =
 
 let rec json_hlist hl =
   match hl with
-  | HHash(h) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hhash"));("hhash",JsonStr(hashval_hexstring h))])
+  | HHash(h,l) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hhash"));("hhash",JsonStr(hashval_hexstring h));("len",JsonNum(string_of_int l))])
   | HNil -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hnil"))])
   | HCons(a,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hcons"));("first",json_asset a);("rest",json_hlist hl)])
   | HConsH(h,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
 
 let json_nehlist hl =
   match hl with
-  | NehHash(h) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehhash"));("nehhash",JsonStr(hashval_hexstring h))])
+  | NehHash(h,l) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehhash"));("nehhash",JsonStr(hashval_hexstring h));("len",JsonNum(string_of_int l))])
   | NehCons(a,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehcons"));("first",json_asset a);("rest",json_hlist hl)])
   | NehConsH(h,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
 

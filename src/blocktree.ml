@@ -427,9 +427,11 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	    begin
 	      let prevc = load_expanded_ctree (ctree_of_block blk) in
 	      let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	      match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
-	      | Some(newc) -> ignore (save_ctree_elements newc)
-	      | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
+	      try
+		match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
+		| Some(newc) -> ignore (save_ctree_elements newc)
+		| None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
+	      with MaxAssetsAtAddress -> raise (Failure("transformed tree would hold too many assets at an address"))
 	    end;
 	    List.iter
 	      (fun (h,n) ->

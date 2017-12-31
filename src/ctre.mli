@@ -18,15 +18,15 @@ val reward_locktime : int64
 val coinagefactor : int64 -> int64 -> obligation -> big_int
 val coinage : int64 -> int64 -> obligation -> int64 -> big_int
 
-type hlist = HHash of hashval | HNil | HCons of asset * hlist | HConsH of hashval * hlist
+type hlist = HHash of hashval * int | HNil | HCons of asset * hlist | HConsH of hashval * hlist
 
-val hlist_hashroot : hlist -> hashval option
+val hlist_hashroot : hlist -> (hashval * int) option
 
-type nehlist = NehHash of hashval | NehCons of asset * hlist | NehConsH of hashval * hlist
+type nehlist = NehHash of hashval * int | NehCons of asset * hlist | NehConsH of hashval * hlist
 
 val nehlist_hlist : nehlist -> hlist
 
-val nehlist_hashroot : nehlist -> hashval
+val nehlist_hashroot : nehlist -> hashval * int
 
 type ctree =
   | CLeaf of bool list * nehlist
@@ -46,9 +46,9 @@ exception InsufficientInformation
 module DbHConsElt :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> hashval * hashval option
+      val dbget : Hash.hashval -> hashval * (hashval * int) option
       val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> hashval * hashval option -> unit
+      val dbput : Hash.hashval -> hashval * (hashval * int) option -> unit
       val dbdelete : Hash.hashval -> unit
     end
 
@@ -61,8 +61,8 @@ module DbCTreeElt :
       val dbdelete : Hash.hashval -> unit
     end
 
-val save_hlist_elements : hlist -> hashval option
-val save_nehlist_elements : nehlist -> hashval
+val save_hlist_elements : hlist -> (hashval * int) option
+val save_nehlist_elements : nehlist -> hashval * int
 val save_ctree_elements : ctree -> hashval
 val save_ctree : string -> ctree -> unit
 val load_ctree : string -> ctree
@@ -79,6 +79,8 @@ val strip_bitseq_false0 : bool list list -> bool list list
 val ctree_lookup_input_assets : bool -> bool -> addr_assetid list -> ctree -> (addr -> hashval -> unit) -> (addr * asset) list
 val ctree_supports_tx : bool -> bool -> ttree option -> stree option -> int64 -> tx -> ctree -> int64
 val ctree_supports_tx_2 : bool -> bool -> ttree option -> stree option -> int64 -> tx -> (addr * asset) list -> asset list -> ctree -> int64
+
+exception MaxAssetsAtAddress
 
 val tx_octree_trans : bool -> bool -> int64 -> tx -> ctree option -> ctree option
 val txl_octree_trans : bool -> bool -> int64 -> tx list -> ctree option -> ctree option

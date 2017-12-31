@@ -472,7 +472,7 @@ let rec ctree_hashroot c =
 	  else
 	    hashopair1 h None
 	)
-	bl (let (h,_) = nehlist_hashroot hl in h)
+	bl (let (h,l) = nehlist_hashroot hl in if l = 1 then h else (hashtag h (Int32.of_int (4224+l)))) (*** commit to the number of assets held, but treating 1 in a special way to maintain compatibility with the initial ledger ***)
   | CHash(h) -> h
   | CLeft(c0) -> hashopair1 (ctree_hashroot c0) None
   | CRight(c1) -> hashopair2 None (ctree_hashroot c1)
@@ -567,35 +567,43 @@ let rec sei_hlist i c =
 
 let seo_nehlist o hl c =
   match hl with
-  | NehHash(h,l) -> (* 0 *)
+  | NehHash(h,l) when l=1 -> (* 0 *) (*** treat l=1 the old way for compatibility ***)
       let c = o 1 0 c in
+      seo_hashval o h c
+  | NehHash(h,l) -> (* 1 0 *)
+      let c = o 2 1 c in
       seo_hashval o h c;
       seo_int8 o l c
-  | NehCons(a,hr) -> (* 1 0 *)
-      let c = o 2 1 c in
+  | NehCons(a,hr) -> (* 1 1 0 *)
+      let c = o 3 3 c in
       let c = seo_asset o a c in
       seo_hlist o hr c
-  | NehConsH(ah,hr) -> (* 1 1 *)
-      let c = o 2 3 c in
+  | NehConsH(ah,hr) -> (* 1 1 1 *)
+      let c = o 3 7 c in
       let c = seo_hashval o ah c in
       seo_hlist o hr c
 
 let sei_nehlist i c =
   let (x,c) = i 1 c in
-  if x = 0 then
+  if x = 0 then (*** default of l=1 for compatibility ***)
     let (h,c) = sei_hashval i c in
-    let (l,c) = sei_int8 i c in
-    (NehHash(h,l),c)
+    (NehHash(h,1),c)
   else
     let (y,c) = i 1 c in
     if y = 0 then
-      let (a,c) = sei_asset i c in
-      let (hr,c) = sei_hlist i c in
-      (NehCons(a,hr),c)
+      let (h,c) = sei_hashval i c in
+      let (l,c) = sei_int8 i c in
+      (NehHash(h,l),c)
     else
-      let (ah,c) = sei_hashval i c in
-      let (hr,c) = sei_hlist i c in
-      (NehConsH(ah,hr),c)
+      let (z,c) = i 1 c in
+      if z = 0 then
+	let (a,c) = sei_asset i c in
+	let (hr,c) = sei_hlist i c in
+	(NehCons(a,hr),c)
+      else
+	let (ah,c) = sei_hashval i c in
+	let (hr,c) = sei_hlist i c in
+	(NehConsH(ah,hr),c)
 
 let rec seo_ctree o tr c =
   match tr with

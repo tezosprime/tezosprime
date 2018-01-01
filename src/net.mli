@@ -17,25 +17,19 @@ type msgtype =
   | Verack
   | Addr
   | Inv
-  | GetData
-  | MNotFound
   | GetSTx
-  | GetHeader
   | GetHeaders
+  | GetHeader
   | GetBlock
   | GetBlockdelta
-  | GetBlockdeltah
   | STx
   | Block
   | Headers
   | Blockdelta
-  | Blockdeltah
   | GetAddr
-  | Mempool
   | Alert
   | Ping
   | Pong
-  | Reject
   | GetCTreeElement
   | GetHConsElement
   | GetAsset

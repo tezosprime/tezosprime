@@ -17,25 +17,19 @@ type msgtype =
   | Verack
   | Addr
   | Inv
-  | GetData
-  | MNotFound
   | GetSTx
-  | GetHeader
   | GetHeaders
+  | GetHeader
   | GetBlock
   | GetBlockdelta
-  | GetBlockdeltah
   | STx
   | Block
   | Headers
   | Blockdelta
-  | Blockdeltah
   | GetAddr
-  | Mempool
   | Alert
   | Ping
   | Pong
-  | Reject
   | GetCTreeElement
   | GetHConsElement
   | GetAsset
@@ -46,10 +40,9 @@ type msgtype =
 let msgtype_of_int i =
   try
     List.nth
-      [Version;Verack;Addr;Inv;GetData;MNotFound;GetSTx;
-       GetBlock;GetBlockdelta;GetBlockdeltah;GetHeader;STx;Block;
-       Headers;Blockdelta;Blockdeltah;GetAddr;Mempool;Alert;Ping;Pong;Reject;
-       GetCTreeElement;GetHConsElement;GetAsset;CTreeElement;HConsElement;Asset;GetHeaders]
+      [Version;Verack;Addr;Inv;GetSTx;GetHeaders;GetHeader;GetBlock;GetBlockdelta;
+       STx;Block;Headers;Blockdelta;GetAddr;Alert;Ping;Pong;
+       GetCTreeElement;GetHConsElement;GetAsset;CTreeElement;HConsElement;Asset]
       i
   with Failure("nth") -> raise Not_found
 
@@ -59,31 +52,25 @@ let int_of_msgtype mt =
   | Verack -> 1
   | Addr -> 2
   | Inv -> 3
-  | GetData -> 4
-  | MNotFound -> 5
-  | GetSTx -> 6
-  | GetBlock -> 9
-  | GetBlockdelta -> 10
-  | GetBlockdeltah -> 11
-  | GetHeader -> 12
-  | STx -> 13
-  | Block -> 16
-  | Headers -> 17
-  | Blockdelta -> 18
-  | Blockdeltah -> 19
-  | GetAddr -> 20
-  | Mempool -> 21
-  | Alert -> 22
-  | Ping -> 23
-  | Pong -> 24
-  | Reject -> 25
-  | GetCTreeElement -> 26
-  | GetHConsElement -> 27
-  | GetAsset -> 28
-  | CTreeElement -> 29
-  | HConsElement -> 30
-  | Asset -> 31
-  | GetHeaders -> 32
+  | GetSTx -> 4
+  | GetHeaders -> 5
+  | GetHeader -> 6
+  | GetBlock -> 7
+  | GetBlockdelta -> 8
+  | STx -> 9
+  | Block -> 10
+  | Headers -> 11
+  | Blockdelta -> 12
+  | GetAddr -> 13
+  | Alert -> 14
+  | Ping -> 15
+  | Pong -> 16
+  | GetCTreeElement -> 17
+  | GetHConsElement -> 18
+  | GetAsset -> 19
+  | CTreeElement -> 20
+  | HConsElement -> 21
+  | Asset -> 22
 
 let inv_of_msgtype mt =
   try
@@ -91,7 +78,6 @@ let inv_of_msgtype mt =
       (match mt with
       | GetSTx -> STx
       | GetBlock -> Block
-      | GetHeader -> Headers
       | GetHeaders -> Headers
       | GetBlockdelta -> Blockdelta
       | GetCTreeElement -> CTreeElement
@@ -106,25 +92,19 @@ let string_of_msgtype mt =
   | Verack -> "Verack"
   | Addr -> "Addr"
   | Inv -> "Inv"
-  | GetData -> "GetData"
-  | MNotFound -> "MNotFound"
   | GetSTx -> "GetSTx"
+  | GetHeaders -> "GetHeaders"
+  | GetHeader -> "GetHeader"
   | GetBlock -> "GetBlock"
   | GetBlockdelta -> "GetBlockdelta"
-  | GetBlockdeltah -> "GetBlockdeltah"
-  | GetHeader -> "GetHeader"
-  | GetHeaders -> "GetHeaders"
   | STx -> "STx"
   | Block -> "Block"
   | Headers -> "Headers"
   | Blockdelta -> "Blockdelta"
-  | Blockdeltah -> "Blockdeltah"
   | GetAddr -> "GetAddr"
-  | Mempool -> "Mempool"
   | Alert -> "Alert"
   | Ping -> "Ping"
   | Pong -> "Pong"
-  | Reject -> "Reject"
   | GetCTreeElement -> "GetCTreeElement"
   | GetHConsElement -> "GetHConsElement"
   | GetAsset -> "GetAsset"

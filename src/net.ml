@@ -599,53 +599,48 @@ let connlistener (s,sin,sout,gcs) =
   with _ -> gcs := None (*** indicate that the connection is dead; it will be removed from netaddr by the netlistener or netseeker ***)
 
 let connsender (s,sin,sout,gcs) =
-  try
-    while true do
+  match !gcs with
+  | None ->
+      Printf.fprintf !log "connsender was called without gcs being set to a connection state already.\nThis should never happen.\nKilling connection immediately.\n";
+      Unix.close s
+  | Some(cs) ->
+      let connsender_end () =
+	Mutex.unlock cs.connmutex;
+	gcs := None;
+	Unix.close s
+      in
       try
-	match !gcs with
-	| Some(cs) ->
-	    begin
-	      try
-		Mutex.lock cs.connmutex;
-		while true do
-		  let (mh,replyto,mt,m) = Queue.take cs.sendqueue in
-		  send_msg sout mh replyto mt m
-		done
-	      with
-	      | Queue.Empty ->
-		  Mutex.unlock cs.connmutex;
-		  Condition.wait cs.sendqueuenonempty cs.connmutex;
-	      | e ->
-		  Mutex.unlock cs.connmutex;
-		  raise e
-	    end
-	| None -> raise End_of_file (*** connection died; this probably shouldn't happen, as we should have left this thread when it died ***)
+	Mutex.lock cs.connmutex;
+	while true do
+	  try
+	    while true do
+	      let (mh,replyto,mt,m) = Queue.take cs.sendqueue in
+	      send_msg sout mh replyto mt m
+	    done;
+	  with
+	  | Queue.Empty -> Condition.wait cs.sendqueuenonempty cs.connmutex
+	done
       with
       | Unix.Unix_error(c,x,y) -> (*** close connection ***)
 	  Printf.fprintf !log "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y;
 	  flush !log;
-	  Unix.close s;
-	  raise Exit
+	  connsender_end()
       | End_of_file -> (*** close connection ***)
 	  Printf.fprintf !log "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs);
 	  flush !log;
-	  Unix.close s;
-	  raise Exit
+	  connsender_end()
       | ProtocolViolation(x) -> (*** close connection ***)
 	  Printf.fprintf !log "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x;
 	  flush !log;
-	  Unix.close s;
-	  raise Exit
+	  connsender_end()
       | SelfConnection -> (*** detected a self-connection attempt, close ***)
 	  Printf.fprintf !log "Stopping potential self-connection\n";
 	  flush !log;
-	  Unix.close s;
-	  raise Exit
-      | exc -> (*** report but ignore all other exceptions ***)
+	  connsender_end()
+      | exc -> (*** report all other exceptions and close connection ***)
 	  Printf.fprintf !log "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc);
 	  flush !log;
-    done
-  with _ -> gcs := None (*** indicate that the connection is dead; it will be removed from netaddr by the netlistener or netseeker ***)
+	  connsender_end()
 
 let remove_dead_conns () =
   Mutex.lock netconnsmutex;

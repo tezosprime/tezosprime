@@ -636,6 +636,9 @@ let stakingthread () =
 			  let newblkid = blockheader_id bhnew in
 			  DbBlockHeader.dbput newblkid bhnew;
 			  DbBlockDelta.dbput newblkid bdnew;
+			  List.iter
+			    (fun stau -> DbSTx.dbput (hashstx stau) stau)
+			    bdnew.blockdelta_stxl;
 			  begin
 			    let s = Buffer.create 10000 in
 			    seosbf (seo_blockdelta seosb bdnew (s,None));

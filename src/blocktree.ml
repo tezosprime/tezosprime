@@ -420,6 +420,11 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	    vs := ValidBlock;
 	    Hashtbl.remove tovalidate h;
 	    DbBlockDelta.dbput h blkdel;
+	    List.iter
+	      (fun stau ->
+		let txid = hashstx stau in
+		DbSTx.dbput txid stau)
+	      blkdel.blockdelta_stxl;
 	    let (bn,cwl) = get_bestnode true in
 	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
 	    add_thytree blkhd.newtheoryroot tht2;

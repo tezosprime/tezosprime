@@ -26,6 +26,8 @@ let checkpoints : (hashval,int64 * signat) Hashtbl.t = Hashtbl.create 1000;;
 
 let stxpool : (hashval,stx) Hashtbl.t = Hashtbl.create 1000;;
 let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
+let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100
+
 let thytree : (hashval,Mathdata.ttree) Hashtbl.t = Hashtbl.create 1000;;
 let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
 
@@ -1040,6 +1042,24 @@ Hashtbl.add msgtype_handler GetSTx
 	    Printf.fprintf !log "Unknown Tx %s\n" (hashval_hexstring h);
 	    ());;
 
+let add_to_txpool txid stau =
+  Hashtbl.add stxpool txid stau;
+  let ((txin,_),_) = stau in
+  List.iter (fun (_,h) -> Hashtbl.add unconfirmed_spent_assets h txid) txin
+
+let remove_from_txpool txid =
+  try
+    let stau = Hashtbl.find stxpool txid in
+    Hashtbl.remove stxpool txid;
+    let ((txin,_),_) = stau in
+    List.iter (fun (_,h) -> Hashtbl.remove unconfirmed_spent_assets h) txin
+  with Not_found -> ()
+
+let savetxtopool_real txid stau =
+  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
+  seocf (seo_prod seo_hashval seo_stx seoc (txid,stau) (ch,None));
+  close_out ch;;
+
 Hashtbl.add msgtype_handler STx
     (fun (sin,sout,cs,ms) ->
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
@@ -1065,15 +1085,17 @@ Hashtbl.add msgtype_handler STx
 			begin
 			  Hashtbl.add stxpool h stau;
 			  Printf.fprintf !log "Accepting tx %s into pool\n" (hashval_hexstring h);
-			  flush !log
+			  flush !log;
+			  add_to_txpool h stau;
+			  savetxtopool_real h stau
 			end
 		      else
-			(Printf.fprintf !log "ignoring tx %s with low fee of %Ld cants\n" (hashval_hexstring h) fee; flush !log)
+			(Printf.fprintf !log "ignoring tx %s with low fee of %s fraenks (%Ld cants)\n" (hashval_hexstring h) (Cryptocurr.fraenks_of_cants fee) fee; flush !log)
 		    end
 		  else
 		    (Printf.fprintf !log "ignoring tx %s since signatures are not valid at the current block height of %Ld\n" (hashval_hexstring h) blkh; flush !log)
 		with _ ->
-		  (Printf.fprintf !log "misbehaving peer? [Tx %s unsupported]\n" (hashval_hexstring h); flush !log)
+		  (Printf.fprintf !log "Tx %s is unsupported by the local ledger, dropping it.\n" (hashval_hexstring h); flush !log)
 	      end
 	    else
 	      (Printf.fprintf !log "misbehaving peer? [invalid Tx %s]\n" (hashval_hexstring h); flush !log)

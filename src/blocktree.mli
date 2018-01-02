@@ -17,6 +17,7 @@ val checkpointspubkeyx : big_int
 val checkpointspubkeyy : big_int
 
 val stxpool : (hashval,stx) Hashtbl.t
+val unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t
 
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock
 
@@ -64,3 +65,7 @@ type consensuswarning =
   | ConsensusWarningTerminal
 
 val get_bestnode : bool -> blocktree * consensuswarning list
+
+val add_to_txpool : hashval -> Tx.stx -> unit
+val remove_from_txpool : hashval -> unit
+val savetxtopool_real : hashval -> stx -> unit

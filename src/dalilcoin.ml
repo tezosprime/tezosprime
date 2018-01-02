@@ -233,7 +233,7 @@ let rec hlist_stakingassets blkh alpha hl n =
     | HCons((aid,bday,obl,Currency(v)),hr) ->
 	let ca = coinage blkh bday obl v in
 	Printf.fprintf !log "Checking asset %s %Ld %Ld %s %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) v (string_of_big_int ca);
-	if gt_big_int ca zero_big_int && not (Hashtbl.mem Commands.unconfirmed_spent_assets aid) then
+	if gt_big_int ca zero_big_int && not (Hashtbl.mem unconfirmed_spent_assets aid) then
 	  begin
 	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid);
 	    Mutex.lock stakingassetsmutex;
@@ -476,7 +476,7 @@ let stakingthread () =
 			    try
 			      ignore (List.find (fun (_,h) -> h = aid) tauin);
 (*		      Printf.fprintf !log "tx spends the staked asset; removing tx from pool\n"; flush !log; *)
-			      Commands.remove_from_txpool h
+			      remove_from_txpool h
 			    with Not_found ->
 			      try
 				ignore (List.find (fun (alpha,_) -> alpha = alpha2) tauout) (*** Do not include txs that spend to the staking address, to avoid the possibility of ending up with too many assets at the stakign address ***)
@@ -492,7 +492,7 @@ let stakingthread () =
 					  begin
 (*				  Printf.fprintf !log "tx %s has negative fees %Ld; removing from pool\n" (hashval_hexstring h) nfee;
   flush !log; *)
-					    Commands.remove_from_txpool h;
+					    remove_from_txpool h;
 					  end
 					else
 					  let bytesestimate = 2048 * List.length tauin + 2048 * List.length tauout in (*** simple 2K per input and output (since must include relevant parts of ctree) ***)
@@ -518,7 +518,7 @@ let stakingthread () =
 				      begin
 (*			      Printf.fprintf !log "tx %s has an invalid signature; removing from pool\n" (hashval_hexstring h);
   flush !log; *)
-					Commands.remove_from_txpool h;
+					remove_from_txpool h;
 				      end
 				  with exn ->
 				    begin
@@ -529,14 +529,14 @@ let stakingthread () =
 				  begin
 (*			  Printf.fprintf !log "tx %s is invalid; removing from pool\n" (hashval_hexstring h);
   flush !log; *)
-				    Commands.remove_from_txpool h;
+				    remove_from_txpool h;
 				  end)
 			  stxpool;
 			let ostxs = !otherstxs in
 			let otherstxs = ref [] in
 			List.iter
 			  (fun (h,stau) ->
-			    Commands.remove_from_txpool h;
+			    remove_from_txpool h;
 			    otherstxs := stau::!otherstxs)
 			  ostxs;
 			let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in

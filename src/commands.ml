@@ -30,21 +30,6 @@ let storagedocassets = ref []
 
 let cants_balances_in_ledger : (hashval,int64 * int64 * int64 * int64) Hashtbl.t = Hashtbl.create 100
 
-let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100
-
-let add_to_txpool txid stau =
-  Hashtbl.add stxpool txid stau;
-  let ((txin,_),_) = stau in
-  List.iter (fun (_,h) -> Hashtbl.add unconfirmed_spent_assets h txid) txin
-
-let remove_from_txpool txid =
-  try
-    let stau = Hashtbl.find stxpool txid in
-    Hashtbl.remove stxpool txid;
-    let ((txin,_),_) = stau in
-    List.iter (fun (_,h) -> Hashtbl.remove unconfirmed_spent_assets h) txin
-  with Not_found -> ()
-
 let load_txpool () =
   let fn = Filename.concat (datadir()) "txpool" in
   if Sys.file_exists fn then
@@ -59,6 +44,14 @@ let load_txpool () =
     | exc ->
 	Printf.printf "Problem in txpool file: %s\n" (Printexc.to_string exc);
 	close_in ch;;
+
+let save_txpool () =
+  let fn = Filename.concat (datadir()) "txpool" in
+  let ch = open_out_bin fn in
+  Hashtbl.iter
+    (fun txid stau -> seocf (seo_prod seo_hashval Tx.seo_stx seoc (txid,stau) (ch,None)))
+    stxpool;
+  close_out ch;;
 
 let load_wallet () =
   let wallfn = Filename.concat (datadir()) "wallet" in
@@ -1020,10 +1013,8 @@ let savetxtopool blkh lr staustr =
     let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
     let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
     if tx_signatures_valid blkh al (tau,tausg) then
-      let txh = hashtx tau in
-      let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
-      seocf (seo_prod seo_hashval seo_stx seoc (txh,(tau,tausg)) (ch,None));
-      close_out ch
+      let txid = hashstx (tau,tausg) in
+      savetxtopool_real txid (tau,tausg)
     else
       Printf.printf "Invalid or incomplete signatures\n"
   else
@@ -1039,9 +1030,7 @@ let sendtx blkh lr staustr =
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
       if tx_signatures_valid blkh al (tau,tausg) then
 	let stxh = hashstx stau in
-	let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 (Filename.concat (datadir()) "txpool") in
-	seocf (seo_prod seo_hashval seo_stx seoc (stxh,(tau,tausg)) (ch,None));
-	close_out ch;
+	savetxtopool_real stxh stau;
 	publish_stx stxh stau;
 	Printf.printf "%s\n" (hashval_hexstring stxh);
 	flush stdout;

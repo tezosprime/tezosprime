@@ -444,7 +444,7 @@ let valid_block_a tht sigt blkh csm tinfo b ((aid,bday,obl,u) as a) stkaddr lmed
 	&&
       vbcb (tx_outputs_valid bd.stakeoutput) (fun c -> Printf.fprintf c "stakeoutput valid\n") (fun c -> Printf.fprintf c "stakeoutput invalid\n")
         &&
-      vbcb (blockdelta_hashroot bd = bhd.blockdeltaroot) (fun c -> Printf.fprintf c "delta Merkle root valid") (fun c -> Printf.fprintf c "delta Merkle root invalid") (*** the header commits to the blockdelta (including all txs and their signatures) ***)
+      vbcb (blockdelta_hashroot bd = bhd.blockdeltaroot) (fun c -> Printf.fprintf c "delta Merkle root valid\n") (fun c -> Printf.fprintf c "delta Merkle root invalid\n") (*** the header commits to the blockdelta (including all txs and their signatures) ***)
 	&&
       (*** ensure that if the stake has an explicit obligation (e.g., it is borrowed for staking), then the obligation isn't changed; otherwise the staker could steal the borrowed stake; unchanged copy should be first output ***)
       begin

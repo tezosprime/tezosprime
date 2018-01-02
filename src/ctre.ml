@@ -864,6 +864,7 @@ let rec save_ctree_elements_a tr i =
     match tr with
     | CLeaf(bl,hl) ->
 	let (h,l) = save_nehlist_elements hl in
+	let h = if l = 1 then h else (hashtag h (Int32.of_int (4224+l))) in (*** commit to the number of assets held, but treating 1 in a special way to maintain compatibility with the initial ledger ***)
 	let r = List.fold_right
 	    (fun b h ->
 	      if b then

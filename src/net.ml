@@ -845,7 +845,10 @@ let broadcast_requestdata mt h =
     (fun (lth,sth,(fd,sin,sout,gcs)) ->
        match !gcs with
        | Some(cs) ->
-           if not (recently_requested (i,h) tm cs.invreq) && (List.mem (inv_of_msgtype mt,h) cs.rinv || (i >= 26 && i <= 31)) then
+           if not (recently_requested (i,h) tm cs.invreq) &&
+	     (List.mem (inv_of_msgtype mt,h) cs.rinv
+	    || mt = GetCTreeElement || mt = GetHConsElement || mt = GetAsset)
+	   then
              begin
                queue_msg cs mt ms;
                cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq

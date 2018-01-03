@@ -864,7 +864,7 @@ let rec save_ctree_elements_a tr i =
     match tr with
     | CLeaf(bl,hl) ->
 	let (h,l) = save_nehlist_elements hl in
-	let h = if l = 1 then h else (hashtag h (Int32.of_int (4224+l))) in (*** commit to the number of assets held, but treating 1 in a special way to maintain compatibility with the initial ledger ***)
+	let h2 = if l = 1 then h else (hashtag h (Int32.of_int (4224+l))) in (*** commit to the number of assets held, but treating 1 in a special way to maintain compatibility with the initial ledger ***)
 	let r = List.fold_right
 	    (fun b h ->
 	      if b then
@@ -872,9 +872,9 @@ let rec save_ctree_elements_a tr i =
 	      else
 		hashopair1 h None
 	    )
-	    bl h
+	    bl h2 (*** the h2 is the combination of h with the commitment to the length of l ***)
 	in
-	let tr2 = CLeaf(bl,NehHash(h,l)) in
+	let tr2 = CLeaf(bl,NehHash(h,l)) in (*** the h is the key to the first hcons element, without commitment to l ***)
 	(tr2,r)
     | CLeft(trl) ->
 	let (trl2,hl) = save_ctree_elements_a trl (i-1) in

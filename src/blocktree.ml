@@ -753,10 +753,15 @@ Hashtbl.add msgtype_handler GetHeaders
       else
 	try
 	  let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
-	  incr m;
-	  bhl := (h,bh)::!bhl;
-	  Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeaders)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
-	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
+	  if not (blockheader_id bh = h) then
+	    Printf.fprintf !log "Serious bug: not sending blockheader %s since it does not have correct id but instead %s\n" (hashval_hexstring h) (hashval_hexstring (blockheader_id bh))
+	  else
+	    begin
+	      incr m;
+	      bhl := (h,bh)::!bhl;
+	      Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeaders)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
+	      cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
+	    end;
 	with
 	| Not_found ->
 	  (*** don't have it to send, ignore ***)
@@ -765,6 +770,7 @@ Hashtbl.add msgtype_handler GetHeaders
 	    Printf.fprintf !log "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e)
       done;
     let s = Buffer.create 10000 in
+    Printf.fprintf !log "sending %d headers\n" !m;
     let co = ref (seo_int8 seosb !m (s,None)) in
     List.iter (fun (h,bh) -> co := seo_blockheader seosb bh (seo_hashval seosb h !co)) !bhl;
     seosbf !co;
@@ -785,6 +791,7 @@ Hashtbl.add msgtype_handler Headers
   (fun (sin,sout,cs,ms) ->
     let c = ref (ms,String.length ms,None,0,0) in
     let (n,cn) = sei_int8 seis !c in (*** peers can request at most 255 headers at a time **)
+    Printf.fprintf !log "get %d Headers\n" n; flush !log;
     c := cn;
     let tm = Unix.time() in
     let i = int_of_msgtype GetHeader in

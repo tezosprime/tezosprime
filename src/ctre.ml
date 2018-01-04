@@ -572,7 +572,7 @@ let seo_nehlist o hl c =
       seo_hashval o h c
   | NehHash(h,l) -> (* 1 0 *)
       let c = o 2 1 c in
-      seo_hashval o h c;
+      let c = seo_hashval o h c in
       seo_int8 o l c
   | NehCons(a,hr) -> (* 1 1 0 *)
       let c = o 3 3 c in

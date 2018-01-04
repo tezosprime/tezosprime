@@ -1022,7 +1022,6 @@ let savetxtopool blkh lr staustr =
 
 let sendtx blkh lr staustr =
   let s = hexstring_string staustr in
-  Printf.printf "sendtx 1\n";
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
     begin

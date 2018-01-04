@@ -534,7 +534,7 @@ let rec seo_hlist o hl c =
   match hl with
   | HHash(h,l) -> (* 00 *)
       let c = o 2 0 c in
-      seo_hashval o h c;
+      let c = seo_hashval o h c in
       seo_int8 o l c
   | HNil -> (* 01 *)
       let c = o 2 1 c in

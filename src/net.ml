@@ -79,6 +79,7 @@ let inv_of_msgtype mt =
       | GetSTx -> STx
       | GetBlock -> Block
       | GetHeaders -> Headers
+      | GetHeader -> Headers
       | GetBlockdelta -> Blockdelta
       | GetCTreeElement -> CTreeElement
       | GetHConsElement -> HConsElement

@@ -115,3 +115,4 @@ val minimal_asset_supporting_ctree : ctree -> bool list -> hashval -> int -> boo
 val hashctree : ctree -> hashval
 
 val json_ctree : ctree -> jsonval
+val ctree_from_json : jsonval -> ctree

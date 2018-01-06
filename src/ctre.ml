@@ -2445,3 +2445,117 @@ let rec json_ctree c =
   | CRight(c1) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cright"));("right",json_ctree c1)])
   | CBin(c0,c1) -> JsonObj([("type",JsonStr("ctree"));("ctreecase",JsonStr("cbin"));("left",json_ctree c0);("right",json_ctree c1)])
 
+let rec hlist_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let hc = List.assoc "hlistcase" al in
+      if hc = JsonStr("hhash") then
+	begin
+	  match List.assoc "hhash" al with
+	  | JsonStr(hh) ->
+	      let h = hexstring_hashval hh in
+	      let l = match List.assoc "len" al with JsonNum(ls) -> int_of_string ls | _ -> raise (Failure("not json of an hlist hash")) in
+	      HHash(h,l)
+	  | _ ->
+	      raise (Failure("not json of an hlist hash"))
+	end
+      else if hc = JsonStr("hnil") then
+	HNil
+      else if hc = JsonStr("hcons") then
+	begin
+	  let a = asset_from_json (List.assoc "first" al) in
+	  let hr = hlist_from_json (List.assoc "rest" al) in
+	  HCons(a,hr)
+	end
+      else if hc = JsonStr("hconsh") then
+	begin
+	  match List.assoc "firsthash" al with
+	  | JsonStr(ahh) ->
+	      let ah = hexstring_hashval ahh in
+	      let hr = hlist_from_json (List.assoc "rest" al) in
+	      HConsH(ah,hr)
+	  | _ ->
+	      raise (Failure("not json of an hlist consh"))
+	end
+      else
+	raise (Failure("not json of an hlist"))
+  | _ -> raise (Failure("not json of an hlist"))
+
+let nehlist_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let nehc = List.assoc "nehlistcase" al in
+      if nehc = JsonStr("nehhash") then
+	begin
+	  match List.assoc "nehhash" al with
+	  | JsonStr(hh) ->
+	      let h = hexstring_hashval hh in
+	      let l = match List.assoc "len" al with JsonNum(ls) -> int_of_string ls | _ -> raise (Failure("not json of an nehlist hash")) in
+	      NehHash(h,l)
+	  | _ ->
+	      raise (Failure("not json of an nehlist hash"))
+	end
+      else if nehc = JsonStr("nehcons") then
+	begin
+	  let a = asset_from_json (List.assoc "first" al) in
+	  let hr = hlist_from_json (List.assoc "rest" al) in
+	  NehCons(a,hr)
+	end
+      else if nehc = JsonStr("nehconsh") then
+	begin
+	  match List.assoc "firsthash" al with
+	  | JsonStr(ahh) ->
+	      let ah = hexstring_hashval ahh in
+	      let hr = hlist_from_json (List.assoc "rest" al) in
+	      NehConsH(ah,hr)
+	  | _ ->
+	      raise (Failure("not json of an nehlist consh"))
+	end
+      else
+	raise (Failure("not json of an nehlist"))
+  | _ -> raise (Failure("not json of an nehlist"))
+
+let rec ctree_from_json j =
+  match j with
+  | JsonObj(al) ->
+      let ctc = List.assoc "ctreecase" al in
+      if ctc = JsonStr("cleaf") then
+	begin
+	  let bl =
+	    List.map (fun jb -> match jb with JsonBool(b) -> b | _ -> raise (Failure("not json of a ctree leaf")))
+	      (match (List.assoc "bl" al) with
+		JsonArr(jbl) -> jbl
+	      | _ -> raise (Failure("not json of a ctree leaf")))
+	  in
+	  let hl = nehlist_from_json (List.assoc "nehlist" al) in
+	  CLeaf(bl,hl)
+	end
+      else if ctc = JsonStr("chash") then
+	begin
+	  match List.assoc "h" al with
+	  | JsonStr(hh) ->
+	      let h = hexstring_hashval hh in
+	      CHash(h)
+	  | _ ->
+	      raise (Failure("not json of a ctree hash"))
+	end
+      else if ctc = JsonStr("cleft") then
+	begin
+	  let c0 = ctree_from_json (List.assoc "left" al) in
+	  CLeft(c0)
+	end
+      else if ctc = JsonStr("cright") then
+	begin
+	  let c1 = ctree_from_json (List.assoc "right" al) in
+	  CRight(c1)
+	end
+      else if ctc = JsonStr("cbin") then
+	begin
+	  let c0 = ctree_from_json (List.assoc "left" al) in
+	  let c1 = ctree_from_json (List.assoc "right" al) in
+	  CBin(c0,c1)
+	end
+      else
+	raise (Failure("not json of a ctree"))
+  | _ ->
+      raise (Failure("not json of a ctree"))

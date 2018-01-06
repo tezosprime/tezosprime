@@ -158,7 +158,7 @@ let lock datadir =
   let lf = Filename.concat datadir ".lock" in
   let c = open_out lf in
   close_out c;
-  exitfn := (fun n -> saveknownpeers(); Sys.remove lf; exit n);;
+  exitfn := (fun n -> saveknownpeers(); save_processing_deltas(); Sys.remove lf; exit n);;
 
 let stkth : Thread.t option ref = ref None;;
 
@@ -1682,6 +1682,25 @@ let initialize () =
     ltc_init();
     Printf.printf "Initializing blocktree\n"; flush stdout;
     initblocktree();
+    begin
+      let pdf = Filename.concat datadir "processingdeltas" in
+      if Sys.file_exists pdf then
+	begin
+	  let ch = open_in_bin pdf in
+	  try
+	    while true do
+	      let (h,_) = sei_hashval seic (ch,None) in
+	      try
+		process_delta h
+	      with
+	      | End_of_file -> raise End_of_file
+	      | e ->
+		  Printf.printf "Unexpected exception %s when processing block delta %s. Deleting delta to request it again.\n" (hashval_hexstring h);
+		  DbBlockDelta.dbdelete h
+	    done
+	  with End_of_file -> close_in ch; Sys.remove pdf
+	end;
+    end;
     Printf.printf "Loading wallet\n"; flush stdout;
     Commands.load_wallet();
     Printf.printf "Loading txpool\n"; flush stdout;

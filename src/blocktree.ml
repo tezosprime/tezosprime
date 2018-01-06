@@ -26,7 +26,18 @@ let checkpoints : (hashval,int64 * signat) Hashtbl.t = Hashtbl.create 1000;;
 
 let stxpool : (hashval,stx) Hashtbl.t = Hashtbl.create 1000;;
 let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
-let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100
+let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100;;
+
+let processing_deltas : hashval list ref = ref [];;
+
+let save_processing_deltas () =
+  match !processing_deltas with
+  | [] -> ()
+  | hl ->
+      let pdf = Filename.concat (datadir()) "processingdeltas" in
+      let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 pdf in
+      List.iter (fun h -> seocf (seo_hashval seoc h (ch,None))) hl;
+      close_out ch
 
 let thytree : (hashval,Mathdata.ttree) Hashtbl.t = Hashtbl.create 1000;;
 let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
@@ -390,6 +401,22 @@ and create_new_node_a h req =
           Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
 	  raise Exit
       end
+and process_delta_real h blkhght blk =
+  let (blkh,blkdel) = blk in
+  List.iter
+    (fun stau ->
+      let txid = hashstx stau in
+      DbSTx.dbput txid stau)
+    blkdel.blockdelta_stxl;
+  begin
+    let prevc = load_expanded_ctree (ctree_of_block blk) in
+    let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
+    try
+      match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
+      | Some(newc) -> ignore (save_ctree_elements newc)
+      | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
+    with MaxAssetsAtAddress -> raise (Failure("transformed tree would hold too many assets at an address"))
+  end
 and get_or_create_node h req =
   try
     Hashtbl.find blkheadernode (Some(h))
@@ -419,27 +446,16 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	| Some(tht2,sigt2) ->
 	    vs := ValidBlock;
 	    Hashtbl.remove tovalidate h;
+	    processing_deltas := h::!processing_deltas;
 	    DbBlockDelta.dbput h blkdel;
-	    List.iter
-	      (fun stau ->
-		let txid = hashstx stau in
-		DbSTx.dbput txid stau)
-	      blkdel.blockdelta_stxl;
+	    process_delta_real h blkhght blk;
 	    let (bn,cwl) = get_bestnode true in
 	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
 	    add_thytree blkhd.newtheoryroot tht2;
 	    add_sigtree blkhd.newsignaroot sigt2;
-	    broadcast_inv [(int_of_msgtype Blockdelta,h)];
 	    (*** construct a transformed tree consisting of elements ***)
-	    begin
-	      let prevc = load_expanded_ctree (ctree_of_block blk) in
-	      let (cstk,txl) = txl_of_block blk in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
-	      try
-		match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
-		| Some(newc) -> ignore (save_ctree_elements newc)
-		| None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
-	      with MaxAssetsAtAddress -> raise (Failure("transformed tree would hold too many assets at an address"))
-	    end;
+	    processing_deltas := List.filter (fun k -> not (k = h)) !processing_deltas;
+	    broadcast_inv [(int_of_msgtype Blockdelta,h)];
 	    List.iter
 	      (fun (h,n) ->
 		let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
@@ -635,6 +651,11 @@ and possibly_handle_orphan h n initialization knownvalid =
 	Hashtbl.remove orphanblkheaders (Some(h))
       with Not_found -> ())
     (Hashtbl.find_all orphanblkheaders (Some(h)))
+
+let process_delta h =
+  let bh = DbBlockHeader.dbget h in
+  let bd = DbBlockDelta.dbget h in
+  process_delta_real h (Int64.sub (node_blockheight (Hashtbl.find blkheadernode (Some(h)))) 1L) (bh,bd)
 
 let rec init_headers_to h =
   if DbInvalidatedBlocks.dbexists h || DbBlacklist.dbexists h then

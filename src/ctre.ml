@@ -724,6 +724,7 @@ let rec save_hlist_elements hl =
   | HCons(a,hr) ->
       let ah = hashasset a in
       DbAsset.dbput ah a;
+      DbAssetFromId.dbput (assetid a) ah;
       let h = save_hlist_elements hr in
       let (r,l) =
 	match h with
@@ -749,6 +750,7 @@ let save_nehlist_elements hl =
   | NehCons(a,hr) ->
       let ah = hashasset a in
       DbAsset.dbput ah a;
+      DbAssetFromId.dbput (assetid a) ah;
       let h = save_hlist_elements hr in
       let (r,l) = 
 	match h with

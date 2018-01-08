@@ -93,10 +93,19 @@ val sei_addr_asset : (int -> 'a -> int * 'a) -> 'a -> addr_asset * 'a
 module DbAsset :
     sig
       val dbinit : unit -> unit
-      val dbget : Hash.hashval -> asset
-      val dbexists : Hash.hashval -> bool
-      val dbput : Hash.hashval -> asset -> unit
-      val dbdelete : Hash.hashval -> unit
+      val dbget : hashval -> asset
+      val dbexists : hashval -> bool
+      val dbput : hashval -> asset -> unit
+      val dbdelete : hashval -> unit
+    end
+
+module DbAssetFromId :
+    sig
+      val dbinit : unit -> unit
+      val dbget : hashval -> hashval
+      val dbexists : hashval -> bool
+      val dbput : hashval -> hashval -> unit
+      val dbdelete : hashval -> unit
     end
 
 val get_asset : hashval -> asset

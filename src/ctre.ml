@@ -2428,13 +2428,13 @@ let rec json_hlist hl =
   match hl with
   | HHash(h,l) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hhash"));("hhash",JsonStr(hashval_hexstring h));("len",JsonNum(string_of_int l))])
   | HNil -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hnil"))])
-  | HCons(a,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hcons"));("first",json_asset a);("rest",json_hlist hl)])
+  | HCons(a,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hcons"));("first",json_asset a);("firsthash",JsonStr(hashval_hexstring (hashasset a)));("rest",json_hlist hl)])
   | HConsH(h,hl) -> JsonObj([("type",JsonStr("hlist"));("hlistcase",JsonStr("hconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
 
 let json_nehlist hl =
   match hl with
   | NehHash(h,l) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehhash"));("nehhash",JsonStr(hashval_hexstring h));("len",JsonNum(string_of_int l))])
-  | NehCons(a,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehcons"));("first",json_asset a);("rest",json_hlist hl)])
+  | NehCons(a,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehcons"));("first",json_asset a);("firsthash",JsonStr(hashval_hexstring (hashasset a)));("rest",json_hlist hl)])
   | NehConsH(h,hl) -> JsonObj([("type",JsonStr("nehlist"));("nehlistcase",JsonStr("nehconsh"));("firsthash",JsonStr(hashval_hexstring h));("rest",json_hlist hl)])
 
 let rec json_ctree c =

@@ -1075,19 +1075,19 @@ let query q =
 	    let e = Assets.DbAsset.dbget h in
 	    let s = Buffer.create 100 in
 	    print_hlist_to_buffer s blkh (HCons(e,HNil));
-	    let j = JsonObj([("type",JsonStr("asset"));("description",JsonStr(Buffer.contents s))]) in
+	    let j = json_asset e in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
 	begin
 	  try
 	    let e = Tx.DbSTx.dbget h in
-	    let j = JsonObj([("type",JsonStr("stx"))]) in
+	    let j = json_stx e in
 	    dbentries := j::!dbentries
 	  with Not_found ->
 	    try
 	      let e = Hashtbl.find stxpool h in
-	      let j = JsonObj([("type",JsonStr("stx"))]) in
+	      let j = json_stx e in
 	      dbentries := j::!dbentries
 	    with Not_found ->
 	      ()

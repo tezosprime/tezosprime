@@ -373,4 +373,4 @@ let json_gensignat_or_ref_option s =
 let json_txsigs (insigs,outsigs) =
   JsonObj([("insigs",JsonArr(List.map json_gensignat_or_ref_option insigs));("outsigs",JsonArr(List.map json_gensignat_or_ref_option outsigs))])
 
-let json_stx (tau,stau) = JsonObj([("tx",json_tx tau);("txsigs",json_txsigs stau)])
+let json_stx (tau,stau) = JsonObj([("type",JsonStr("stx"));("tx",json_tx tau);("txsigs",json_txsigs stau)])

@@ -919,7 +919,7 @@ let rec save_ctree_elements_a tr i pl =
     if ctree_element_p tre then (*** make sure it's an element before saving it ***)
       begin
 	DbCTreeElt.dbput r tre;
-	if !Config.extraindex then DbCTreeEltAt.dbput r pl;
+	if !Config.extraindex then DbCTreeEltAt.dbput r (List.rev pl);
 	(CHash(r),r)
       end
     else (*** if it isn't an element (presumably because it's only approximating an element) then return the hash root only ***)

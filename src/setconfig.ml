@@ -201,6 +201,7 @@ let datadir_from_command_line () =
 exception CreateSnapshot of int;;
 exception ImportSnapshot of int;;
 exception CheckLedger of int;;
+exception BuildExtraIndex of int;;
 
 let createsnapshot = ref false;;
 let importsnapshot = ref false;;
@@ -212,6 +213,7 @@ let snapshot_full = ref true;;
 let snapshot_addresses = ref [];;
 let snapshot_shards = ref None;;
 let check_ledger = ref None;;
+let build_extraindex = ref None;;
 
 let process_config_args () =
   let a = Array.length Sys.argv in
@@ -224,6 +226,8 @@ let process_config_args () =
 	raise (ImportSnapshot(i))
       else if arg = "-checkledger" then
 	raise (CheckLedger(i))
+      else if arg = "-buildextraindex" then
+	raise (BuildExtraIndex(i))
       else if String.length arg > 1 && arg.[0] = '-' then
 	try
 	  process_config_line (String.sub arg 1 ((String.length arg) - 1))
@@ -322,7 +326,14 @@ let process_config_args () =
   | CheckLedger(i) ->
       if not (i = a-2) then
 	begin
-	  Printf.printf "Expected -importsnapshot <ledgerroot>\n";
+	  Printf.printf "Expected -checkledger <ledgerroot>\n";
 	  exit 1
 	end;
       check_ledger := Some(hexstring_hashval Sys.argv.(i+1))
+  | BuildExtraIndex(i) ->
+      if not (i = a-2) then
+	begin
+	  Printf.printf "Expected -buildextraindex <ledgerroot>\n";
+	  exit 1
+	end;
+      build_extraindex := Some(hexstring_hashval Sys.argv.(i+1))

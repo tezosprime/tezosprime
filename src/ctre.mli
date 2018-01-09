@@ -52,12 +52,30 @@ module DbHConsElt :
       val dbdelete : Hash.hashval -> unit
     end
 
+module DbHConsEltAt :
+    sig
+      val dbinit : unit -> unit
+      val dbget : Hash.hashval -> addr
+      val dbexists : Hash.hashval -> bool
+      val dbput : Hash.hashval -> addr -> unit
+      val dbdelete : Hash.hashval -> unit
+    end
+
 module DbCTreeElt :
     sig
       val dbinit : unit -> unit
       val dbget : Hash.hashval -> ctree
       val dbexists : Hash.hashval -> bool
       val dbput : Hash.hashval -> ctree -> unit
+      val dbdelete : Hash.hashval -> unit
+    end
+
+module DbCTreeEltAt :
+    sig
+      val dbinit : unit -> unit
+      val dbget : Hash.hashval -> bool list
+      val dbexists : Hash.hashval -> bool
+      val dbput : Hash.hashval -> bool list -> unit
       val dbdelete : Hash.hashval -> unit
     end
 

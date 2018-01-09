@@ -1478,7 +1478,9 @@ let initialize () =
     DbAssetIdAt.dbinit();
     DbSTx.dbinit();
     DbHConsElt.dbinit();
+    DbHConsEltAt.dbinit();
     DbCTreeElt.dbinit();
+    DbCTreeEltAt.dbinit();
     DbBlockHeader.dbinit();
     DbBlockDelta.dbinit();
     DbInvalidatedBlocks.dbinit();
@@ -1665,6 +1667,51 @@ let initialize () =
 	  check_ledger_rec lr;
 	  Printf.printf "Total Currency Assets: %Ld cants (%s fraenks)\n" !totcants (fraenks_of_cants !totcants);
 	  Printf.printf "Total Bounties: %Ld cants (%s fraenks)\n" !totbounties (fraenks_of_cants !totbounties);
+	  !exitfn 0
+    end;
+    begin
+      match !build_extraindex with
+      | None -> ()
+      | Some(lr) ->
+	  let rec extraindex_asset h alpha =
+	    try
+	      let a = DbAsset.dbget h in
+	      DbAssetIdAt.dbput (assetid a) alpha
+	    with Not_found ->
+	      Printf.printf "WARNING: asset %s is not in database\n" (hashval_hexstring h)
+	  in
+	  let rec extraindex_hconselt h alpha =
+	    try
+	      let (ah,hr) = DbHConsElt.dbget h in
+	      DbHConsEltAt.dbput ah alpha;
+	      extraindex_asset ah;
+	      match hr with
+	      | Some(h,_) -> extraindex_hconselt h alpha
+	      | None -> ()
+	    with Not_found ->
+	      Printf.printf "WARNING: hconselt %s is not in database\n" (hashval_hexstring h)
+	  in
+	  let rec extraindex_ledger_rec h pl =
+	    try
+	      let c = DbCTreeElt.dbget h in
+	      DbCTreeEltAt.dbput h (List.rev pl);
+	      extraindex_ctree_rec c 9 pl
+	    with Not_found ->
+	      Printf.printf "WARNING: ctreeelt %s is not in database\n" (hashval_hexstring h)
+	  and extraindex_ctree_rec c i pl =
+	    match c with
+	    | CHash(h) -> extraindex_ledger_rec h pl
+	    | CLeaf(bl,NehHash(h,_)) -> extraindex_hconselt h (bitseq_addr ((List.rev pl) @ bl))
+	    | CLeft(c0) -> extraindex_ctree_rec c0 (i-1) (false::pl)
+	    | CRight(c1) -> extraindex_ctree_rec c1 (i-1) (true::pl)
+	    | CBin(c0,c1) ->
+		extraindex_ctree_rec c0 (i-1) (false::pl);
+		extraindex_ctree_rec c1 (i-1) (true::pl)
+	    | _ ->
+		Printf.printf "WARNING: unexpected non-element ctree at level %d:\n" i;
+		print_ctree c
+	  in
+	  extraindex_ledger_rec lr [];
 	  !exitfn 0
     end;
     if !Config.seed = "" && !Config.lastcheckpoint = "" then

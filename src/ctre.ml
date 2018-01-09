@@ -712,6 +712,15 @@ module DbHConsElt =
       let seoval = seo_prod seo_hashval (seo_option (seo_prod seo_hashval seo_int8)) seoc
     end)
 
+module DbHConsEltAt =
+  Dbbasic
+    (struct
+      type t = addr
+      let basedir = "hconseltat"
+      let seival = sei_addr seic
+      let seoval = seo_addr seoc
+    end)
+
 let get_hcons_element h =
   try
     DbHConsElt.dbget h
@@ -719,54 +728,58 @@ let get_hcons_element h =
     broadcast_requestdata GetHConsElement h;
     raise GettingRemoteData
 
-let rec save_hlist_elements hl =
+let rec save_hlist_elements hl alpha =
   match hl with
   | HCons(a,hr) ->
       let ah = hashasset a in
       DbAsset.dbput ah a;
-      DbAssetFromId.dbput (assetid a) ah;
-      let h = save_hlist_elements hr in
+      if !Config.extraindex then DbAssetIdAt.dbput (assetid a) alpha;
+      let h = save_hlist_elements hr alpha in
       let (r,l) =
 	match h with
 	| None -> (hashtag ah 3l,1)
 	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
+      if !Config.extraindex then DbHConsEltAt.dbput r alpha;
       DbHConsElt.dbput r (ah,h);
       Some(r,l)
   | HConsH(ah,hr) ->
-      let h = save_hlist_elements hr in
+      let h = save_hlist_elements hr alpha in
       let (r,l) =
 	match h with
 	| None -> (hashtag ah 3l,1)
 	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
+      if !Config.extraindex then DbHConsEltAt.dbput r alpha;
       DbHConsElt.dbput r (ah,h);
       Some(r,l)
   | HNil -> None
   | HHash(r,l) -> Some(r,l)
 
-let save_nehlist_elements hl =
+let save_nehlist_elements hl alpha =
   match hl with
   | NehCons(a,hr) ->
       let ah = hashasset a in
       DbAsset.dbput ah a;
-      DbAssetFromId.dbput (assetid a) ah;
-      let h = save_hlist_elements hr in
+      if !Config.extraindex then DbAssetIdAt.dbput (assetid a) alpha;
+      let h = save_hlist_elements hr alpha in
       let (r,l) = 
 	match h with
 	| None -> (hashtag ah 3l,1)
 	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
+      if !Config.extraindex then DbHConsEltAt.dbput r alpha;
       (r,l)
   | NehConsH(ah,hr) ->
-      let h = save_hlist_elements hr in
+      let h = save_hlist_elements hr alpha in
       let (r,l) = 
 	match h with
 	| None -> (hashtag ah 3l,1)
 	| Some(k,l) -> (hashtag (hashpair ah k) (Int32.of_int (4096+l)),1+l)
       in
       DbHConsElt.dbput r (ah,h);
+      if !Config.extraindex then DbHConsEltAt.dbput r alpha;
       (r,l)
   | NehHash(r,l) -> (r,l)
 
@@ -843,6 +856,15 @@ module DbCTreeElt =
       let seoval = seo_ctree seoc
     end)
 
+module DbCTreeEltAt =
+  Dbbasic
+    (struct
+      type t = bool list
+      let basedir = "ctreeeltat"
+      let seival = sei_list sei_bool seic
+      let seoval = seo_list seo_bool seoc
+    end)
+
 let rec ctree_element_a tr i =
   if i > 0 then
     begin
@@ -861,11 +883,11 @@ let rec ctree_element_a tr i =
 let ctree_element_p tr =
   ctree_element_a tr 9
 
-let rec save_ctree_elements_a tr i =
+let rec save_ctree_elements_a tr i pl =
   if i > 0 then
     match tr with
     | CLeaf(bl,hl) ->
-	let (h,l) = save_nehlist_elements hl in
+	let (h,l) = save_nehlist_elements hl (bitseq_addr (((List.rev pl) @ bl))) in
 	let h2 = if l = 1 then h else (hashtag h (Int32.of_int (4224+l))) in (*** commit to the number of assets held, but treating 1 in a special way to maintain compatibility with the initial ledger ***)
 	let r = List.fold_right
 	    (fun b h ->
@@ -879,31 +901,32 @@ let rec save_ctree_elements_a tr i =
 	let tr2 = CLeaf(bl,NehHash(h,l)) in (*** the h is the key to the first hcons element, without commitment to l ***)
 	(tr2,r)
     | CLeft(trl) ->
-	let (trl2,hl) = save_ctree_elements_a trl (i-1) in
+	let (trl2,hl) = save_ctree_elements_a trl (i-1) (false::pl) in
 	let r = hashopair1 hl None in
 	(CLeft(trl2),r)
     | CRight(trr) ->
-	let (trr2,hr) = save_ctree_elements_a trr (i-1) in
+	let (trr2,hr) = save_ctree_elements_a trr (i-1) (true::pl) in
 	let r = hashopair2 None hr in
 	(CRight(trr2),r)
     | CBin(trl,trr) ->
-	let (trl2,hl) = save_ctree_elements_a trl (i-1) in
-	let (trr2,hr) = save_ctree_elements_a trr (i-1) in
+	let (trl2,hl) = save_ctree_elements_a trl (i-1) (false::pl) in
+	let (trr2,hr) = save_ctree_elements_a trr (i-1) (true::pl) in
 	let r = hashopair1 hl (Some(hr)) in
 	(CBin(trl2,trr2),r)
     | CHash(r) -> (tr,r)
   else
-    let (tre,r) = save_ctree_elements_a tr 9 in
+    let (tre,r) = save_ctree_elements_a tr 9 pl in
     if ctree_element_p tre then (*** make sure it's an element before saving it ***)
       begin
 	DbCTreeElt.dbput r tre;
+	if !Config.extraindex then DbCTreeEltAt.dbput r pl;
 	(CHash(r),r)
       end
     else (*** if it isn't an element (presumably because it's only approximating an element) then return the hash root only ***)
       (CHash(r),r)
     
 let save_ctree_elements tr =
-  let (tre,r) = save_ctree_elements_a tr 0 in
+  let (tre,r) = save_ctree_elements_a tr 0 [] in
   r
 
 let load_hlist_element h =

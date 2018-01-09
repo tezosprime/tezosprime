@@ -33,3 +33,4 @@ val seed : string ref
 val randomseed : string option ref
 val minconnstostake : int ref
 val minrelayfee : int64 ref
+val extraindex : bool ref

@@ -1475,7 +1475,7 @@ let initialize () =
     let dbdir = Filename.concat datadir "db" in
     dbconfig dbdir; (*** configure the database ***)
     DbAsset.dbinit();
-    DbAssetFromId.dbinit();
+    DbAssetIdAt.dbinit();
     DbSTx.dbinit();
     DbHConsElt.dbinit();
     DbCTreeElt.dbinit();
@@ -1605,8 +1605,7 @@ let initialize () =
 		  let (a,_) = sei_asset seic (assetfile,None) in
 		  let aid = assetid a in
 		  let h = hashasset a in
-		  DbAsset.dbput h a;
-		  DbAssetFromId.dbput aid h
+		  DbAsset.dbput h a
 		done
 	      with _ -> ()
 	    end;

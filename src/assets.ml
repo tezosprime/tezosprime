@@ -396,7 +396,7 @@ let sei_addr_asset i c = sei_prod sei_addr sei_asset i c
 
 module DbAsset = Dbbasic (struct type t = asset let basedir = "asset" let seival = sei_asset seic let seoval = seo_asset seoc end)
 
-module DbAssetFromId = Dbbasic (struct type t = hashval let basedir = "assetfromid" let seival = sei_hashval seic let seoval = seo_hashval seoc end)
+module DbAssetIdAt = Dbbasic (struct type t = addr let basedir = "assetidat" let seival = sei_addr seic let seoval = seo_addr seoc end)
 
 let get_asset h =
   try
@@ -429,7 +429,6 @@ Hashtbl.add msgtype_handler Asset
 	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
           let (a,r) = sei_asset seis r in
   	  DbAsset.dbput h a;
-	  DbAssetFromId.dbput (assetid a) h;
 	  cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
 	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested Asset]\n"; flush !Utils.log));;

@@ -19,7 +19,8 @@ let stringconfigvars = [
 let boolconfigvars = [
 ("daemon",fun x -> Config.daemon := x);
 ("staking",fun x -> Config.staking := x);
-("ipv6",fun x -> Config.ipv6 := x)
+("ipv6",fun x -> Config.ipv6 := x);
+("extraindex",fun x -> Config.extraindex := x)
 ];;
 let intconfigvars = [
 ("port",fun x -> Config.port := x);

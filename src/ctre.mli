@@ -61,8 +61,6 @@ module DbCTreeElt :
       val dbdelete : Hash.hashval -> unit
     end
 
-val save_hlist_elements : hlist -> (hashval * int) option
-val save_nehlist_elements : nehlist -> hashval * int
 val save_ctree_elements : ctree -> hashval
 val save_ctree : string -> ctree -> unit
 val load_ctree : string -> ctree

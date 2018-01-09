@@ -99,12 +99,12 @@ module DbAsset :
       val dbdelete : hashval -> unit
     end
 
-module DbAssetFromId :
+module DbAssetIdAt :
     sig
       val dbinit : unit -> unit
-      val dbget : hashval -> hashval
+      val dbget : hashval -> addr
       val dbexists : hashval -> bool
-      val dbput : hashval -> hashval -> unit
+      val dbput : hashval -> addr -> unit
       val dbdelete : hashval -> unit
     end
 

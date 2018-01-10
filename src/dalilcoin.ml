@@ -1684,7 +1684,7 @@ let initialize () =
 	    try
 	      let (ah,hr) = DbHConsElt.dbget h in
 	      DbHConsEltAt.dbput ah alpha;
-	      extraindex_asset ah;
+	      extraindex_asset ah alpha;
 	      match hr with
 	      | Some(h,_) -> extraindex_hconselt h alpha
 	      | None -> ()

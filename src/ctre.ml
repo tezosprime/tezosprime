@@ -1948,7 +1948,13 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
        Someone can place bounties on pure propositions, but this is a bad idea.
        Someone else could collect it by creating an inconsistent theory and giving a trivial proof.
        Real bounties should only be placed on propositions within a theory.
+       Addendum: the check that the ownership asset is being spent has been moved to tx (check_tx_in_signatures)
+       with the alternative that if the ownership asset is not being spent and the bounty has a nonempty obligation
+       then the address in the obligation has signed the tx. This allows a Bounty to be spent
+       by its creator after a certain lockheight (expiration). Since this is being checked in check_tx_in_signatures,
+       there is no longer a check here.
    ***)
+(***
   List.iter
     (fun (alpha,(h,bday,obl,u)) -> 
       match u with
@@ -1971,6 +1977,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
       | _ -> ()
     )
     aal;
+***)
   (*** finally, return the number of currency units created or destroyed ***)
   Int64.sub (out_cost outpl) (asset_value_sum blkh al)
 

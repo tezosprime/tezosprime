@@ -142,12 +142,27 @@ let marker_or_bounty_p a =
   | Bounty(_) -> true
   | _ -> false
 
-let rec check_tx_in_signatures txhe outpl inpl al sl rl =
+let rec check_tx_in_signatures txhe outpl inpl al sl rl propowns =
   match inpl,al,sl with
   | [],[],[] -> None
   | (alpha,k)::inpr,(a::ar),sl when marker_or_bounty_p a -> (*** don't require signatures to spend markers and bounties; but there are conditions for the tx to be supported by a ctree ***)
       if assetid a = k then
-	check_tx_in_signatures txhe outpl inpr ar sl rl
+	begin
+	  match a with
+	  | (_,_,Some(_,_,_),Bounty(_)) when not (List.mem alpha propowns) -> (*** if a is a Bounty and there is no corresponding ownership being spent, then require a signature (allow bounties to be collected according to the obligation after lockheight has passed) ***)
+	      begin
+		try
+		  match sl with
+		  | s::sr ->
+		      let (s1,rl1) = getsig s rl in
+		      let b = check_tx_in_signatures txhe outpl inpr ar sr rl1 propowns in
+		      opmax b (check_spend_obligation_upto_blkh alpha txhe s1 (assetobl a))
+		  | [] -> raise Not_found
+		with Not_found -> raise BadOrMissingSignature
+	      end		      
+	  | _ ->
+	      check_tx_in_signatures txhe outpl inpr ar sl rl propowns
+	end
       else
 	raise BadOrMissingSignature
   | (alpha,k)::inpr,(a::ar),(s::sr) ->
@@ -155,7 +170,7 @@ let rec check_tx_in_signatures txhe outpl inpl al sl rl =
 	try
 	  let (s1,rl1) = getsig s rl in
 	  if assetid a = k then
-	    let b = check_tx_in_signatures txhe outpl inpr ar sr rl1 in
+	    let b = check_tx_in_signatures txhe outpl inpr ar sr rl1 propowns in
 	    begin
 	      try
 		opmax b (check_spend_obligation_upto_blkh alpha txhe s1 (assetobl a))
@@ -210,7 +225,15 @@ let tx_signatures_valid_asof_blkh al stau =
   let (tau,(sli,slo)) = stau in
   let txh = if !Config.testnet then hashtag (hashtx tau) 288l else hashtx tau in (*** sign a modified hash for testnet ***)
   let txhe = hashval_big_int txh in
-  let b = check_tx_in_signatures txhe (tx_outputs tau) (tx_inputs tau) al sli [] in
+  let rec get_propowns tauin al =
+    match tauin,al with
+    | ((alpha,aid1)::tauinr),((aid2,_,_,OwnsProp(_,_,_))::ar) when aid1 = aid2 -> alpha::get_propowns tauinr ar
+    | ((alpha,aid1)::tauinr),((aid2,_,_,OwnsNegProp)::ar) when aid1 = aid2 -> alpha::get_propowns tauinr ar
+    | ((_,aid1)::tauinr),((aid2,_,_,_)::ar) when aid1 = aid2 -> get_propowns tauinr ar
+    | [],[] -> []
+    | _,_ -> raise BadOrMissingSignature (*** actually this means the asset list does not match the inputs ***)
+  in
+  let b = check_tx_in_signatures txhe (tx_outputs tau) (tx_inputs tau) al sli [] (get_propowns (tx_inputs tau) al) in
   if check_tx_out_signatures txhe (tx_outputs tau) slo [] then
     b
   else

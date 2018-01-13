@@ -190,7 +190,7 @@ let rec check_tx_in_signatures txhe outpl inpl al sl rl propowns =
 let rec check_tx_out_signatures txhe outpl sl rl =
   match outpl,sl with
   | [],[] -> true
-  | _,(_::_) -> false
+  | [],(_::_) -> false
   | (_,(_,TheoryPublication(alpha,n,thy)))::outpr,s::sr ->
       begin
 	try

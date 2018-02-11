@@ -1018,6 +1018,62 @@ let do_command oc l =
 	| _ ->
 	    raise (Failure("expected query <hashval or address>"))
       end
+  | "ltcstatusdump" ->
+      begin
+	let (fn,blkh,howfarback) =
+	  match al with
+	  | [] -> ("ltcstatusdumpfile",hexstring_hashval (Ltcrpc.ltc_getbestblockhash ()),1000)
+	  | [fn] -> (fn,hexstring_hashval (Ltcrpc.ltc_getbestblockhash ()),1000)
+	  | [fn;hh] -> (fn,hexstring_hashval hh,1000)
+	  | [fn;hh;b] -> (fn,hexstring_hashval hh,int_of_string b)
+	  | _ -> raise (Failure "expected ltcstatusdump [<filename> [<ltcblockhash> [<how many ltc blocks back>]]]")
+	in
+	let cblkh = ref blkh in
+	let f = open_out fn in
+	begin
+	  try
+	    for i = 1 to howfarback do
+	      Printf.fprintf f "%d. ltc block %s DacStatus\n" i (hashval_hexstring !cblkh);
+	      begin
+		try
+		  match DbLtcDacStatus.dbget !cblkh with
+		  | LtcDacStatusPrev(h) ->
+		      Printf.fprintf f "  DacStatus unchanged since ltc block %s\n" (hashval_hexstring h)
+		  | LtcDacStatusNew(l) ->
+		      Printf.fprintf f "  New DacStatus:\n";
+		      List.iteri
+			(fun i li ->
+			  match li with
+			  | [] -> Printf.fprintf f "   %d. Empty tip? Should not be possible.\n" i;
+			  | ((bh,lbh,ltx,ltm,lhght)::r) ->
+			      Printf.fprintf f "   (%d) - Dalilcoin Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" i (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght;
+			      List.iter (fun (bh,lbh,ltx,ltm,lhght) ->
+				Printf.fprintf f "       - Dalilcoin Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght)
+				r)
+			l
+		with Not_found ->
+		  Printf.fprintf f "  DacStatus not found\n"
+	      end;
+	      begin
+		try
+		  let (prevh,tm,hght,burntxhs) = DbLtcBlock.dbget !cblkh in
+		  Printf.fprintf f "%d. ltc block %s info\n" i (hashval_hexstring !cblkh);
+		  Printf.fprintf f "   Previous %s\n   Block Time %Ld\n    Height %Ld\n" (hashval_hexstring prevh) tm hght;
+		  cblkh := prevh;
+		  match burntxhs with
+		  | [] -> ()
+		  | [x] -> Printf.fprintf f "    Burn Tx: %s\n" (hashval_hexstring x)
+		  | _ ->
+		      Printf.fprintf f "    %d Burn Txs:\n" (List.length burntxhs);
+		      List.iter (fun x -> Printf.fprintf f "         %s\n" (hashval_hexstring x)) burntxhs
+		with Not_found ->
+		  Printf.fprintf f "  LtcBlock not found\n"
+	      end
+	    done
+	  with e -> Printf.fprintf f "Exception: %s\n" (Printexc.to_string e)
+	end;
+	close_out f
+      end
   | "ltcstatus" ->
       begin
 	let h =
@@ -1744,7 +1800,7 @@ let initialize () =
 	      with
 	      | End_of_file -> raise End_of_file
 	      | e ->
-		  Printf.printf "Unexpected exception %s when processing block delta %s. Deleting delta to request it again.\n" (hashval_hexstring h);
+		  Printf.printf "Unexpected exception %s when processing block delta %s. Deleting delta to request it again.\n" (Printexc.to_string e) (hashval_hexstring h);
 		  DbBlockDelta.dbdelete h
 	    done
 	  with End_of_file -> close_in ch; Sys.remove pdf

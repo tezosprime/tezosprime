@@ -1041,8 +1041,11 @@ let do_command oc l =
 		      Printf.fprintf f "  DacStatus unchanged since ltc block %s\n" (hashval_hexstring h)
 		  | LtcDacStatusNew(l) ->
 		      Printf.fprintf f "  New DacStatus:\n";
-		      List.iteri
-			(fun i li ->
+		      let cnt = ref 0 in
+		      List.iter
+			(fun li ->
+			  let i = !cnt in
+			  incr cnt;
 			  match li with
 			  | [] -> Printf.fprintf f "   %d. Empty tip? Should not be possible.\n" i;
 			  | ((bh,lbh,ltx,ltm,lhght)::r) ->

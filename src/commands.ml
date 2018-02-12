@@ -345,6 +345,23 @@ let importwatchbtcaddr a =
   walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
+let rec generate_newkeyandaddress () =
+  let k = strong_rand_256() in
+  let b = true in (*** compressed ***)
+  let w = dalilwif k true in
+  begin
+    match Secp256k1.smulp k Secp256k1._g with
+    | Some(x,y) ->
+	let h = hashval_md160 (pubkey_hashval (x,y) b) in
+	let alpha = p2pkhaddr_addr h in
+	let a = addr_daliladdrstr alpha in
+	Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
+	importprivkey_real (k,b);
+	(k,h)
+    | None -> (*** try again, in the very unlikely event this happened ***)
+	generate_newkeyandaddress()
+  end
+
 let assets_at_address_in_ledger_json alpha ledgerroot blkh =
   let alphas = addr_daliladdrstr alpha in
   let ctr = Ctre.CHash(ledgerroot) in

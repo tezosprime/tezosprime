@@ -68,6 +68,7 @@ echo let curl = ref \"/usr/bin/curl\" >> src/config.ml
 echo let maxconns = ref 20 >> src/config.ml
 echo let lastcheckpoint = ref \"\" >> src/config.ml
 echo let prompt = ref \"\> \" >> src/config.ml
+echo let offlinestakerewardskey = ref None >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else

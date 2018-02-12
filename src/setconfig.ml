@@ -46,6 +46,7 @@ let cantsoffraenksconfigvars = [
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);
 ("randomseed",fun x -> Config.randomseed := x);
+("offlinestakerewardskey",fun x -> Config.offlinestakerewardskey := x);
 ];;
 let intoptionconfigvars = [
 ("socks",fun x -> Config.socks := x)

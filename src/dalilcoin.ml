@@ -1,5 +1,5 @@
 (* Copyright (c) 2015-2017 The Qeditas developers *)
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -540,7 +540,22 @@ let stakingthread () =
 			    otherstxs := stau::!otherstxs)
 			  ostxs;
 			let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
-			let stkoutl = [(alpha2,(obl2,Currency(v)));(alpha2,(Some(p2pkhaddr_payaddr alpha,Int64.add blkh reward_locktime,true),Currency(Int64.add !fees (rewfn blkh))))] in
+			let (_,alpha3) = Commands.generate_newkeyandaddress() in (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			let alpha4 =
+			  match !Config.offlinestakerewardskey with
+			  | None -> p2pkhaddr_payaddr alpha3
+			  | Some(x) ->
+			      try
+				let (i,x0,x1,x2,x3,x4) = daliladdrstr_addr x in
+				if i = 0 then
+				  (false,x0,x1,x2,x3,x4) (*** p2pkh ***)
+				else if i = 1 then
+				  (true,x0,x1,x2,x3,x4) (*** p2sh ***)
+				else
+				  p2pkhaddr_payaddr alpha3
+			      with _ -> p2pkhaddr_payaddr alpha3
+			in
+			let stkoutl = [(alpha2,(obl2,Currency(v)));(p2pkhaddr_addr alpha3,(Some(alpha4,Int64.add blkh reward_locktime,true),Currency(Int64.add !fees (rewfn blkh))))] in
 			let coinstk : tx = ([(alpha2,aid)],stkoutl) in
 			try
 			  dync := octree_ctree (tx_octree_trans true false blkh coinstk (Some(!dync)));

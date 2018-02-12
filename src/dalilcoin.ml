@@ -39,7 +39,7 @@ let rec pblockchain s n c lr m =
   Printf.fprintf s "Timestamp: %Ld\n" tm;
   match c with
   | Some(h,Poburn(lblkh,ltxh,lmedtm,burned)) ->
-      Printf.printf "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring ltxh);
+      Printf.fprintf s "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring ltxh);
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
       begin
 	match lr with
@@ -540,7 +540,20 @@ let stakingthread () =
 			    otherstxs := stau::!otherstxs)
 			  ostxs;
 			let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
-			let (_,alpha3) = Commands.generate_newkeyandaddress() in (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			let alpha3 =
+			  if !Config.generatenewstakingaddresses then
+			    (let (_,alpha3) = Commands.generate_newkeyandaddress() in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			  else
+			    let (i,x0,x1,x2,x3,x4) = alpha2 in
+			    if i = 0 then
+			      (x0,x1,x2,x3,x4)
+			    else
+			      begin
+				Printf.fprintf !Utils.log "Apparent attempt to stake from non-p2pkh address %s\n" (addr_daliladdrstr alpha2);
+				flush !Utils.log;
+				raise StakingProblemPause
+			      end
+			in
 			let alpha4 =
 			  match !Config.offlinestakerewardskey with
 			  | None -> p2pkhaddr_payaddr alpha3

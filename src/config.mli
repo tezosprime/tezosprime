@@ -35,3 +35,4 @@ val minconnstostake : int ref
 val minrelayfee : int64 ref
 val extraindex : bool ref
 val offlinestakerewardskey : string option ref
+val generatenewstakingaddresses : bool ref

@@ -246,7 +246,7 @@ let btctodaliladdr a =
   let a2 = addr_daliladdrstr alpha in
   Printf.printf "Dalilcoin address %s corresponds to Bitcoin address %s\n" a2 a
 
-let importprivkey_real (k,b) =
+let importprivkey_real (k,b) report =
   match Secp256k1.smulp k Secp256k1._g with
   | Some(x,y) ->
       let h = hashval_md160 (pubkey_hashval (x,y) b) in
@@ -270,7 +270,7 @@ let importprivkey_real (k,b) =
 	  (fun s ->
 	    output_byte s 0;
 	    seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)));
-      Printf.printf "Imported key for address %s\n" a;
+      if report then Printf.printf "Imported key for address %s\n" a;
       flush stdout
   | None ->
       raise (Failure "This private key does not give a public key.")
@@ -279,11 +279,11 @@ let importprivkey w =
   let (k,b) = privkey_from_wif w in
   let w2 = dalilwif k b in
   if not (w2 = w) then raise (Failure (w ^ " is not a valid Dalilcoin wif"));
-  importprivkey_real (k,b)
+  importprivkey_real (k,b) true
 
 let importbtcprivkey w =
   let (k,b) = privkey_from_btcwif w in
-  importprivkey_real (k,b)
+  importprivkey_real (k,b) true
 
 let importendorsement a b s =
   let alpha = daliladdrstr_addr a in
@@ -356,7 +356,7 @@ let rec generate_newkeyandaddress () =
 	let alpha = p2pkhaddr_addr h in
 	let a = addr_daliladdrstr alpha in
 	Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
-	importprivkey_real (k,b);
+	importprivkey_real (k,b) false;
 	(k,h)
     | None -> (*** try again, in the very unlikely event this happened ***)
 	generate_newkeyandaddress()

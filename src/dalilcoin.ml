@@ -80,7 +80,7 @@ let print_consensus_warning s cw =
       Printf.fprintf s "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	
 let get_bestnode_print_warnings s req =
-  let (n,cwl) = get_bestnode req in
+  let (n,cwl) = get_bestnode req false in
   if not (cwl = []) then
     begin
       let bh = ref (match node_prevblockhash n with Some(pbh,_) -> Some(pbh) | None -> None) in
@@ -378,7 +378,7 @@ exception StakingPause of float
 exception StakingProblemPause
 
 let get_bestnode_cw_exception req e =
-  let (best,cwl) = get_bestnode req in
+  let (best,cwl) = get_bestnode req false in
   begin
     try
       let cw =

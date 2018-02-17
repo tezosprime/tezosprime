@@ -534,7 +534,7 @@ let printassets_in_ledger oc ledgerroot =
   Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
-  let (bn,cwl) = get_bestnode true in
+  let (bn,cwl) = get_bestnode true false in
   let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = bn in
   printassets_in_ledger oc ledgerroot
 
@@ -1133,7 +1133,7 @@ let sendtx blkh lr staustr =
     Printf.printf "Invalid tx\n"
 
 let dalilcoin_addr_jsoninfo alpha =
-  let (bn,cwl) = get_bestnode true in
+  let (bn,cwl) = get_bestnode true false in
   let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
   let blkh = Int64.sub blkh 1L in
   let jpbh =
@@ -1160,7 +1160,7 @@ let query q =
 	let q = if String.length q = 64 then q else "000000000000000000000000" ^ q in
 	let h = hexstring_hashval q in
 	let dbentries = ref [] in
-	let (bn,cwl) = get_bestnode true in
+	let (bn,cwl) = get_bestnode true false in
 	let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
 	let blkh = Int64.sub blkh 1L in
 	begin

@@ -68,7 +68,7 @@ type consensuswarning =
   | ConsensusWarningNoBurn of hashval
   | ConsensusWarningTerminal
 
-val get_bestnode : bool -> blocktree * consensuswarning list
+val get_bestnode : bool -> bool -> blocktree * consensuswarning list
 
 val add_to_txpool : hashval -> Tx.stx -> unit
 val remove_from_txpool : hashval -> unit

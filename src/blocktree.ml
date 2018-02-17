@@ -303,7 +303,11 @@ let rec get_bestnode req =
 	    begin
 	      try
 		let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
-		get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		try
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		with Not_found ->
+		  Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
+		  raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
 	      with Not_found ->
 		Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
 		get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
@@ -311,14 +315,11 @@ let rec get_bestnode req =
 	  in
           try
 	    handle_node (Hashtbl.find blkheadernode (Some(dbh)))
-	  with Not_found ->
-	    try
-	      handle_node (create_new_node_a dbh req)
-	    with
-	    | Not_found -> handle_exc "not found"
-	    | NoReq -> handle_exc "not allowed to request"
-	    | GettingRemoteData -> handle_exc "requested from remote node"
-	    | e -> handle_exc (Printexc.to_string e)
+	  with
+	  | Not_found -> handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+	  | NoReq -> handle_exc "not allowed to request"
+	  | GettingRemoteData -> handle_exc "requested from remote node"
+	  | e -> handle_exc (Printexc.to_string e)
 	end
   and get_bestnode_r ctipsl cwl =
     match ctipsl with

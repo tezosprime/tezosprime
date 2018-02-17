@@ -46,11 +46,21 @@ let sei_ltcdacstatus i c =
     let (l,c) = sei_list (sei_list (sei_prod5 sei_hashval sei_hashval sei_hashval sei_int64 sei_int64)) i c in
     (LtcDacStatusNew(l),c)
 
+let ltcdacstatush : (hashval,ltcdacstatus) Hashtbl.t = Hashtbl.create 1000
+
 module DbLtcDacStatus = Dbbasic2 (struct type t = ltcdacstatus let basedir = "ltcdacstatus" let seival = sei_ltcdacstatus seic let seoval = seo_ltcdacstatus seoc end)
 
+(*** h is the id of an ltcblock, so it should always uniquely determine the ltcdacstatus (all dalilcoin blockid burns from the past week in order). ***)
 let rec ltcdacstatus_dbget h =
   try
-    let z = DbLtcDacStatus.dbget h in
+    let z =
+      try
+	Hashtbl.find ltcdacstatush h
+      with Not_found ->
+	let z = DbLtcDacStatus.dbget h in
+	Hashtbl.add ltcdacstatush h z;
+	z
+    in
     match z with
     | LtcDacStatusPrev(k) ->
 	ltcdacstatus_dbget k

@@ -1278,12 +1278,14 @@ let do_command oc l =
       Printf.fprintf oc "%d connection%s\n" ll (if ll = 1 then "" else "s");
       begin
 	try
-	  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,_,_,blkh,_,_,_) = get_bestnode_print_warnings oc true in
+	  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,tmstmp,_,blkh,_,_,_) = get_bestnode_print_warnings oc true in
+	  let gtm = Unix.gmtime (Int64.to_float tmstmp) in
 	  begin
 	    match pbh with
 	    | Some(h,_) -> Printf.fprintf oc "Best block %s at height %Ld\n" (hashval_hexstring h) (Int64.sub blkh 1L) (*** blkh is the height the next block will have ***)
 	    | None -> Printf.fprintf oc "No blocks yet\n"
 	  end;
+	  Printf.fprintf oc "Time: %Ld (UTC %02d %02d %04d %02d:%02d:%02d)\n" tmstmp gtm.Unix.tm_mday (1+gtm.Unix.tm_mon) (1900+gtm.Unix.tm_year) gtm.Unix.tm_hour gtm.Unix.tm_min gtm.Unix.tm_sec;
 	  Printf.fprintf oc "Target: %s\n" (string_of_big_int tar);
 	  Printf.fprintf oc "Difficulty: %s\n" (string_of_big_int (difficulty tar));
 	  let (bal1,bal2,bal3,bal4) = Commands.get_cants_balances_in_ledger oc ledgerroot in

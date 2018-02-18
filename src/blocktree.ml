@@ -273,7 +273,7 @@ type consensuswarning =
 
 exception NoReq
 
-let rec get_bestnode req initialization =
+let rec get_bestnode req =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
   let tm = ltc_medtime() in
   if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
@@ -313,39 +313,23 @@ let rec get_bestnode req initialization =
 		get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
 	    end
 	  in
-	  if initialization then
-	    begin
-              try
-		handle_node (Hashtbl.find blkheadernode (Some(dbh)))
-	      with Not_found ->
-		try
-		  if DbBlockHeader.dbexists dbh then
-		    handle_node (create_new_node_a dbh req)
-		  else
-		    raise Not_found
-		with
-		| Not_found -> handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
-		| NoReq -> handle_exc "not allowed to request"
-		| GettingRemoteData -> handle_exc "requested from remote node"
-		| e -> handle_exc (Printexc.to_string e)
-	    end
-	  else
-	    begin
-              try
-		handle_node (Hashtbl.find blkheadernode (Some(dbh)))
-	      with
-	      | Not_found -> handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
-	      | NoReq -> handle_exc "not allowed to request"
-	      | GettingRemoteData -> handle_exc "requested from remote node"
-	      | e -> handle_exc (Printexc.to_string e)
-	    end
+          try
+	    handle_node (Hashtbl.find blkheadernode (Some(dbh)))
+	  with
+	  | Not_found -> handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+	  | NoReq -> handle_exc "not allowed to request"
+	  | GettingRemoteData -> handle_exc "requested from remote node"
+	  | e -> handle_exc (Printexc.to_string e)
 	end
   and get_bestnode_r ctipsl cwl =
     match ctipsl with
     | [] ->
 	let tm = ltc_medtime() in
 	if tm > Int64.add !Config.genesistimestamp 604800L then
-	  raise (Failure "no valid best chaintip found and past the genesis phase")
+	  begin
+	    
+	    raise (Failure "cannot find best validated header; probably out of sync")
+	  end
 	else
 	  (!genesisblocktreenode,cwl)
     | ctips::ctipsr ->
@@ -469,7 +453,7 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	    processing_deltas := h::!processing_deltas;
 	    DbBlockDelta.dbput h blkdel;
 	    process_delta_real h blkhght blk;
-	    let (bn,cwl) = get_bestnode true false in
+	    let (bn,cwl) = get_bestnode true in
 	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
 	    add_thytree blkhd.newtheoryroot tht2;
 	    add_sigtree blkhd.newsignaroot sigt2;
@@ -672,6 +656,22 @@ and possibly_handle_orphan h n initialization knownvalid =
       with Not_found -> ())
     (Hashtbl.find_all orphanblkheaders (Some(h)))
 
+(*** during initialization, go as far back as necessary in history ***)
+let rec traverse_ltc_history lb =
+  try
+    let (prevh,tm,hght,burntxhs) = DbLtcBlock.dbget lb in
+    List.iter
+      (fun burntxh ->
+	try
+	  let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget burntxh in
+	  if not (DbBlockHeader.dbexists dnxt || DbBlacklist.dbexists dnxt || DbArchived.dbexists dnxt) then
+	    missingheaders := dnxt :: !missingheaders (*** earliest headers should be earlier on the missingheaders list ***)
+	with _ -> ())
+      burntxhs;
+    if not (!Config.ltcblockcheckpoint = hashval_hexstring prevh) then (*** allow for a checkpoint to avoid needing to go back too far ***)
+      traverse_ltc_history prevh
+  with Not_found -> ()
+
 let process_delta h =
   let bh = DbBlockHeader.dbget h in
   let bd = DbBlockDelta.dbget h in
@@ -746,8 +746,14 @@ let initblocktree () =
   lastcheckpointnode := !genesisblocktreenode;
   Hashtbl.add blkheadernode None !genesisblocktreenode;
   try
-    let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
-    ignore (get_bestnode true true);
+    traverse_ltc_history !ltc_bestblock;
+    if !missingheaders = [] then
+      ignore (get_bestnode true)
+    else
+      begin
+	Printf.fprintf !log "%d headers are missing.\n" (List.length !missingheaders);
+	find_and_send_requestmissingheaders()
+      end
   with
   | _ -> ();;
 
@@ -856,6 +862,7 @@ Hashtbl.add msgtype_handler Headers
 	  end
 	else
 	  begin
+	    missingheaders := List.filter (fun mh -> not (mh = h)) !missingheaders; (*** remove from missing list ***)
 	    try
 	      let a = blockheader_stakeasset bhd in
 	      let validsofar = ref true in
@@ -981,7 +988,7 @@ Hashtbl.add msgtype_handler Inv
 	    with Not_found ->
 	      ()
 	end
-      else if i = int_of_msgtype Blockdelta && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && Hashtbl.mem tovalidate h then
+      else if i = int_of_msgtype Blockdelta && (DbBlockHeader.dbexists h) && not (DbBlockDelta.dbexists h) && not (DbArchived.dbexists h) && not (DbBlacklist.dbexists h) && Hashtbl.mem tovalidate h then
 	begin
 	  try
 	    let tm = Unix.time() in
@@ -1126,7 +1133,7 @@ Hashtbl.add msgtype_handler STx
 	    if tx_valid tau then
 	      begin
 		try
-		  let (n,_) = get_bestnode false false in (*** ignore consensus warnings here ***)
+		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
 		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
 		  let unsupportederror alpha h = Printf.fprintf !log "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h) in
 		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
@@ -1232,7 +1239,7 @@ let dumpblocktreestate sa =
     tovalidate;;
 
 let print_best_node () =
-  let (bn,cwl) = get_bestnode true false in
+  let (bn,cwl) = get_bestnode true in
   let BlocktreeNode(_,_,_,pbh,_,_,_,_,_,_,_,_,_,_) = bn in
   match pbh with
   | Some(h) -> Printf.fprintf !log "bestnode pbh %s\n" (hashval_hexstring h); flush !log

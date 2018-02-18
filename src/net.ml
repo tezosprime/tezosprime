@@ -10,6 +10,8 @@ open Hashaux
 open Sha256
 open Hash
 
+let missingheaders = ref [];;
+
 let netblkh : int64 ref = ref 0L
 
 type msgtype =
@@ -887,6 +889,49 @@ let find_and_send_requestdata mt h =
     if not !alrreq then raise Not_found
   with Exit ->
     ();;
+
+let find_and_send_requestmissingheaders () =
+  let i = int_of_msgtype GetHeaders in
+  let ii = int_of_msgtype Headers in
+  let tm = Unix.time() in
+  try
+    List.iter
+      (fun (lth,sth,(fd,sin,sout,gcs)) ->
+	match !gcs with
+	| Some(cs) ->
+	    if not cs.banned then
+	      begin
+		let rhl = ref [] in
+		let mhl = ref !missingheaders in
+		let j = ref 0 in
+		while (!j < 256 && not (!mhl = [])) do
+		  match !mhl with
+		  | [] -> raise Exit (*** impossible ***)
+		  | h::mhr ->
+		      mhl := mhr;
+		      if List.mem (ii,h) cs.rinv && not (recently_requested (i,h) tm cs.invreq) then
+			begin
+			  incr j;
+			  rhl := h::!rhl
+			end
+		done;
+		if not (!rhl = []) then
+		  begin
+		    let msb = Buffer.create 100 in
+		    seosbf (seo_int8 seosb !j (msb,None));
+		    List.iter
+		      (fun h ->
+			cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
+			seosbf (seo_hashval seosb h (msb,None)))
+		      !rhl;
+		    let ms = Buffer.contents msb in
+		    let mh = queue_msg cs GetHeaders ms in
+		    ()
+		  end
+	      end
+	| None -> ())
+      !netconns
+  with Exit -> ();;
 
 let broadcast_inv tosend =
   let invmsg = Buffer.create 10000 in

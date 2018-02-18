@@ -6,6 +6,8 @@
 open Big_int
 open Hash
 
+val missingheaders : hashval list ref
+
 exception GettingRemoteData
 exception RequestRejected
 exception IllformedMsg
@@ -37,6 +39,7 @@ type msgtype =
   | HConsElement
   | Asset
 
+val msgtype_of_int : int -> msgtype
 val int_of_msgtype : msgtype -> int
 val string_of_msgtype : msgtype -> string
 
@@ -99,6 +102,7 @@ val network_time : unit -> int64 * int
 val queue_msg : connstate -> msgtype -> string -> hashval
 val queue_reply : connstate -> hashval -> msgtype -> string -> hashval
 val find_and_send_requestdata : msgtype -> hashval -> unit
+val find_and_send_requestmissingheaders : unit -> unit
 val broadcast_requestdata : msgtype -> hashval -> unit
 val broadcast_inv : (int * hashval) list -> unit
 

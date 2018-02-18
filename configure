@@ -67,6 +67,7 @@ echo let ltcaddresses = ref [] >> src/config.ml
 echo let curl = ref \"/usr/bin/curl\" >> src/config.ml
 echo let maxconns = ref 20 >> src/config.ml
 echo let lastcheckpoint = ref \"\" >> src/config.ml
+echo let ltcblockcheckpoint = ref \"\" >> src/config.ml
 echo let prompt = ref \"\> \" >> src/config.ml
 echo let offlinestakerewardskey = ref None >> src/config.ml
 echo let generatenewstakingaddresses = ref true >> src/config.ml

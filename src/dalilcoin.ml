@@ -39,7 +39,7 @@ let rec pblockchain s n c lr m =
   Printf.fprintf s "Timestamp: %Ld\n" tm;
   match c with
   | Some(h,Poburn(lblkh,ltxh,lmedtm,burned)) ->
-      Printf.fprintf s "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring ltxh);
+      Printf.fprintf s "Burned %Ld at median time %Ld with ltc tx %s in block %s\n" burned lmedtm (hashval_hexstring ltxh) (hashval_hexstring lblkh);
       List.iter (fun (k,_) -> if not (k = h) then Printf.fprintf s "[orphan %s]\n" (hashval_hexstring k)) !chl;
       begin
 	match lr with
@@ -80,7 +80,7 @@ let print_consensus_warning s cw =
       Printf.fprintf s "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	
 let get_bestnode_print_warnings s req =
-  let (n,cwl) = get_bestnode req false in
+  let (n,cwl) = get_bestnode req in
   if not (cwl = []) then
     begin
       let bh = ref (match node_prevblockhash n with Some(pbh,_) -> Some(pbh) | None -> None) in
@@ -179,6 +179,17 @@ let initnetwork () =
   netseeker ();
   (*** empty placeholder for now ***)
   ();;
+
+let missingheaders_th : Thread.t option ref = ref None;;
+
+let missingheadersthread () = (*** every five minutes check if there are headers known to be missing and if so try to request them ***)
+  while true do
+    try
+      if not (!missingheaders = []) then find_and_send_requestmissingheaders();
+      Thread.delay 300.0
+    with _ ->
+      Thread.delay 300.0
+  done;;
 
 let ltc_listener_th : Thread.t option ref = ref None;;
 
@@ -378,7 +389,7 @@ exception StakingPause of float
 exception StakingProblemPause
 
 let get_bestnode_cw_exception req e =
-  let (best,cwl) = get_bestnode req false in
+  let (best,cwl) = get_bestnode req in
   begin
     try
       let cw =
@@ -1803,6 +1814,131 @@ let initialize () =
 	  extraindex_ledger_rec lr [];
 	  !exitfn 0
     end;
+    begin
+      match !netlogreport with
+      | None -> ()
+      | Some([]) ->
+	  Printf.printf "Expected -netlogreport <sentlogfile> [<reclogfile>*]\n";
+	  !exitfn 1
+      | Some(sentf::recfl) ->
+	  let extra_log_info mt ms = (*** for certain types of messages, give more information ***)
+	    match mt with
+	    | Inv ->
+		begin
+		  let c = ref (ms,String.length ms,None,0,0) in
+		  let (n,cn) = sei_int32 seis !c in
+		  Printf.printf "Inv msg %ld entries\n" n;
+		  c := cn;
+		  for j = 1 to Int32.to_int n do
+		    let ((i,h),cn) = sei_prod sei_int8 sei_hashval seis !c in
+		    c := cn;
+		    Printf.printf "Inv %d %s\n" i (hashval_hexstring h);
+		  done
+		end
+	    | GetHeader ->
+		begin
+		  let (h,_) = sei_hashval seis (ms,String.length ms,None,0,0) in
+		  Printf.printf "GetHeader %s\n" (hashval_hexstring h)
+		end
+	    | GetHeaders ->
+		begin
+		  let c = ref (ms,String.length ms,None,0,0) in
+		  let m = ref 0 in
+		  let bhl = ref [] in
+		  let (n,cn) = sei_int8 seis !c in (*** peers can request at most 255 headers at a time **)
+		  c := cn;
+		  Printf.printf "GetHeaders requesting these %d headers:\n" n;
+		  for j = 1 to n do
+		    let (h,cn) = sei_hashval seis !c in
+		    c := cn;
+		    Printf.printf "%d. %s\n" j (hashval_hexstring h);
+		  done
+		end
+	    | Headers ->
+		begin
+		  let c = ref (ms,String.length ms,None,0,0) in
+		  let (n,cn) = sei_int8 seis !c in (*** peers can request at most 255 headers at a time **)
+		  Printf.printf "Got %d Headers\n" n;
+		  c := cn;
+		  for j = 1 to n do
+		    let (h,cn) = sei_hashval seis !c in
+		    let (bh,cn) = sei_blockheader seis cn in
+		    c := cn;
+		    Printf.printf "%d. %s\n" j (hashval_hexstring h)
+		  done
+		end
+	    | _ -> ()
+	  in
+	  Printf.printf "++++++++++++++++++++++++\nReport of all sent messages:\n";
+	  let f = open_in_bin sentf in
+	  begin
+	    try
+	      while true do
+		let (tmstmp,_) = sei_int64 seic (f,None) in
+		let gtm = Unix.gmtime (Int64.to_float tmstmp) in
+		Printf.printf "Sending At Time: %Ld (UTC %02d %02d %04d %02d:%02d:%02d)\n" tmstmp gtm.Unix.tm_mday (1+gtm.Unix.tm_mon) (1900+gtm.Unix.tm_year) gtm.Unix.tm_hour gtm.Unix.tm_min gtm.Unix.tm_sec;
+		let (magic,_) = sei_int32 seic (f,None) in
+		if magic = 0x44616c54l then Printf.printf "Testnet message\n" else if magic = 0x44616c4dl then Printf.printf "Mainnet message\n" else Printf.printf "Bad Magic Number %08lx\n" magic;
+		let rby = input_byte f in
+		if rby = 0 then
+		  Printf.printf "Not a reply\n"
+		else if rby = 1 then
+		  begin
+		    let (h,_) = sei_hashval seic (f,None) in
+		    Printf.printf "Reply to %s\n" (hashval_hexstring h)
+		  end
+		else
+		  Printf.printf "Bad Reply Byte %d\n" rby;
+		let mti = input_byte f in
+		Printf.printf "Message type %d: %s\n" mti (try string_of_msgtype (msgtype_of_int mti) with Not_found -> "no such message type");
+		let (msl,_) = sei_int32 seic (f,None) in
+		Printf.printf "Message contents length %ld bytes\n" msl;
+		let (mh,_) = sei_hashval seic (f,None) in
+		Printf.printf "Message contents hash %s\n" (hashval_hexstring mh);
+		let sb = Buffer.create 100 in
+		for i = 1 to (Int32.to_int msl) do
+		  let x = input_byte f in
+		  Buffer.add_char sb (Char.chr x)
+		done;
+		let s = Buffer.contents sb in
+		Printf.printf "Message contents: %s\n" (string_hexstring s);
+		try let mt = msgtype_of_int mti in extra_log_info mt s with Not_found -> ()
+	      done
+	    with
+	    | End_of_file -> ()
+	    | e -> Printf.printf "Exception: %s\n" (Printexc.to_string e)
+	  end;
+	  close_in f;
+	  List.iter
+	    (fun fn ->
+	      Printf.printf "++++++++++++++++++++++++\nReport of all messages received via %s:\n" fn;
+	      let f = open_in_bin fn in
+	      begin
+		try
+		  while true do
+		    let tmstmp : float = input_value f in
+		    let gtm = Unix.gmtime tmstmp in
+		    Printf.printf "Received At Time: %f (UTC %02d %02d %04d %02d:%02d:%02d)\n" tmstmp gtm.Unix.tm_mday (1+gtm.Unix.tm_mon) (1900+gtm.Unix.tm_year) gtm.Unix.tm_hour gtm.Unix.tm_min gtm.Unix.tm_sec;
+		    let rmmm : hashval option * hashval * msgtype * string = input_value f in
+		    let (replyto,mh,mt,m) = rmmm in
+		    begin
+		      match replyto with
+		      | None -> Printf.printf "Not a reply\n"
+		      | Some(h) -> Printf.printf "Reply to %s\n" (hashval_hexstring h)
+		    end;
+		    Printf.printf "Message type %d: %s\n" (int_of_msgtype mt) (string_of_msgtype mt);
+		    Printf.printf "Message contents hash %s\n" (hashval_hexstring mh);
+		    Printf.printf "Message contents: %s\n" (string_hexstring m);
+		    extra_log_info mt m
+		  done
+		with
+		| End_of_file -> ()
+		| e -> Printf.printf "Exception: %s\n" (Printexc.to_string e)
+	      end;
+	      close_in f)
+	    recfl;
+	  !exitfn 0
+    end;
     if !Config.seed = "" && !Config.lastcheckpoint = "" then
       begin
 	raise (Failure "Need either a seed (to validate the genesis block) or a lastcheckpoint (to start later in the blockchain); have neither")
@@ -1820,6 +1956,7 @@ let initialize () =
     ltc_init();
     Printf.printf "Initializing blocktree\n"; flush stdout;
     initblocktree();
+    missingheaders_th := Some(Thread.create missingheadersthread ());
     begin
       let pdf = Filename.concat datadir "processingdeltas" in
       if Sys.file_exists pdf then

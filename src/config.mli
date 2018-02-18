@@ -22,6 +22,7 @@ val ltcaddresses : string list ref
 val curl : string ref
 val maxconns : int ref
 val lastcheckpoint : string ref
+val ltcblockcheckpoint : string ref
 val prompt : string ref
 val genesistimestamp : int64 ref
 val maxburn : int64 ref

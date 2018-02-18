@@ -9,6 +9,7 @@ open Cryptocurr
 let stringconfigvars = [
 ("seed",fun x -> Config.seed := x);
 ("lastcheckpoint",fun x -> Config.lastcheckpoint := x);
+("ltcblockcheckpoint",fun x -> Config.ltcblockcheckpoint := x);
 ("prompt",fun x -> Config.prompt := x);
 ("rpcuser",fun x -> Config.rpcuser := x);
 ("rpcpass",fun x -> Config.rpcpass := x);
@@ -204,6 +205,7 @@ exception CreateSnapshot of int;;
 exception ImportSnapshot of int;;
 exception CheckLedger of int;;
 exception BuildExtraIndex of int;;
+exception NetLogReport of int;;
 
 let createsnapshot = ref false;;
 let importsnapshot = ref false;;
@@ -216,6 +218,7 @@ let snapshot_addresses = ref [];;
 let snapshot_shards = ref None;;
 let check_ledger = ref None;;
 let build_extraindex = ref None;;
+let netlogreport = ref None;;
 
 let process_config_args () =
   let a = Array.length Sys.argv in
@@ -230,6 +233,8 @@ let process_config_args () =
 	raise (CheckLedger(i))
       else if arg = "-buildextraindex" then
 	raise (BuildExtraIndex(i))
+      else if arg = "-netlogreport" then
+	raise (NetLogReport(i))
       else if String.length arg > 1 && arg.[0] = '-' then
 	try
 	  process_config_line (String.sub arg 1 ((String.length arg) - 1))
@@ -339,3 +344,10 @@ let process_config_args () =
 	  exit 1
 	end;
       build_extraindex := Some(hexstring_hashval Sys.argv.(i+1))
+  | NetLogReport(i) -> (*** dalilcoin is being started only to generate a readable report of network activity from reclog* files and sentlog file ***)
+      let fl = ref [] in
+      for j = a-1 downto i+1 do
+	fl := Sys.argv.(j) :: !fl
+      done;
+      netlogreport := Some(!fl)
+      

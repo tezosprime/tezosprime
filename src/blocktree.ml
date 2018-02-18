@@ -231,30 +231,6 @@ let rec processblockvalidation vl =
       | Waiting(_,_) -> (v,f)::vr2
       | _ -> vr2
 
-let rec is_recent_staker stkaddr n i =
-  if i > 0 then
-    begin
-      let BlocktreeNode(par,stakers,_,_,_,_,_,_,_,_,_,_,_,_) = n in
-      if List.mem stkaddr !stakers then
-	true
-      else
-	match par with
-	| Some(p) -> is_recent_staker stkaddr p (i-1)
-	| _ -> false
-    end
-  else
-    false
-
-let rec record_recent_staker stkaddr n i =
-  if i > 0 then
-    begin
-      let BlocktreeNode(par,stakers,_,_,_,_,_,_,_,_,_,_,_,_) = n in
-      stakers := stkaddr::!stakers;
-      match par with
-      | Some(p) -> record_recent_staker stkaddr p (i-1)
-      | None -> ()
-    end
-
 let equ_tinfo (x,(y3,y2,y1,y0),z) (u,(v3,v2,v1,v0),w) =
    x = u && y3 = v3 && y2 = v2 && y1 = v1 && Int64.logand y0 (Int64.lognot 1L) = Int64.logand v0 (Int64.lognot 1L) && eq_big_int z w
 
@@ -533,7 +509,6 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      succl := (h,newnode)::!succl;
 	      possibly_handle_orphan h newnode initialization knownvalid;
-	      record_recent_staker blkhd1.stakeaddr prevnode 6;
 	      begin
 		try
 		  let blkdel = DbBlockDelta.dbget h in

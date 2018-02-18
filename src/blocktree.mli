@@ -43,8 +43,6 @@ val node_blockheight : blocktree -> int64
 val node_validationstatus : blocktree -> validationstatus
 val node_children_ref : blocktree -> (hashval * blocktree) list ref
 val eq_node : blocktree -> blocktree -> bool
-val is_recent_staker : p2pkhaddr -> blocktree -> int -> bool
-val record_recent_staker : p2pkhaddr -> blocktree -> int -> unit
 
 val print_best_node : unit -> unit
 

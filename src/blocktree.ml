@@ -327,7 +327,6 @@ let rec get_bestnode req =
 	let tm = ltc_medtime() in
 	if tm > Int64.add !Config.genesistimestamp 604800L then
 	  begin
-	    
 	    raise (Failure "cannot find best validated header; probably out of sync")
 	  end
 	else
@@ -360,7 +359,9 @@ and create_new_node h req =
       flush !log;
       raise (Failure "delaying create_new_node")
 and create_new_node_a h req =
-  let (pob,prevh) = find_dalilcoin_header_ltc_burn h in
+  let (pob,_) = find_dalilcoin_header_ltc_burn h in
+  create_new_node_b h pob req
+and create_new_node_b h pob req =
   try
     let (bhd,bhs) = DbBlockHeader.dbget h in
     if DbBlockDelta.dbexists h then
@@ -660,16 +661,19 @@ and possibly_handle_orphan h n initialization knownvalid =
 let rec traverse_ltc_history lb =
   try
     let (prevh,tm,hght,burntxhs) = DbLtcBlock.dbget lb in
+    let makenodes = ref [] in
     List.iter
       (fun burntxh ->
 	try
 	  let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget burntxh in
-	  if not (DbBlockHeader.dbexists dnxt || DbBlacklist.dbexists dnxt || DbArchived.dbexists dnxt) then
+	  if (DbBlockHeader.dbexists dnxt) then
+	    makenodes := (dnxt,(Poburn(lb,burntxh,tm,burned)))::!makenodes
+	  else if not (DbBlockHeader.dbexists dnxt || DbBlacklist.dbexists dnxt || DbArchived.dbexists dnxt) then
 	    missingheaders := dnxt :: !missingheaders (*** earliest headers should be earlier on the missingheaders list ***)
 	with _ -> ())
       burntxhs;
-    if not (!Config.ltcblockcheckpoint = hashval_hexstring prevh) then (*** allow for a checkpoint to avoid needing to go back too far ***)
-      traverse_ltc_history prevh
+    if not (!Config.ltcblockcheckpoint = hashval_hexstring prevh) then traverse_ltc_history prevh; (*** allow for a checkpoint to avoid needing to go back too far ***)
+    List.iter (fun (h,pob) -> try ignore (create_new_node_b h pob false) with _ -> ()) !makenodes
   with Not_found -> ()
 
 let process_delta h =

@@ -20,7 +20,7 @@ open Ctre
 open Ctregraft
 
 type poburn =
-  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, number of litoshis burned **)
+  | Poburn of md256 * md256 * int64 * int64 (** ltc block hash id, ltc tx hash id, ltc block median time, number of litoshis burned **)
 
 let hashpoburn p =
   match p with

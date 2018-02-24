@@ -553,7 +553,7 @@ let stakingthread () =
 			let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
 			let alpha3 =
 			  if !Config.generatenewstakingaddresses then
-			    (let (_,alpha3) = Commands.generate_newkeyandaddress() in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			    (let (_,alpha3) = Commands.generate_newkeyandaddress prevledgerroot in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
 			  else
 			    let (i,x0,x1,x2,x3,x4) = alpha2 in
 			    if i = 0 then
@@ -1410,10 +1410,20 @@ let do_command oc l =
       end
   | "newaddress" ->
       begin
-	let (k,h) = Commands.generate_newkeyandaddress() in
-	let alpha = p2pkhaddr_addr h in
-	let a = addr_daliladdrstr alpha in
-	Printf.fprintf oc "%s\n" a
+	match al with
+	| [] ->
+	    let best = get_bestnode_print_warnings oc true in
+	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
+	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot in
+	    let alpha = p2pkhaddr_addr h in
+	    let a = addr_daliladdrstr alpha in
+	    Printf.fprintf oc "%s\n" a
+	| [clr] ->
+	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) in
+	    let alpha = p2pkhaddr_addr h in
+	    let a = addr_daliladdrstr alpha in
+	    Printf.fprintf oc "%s\n" a
+	| _ -> raise (Failure "newaddress [ledgerroot]")
       end
   | "createtx" ->
       begin

@@ -44,7 +44,7 @@ val importbtcprivkey : string -> unit
 val importendorsement : string -> string -> string -> unit
 val importwatchaddr : string -> unit
 val importwatchbtcaddr : string -> unit
-val generate_newkeyandaddress : unit -> big_int * p2pkhaddr
+val generate_newkeyandaddress : hashval -> big_int * p2pkhaddr
 
 val createtx : jsonval -> jsonval -> tx
 val createsplitlocktx : hashval -> payaddr -> payaddr -> addr -> hashval -> int -> int64 -> int64 -> unit

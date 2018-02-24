@@ -345,22 +345,33 @@ let importwatchbtcaddr a =
   walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
-let rec generate_newkeyandaddress () =
+(*** make sure we locally know the contents of the address (which should be empty, of course) ***)
+let rec generate_newkeyandaddress ledgerroot =
+  let giveup = ref 65536 in
   let k = strong_rand_256() in
   let b = true in (*** compressed ***)
-  let w = dalilwif k true in
-  begin
+  let rec newkeyandaddress_rec k =
     match Secp256k1.smulp k Secp256k1._g with
+    | None -> (*** try again, in the very unlikely event this happened ***)
+	generate_newkeyandaddress ledgerroot
     | Some(x,y) ->
+	let w = dalilwif k true in
 	let h = hashval_md160 (pubkey_hashval (x,y) b) in
 	let alpha = p2pkhaddr_addr h in
-	let a = addr_daliladdrstr alpha in
-	Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
-	importprivkey_real (k,b) false;
-	(k,h)
-    | None -> (*** try again, in the very unlikely event this happened ***)
-	generate_newkeyandaddress()
-  end
+	try
+	  ignore (ctree_addr true false alpha (CHash(ledgerroot)) None);
+	  let a = addr_daliladdrstr alpha in
+	  Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
+	  importprivkey_real (k,b) false;
+	  (k,h)
+	with Not_found ->
+	  decr giveup;
+	  if !giveup > 0 then
+	    newkeyandaddress_rec (succ_big_int k)
+	  else
+	    raise (Failure "could not generature a new address accessible by the local ledger")
+  in
+  newkeyandaddress_rec k
 
 let assets_at_address_in_ledger_json alpha ledgerroot blkh =
   let alphas = addr_daliladdrstr alpha in

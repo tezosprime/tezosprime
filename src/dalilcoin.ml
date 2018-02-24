@@ -1408,6 +1408,13 @@ let do_command oc l =
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
 	| _ -> raise (Failure "printctreeinfo [ledgerroot]")
       end
+  | "newaddress" ->
+      begin
+	let (k,h) = Commands.generate_newkeyandaddress() in
+	let alpha = p2pkhaddr_addr h in
+	let a = addr_daliladdrstr alpha in
+	Printf.fprintf oc "%s\n" a
+      end
   | "createtx" ->
       begin
 	try

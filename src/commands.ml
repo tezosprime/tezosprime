@@ -1286,7 +1286,7 @@ let query q =
 		let jcoinstk = json_tx(coinstake ((bhd,bhs),bd)) in
 		let jtxhl =
 		  List.map
-		    (fun (tau,stau) -> JsonStr(hashval_hexstring(hashtx tau)))
+		    (fun (tau,stau) -> JsonStr(hashval_hexstring(hashstx (tau,stau))))
 		    bd.blockdelta_stxl
 		in
 		let j = JsonObj(("type",JsonStr("block"))::jr @ [("coinstk",jcoinstk);("txs",JsonArr(jtxhl))]) in

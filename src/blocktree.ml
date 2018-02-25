@@ -283,19 +283,19 @@ let rec get_bestnode req =
 	  in
 	  let handle_exc comm =
 	    begin
-	      try
-		let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
+	      if DbInvalidatedBlocks.dbexists dbh then
+		get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,None,-1L)::cwl)
+	      else
 		try
-		  if DbInvalidatedBlocks.dbexists dbh then
-		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,oprev,-1L)::cwl)
-		  else
+		  let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
+		  try
 		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		  with Not_found ->
+		    Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
+		    raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
 		with Not_found ->
-		  Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
-		  raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
-	      with Not_found ->
-		Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
-		get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
+		  Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
 	    end
 	  in
           try

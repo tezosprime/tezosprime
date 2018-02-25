@@ -56,24 +56,24 @@ let print_consensus_warning s cw =
   | ConsensusWarningMissing(h,ph,blkh,hh,hd,comm) ->
       Printf.fprintf s "Missing Block %Ld %s%s%s%s %s\n"
 	blkh (hashval_hexstring h)
-	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(match ph with None -> "" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
 	(if hh then " Have Header" else " Missing Header")
 	(if hd then " Have Delta" else " Missing Delta")
 	comm
   | ConsensusWarningWaiting(h,ph,blkh,tm,hh,hd) ->
       Printf.fprintf s "Waiting to Validate Block %Ld %s%s%s%s\n"
 	blkh (hashval_hexstring h)
-	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(match ph with None -> "" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
 	(if hh then " Have Header" else " Missing Header")
 	(if hd then " Have Delta" else " Missing Delta")
   | ConsensusWarningBlacklist(h,ph,blkh) ->
       Printf.fprintf s "Blacklisted Block %Ld %s%s\n"
 	blkh (hashval_hexstring h)
-	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(match ph with None -> "" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
   | ConsensusWarningInvalid(h,ph,blkh) ->
       Printf.fprintf s "Invalid Block %Ld %s%s\n"
 	blkh (hashval_hexstring h)
-	(match ph with None -> " genesis" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
+	(match ph with None -> "" | Some(ph) -> Printf.sprintf " (succ of %s)" (hashval_hexstring ph))
   | ConsensusWarningNoBurn(h) ->
       Printf.fprintf s "BUG: Mystery unburned block %s\n" (hashval_hexstring h)
   | ConsensusWarningTerminal ->
@@ -155,7 +155,7 @@ let dumpstate fa =
 let exitfn : (int -> unit) ref = ref (fun n -> exit n);;
 
 let lock datadir =
-  let lf = Filename.concat datadir ".lock" in
+  let lf = Filename.concat datadir "lock" in
   let c = open_out lf in
   close_out c;
   exitfn := (fun n -> saveknownpeers(); save_processing_deltas(); Sys.remove lf; exit n);;
@@ -1581,9 +1581,9 @@ let initialize () =
 	genesistarget := shift_left_big_int unit_big_int 205; (* easy initial target for testnet *)
 	if !Config.ltcrpcport = 9332 then Config.ltcrpcport := 19332;
       end;
-    if Sys.file_exists (Filename.concat datadir ".lock") then
+    if Sys.file_exists (Filename.concat datadir "lock") then
       begin
-	Printf.printf "Cannot start Dalilcoin. Do you already have Dalilcoin running? If not, remove: %s\n" (Filename.concat datadir ".lock");
+	Printf.printf "Cannot start Dalilcoin. Do you already have Dalilcoin running? If not, remove: %s\n" (Filename.concat datadir "lock");
 	flush stdout;
 	exit 1;
       end;

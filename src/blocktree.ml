@@ -58,6 +58,17 @@ let node_prevblockhash n =
   let BlocktreeNode(_,_,pbh,_,_,_,_,_,_,_,_,_,_,_) = n in
   pbh
 
+let fstohash a =
+  match a with
+  | None -> None
+  | Some(h,_) -> Some(h)
+
+let node_parprevblockhash n =
+  let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,_,_,_) = n in
+  match par with
+  | None -> None
+  | Some(p) -> fstohash (node_prevblockhash p)
+
 let node_theoryroot n =
   let BlocktreeNode(_,_,_,tr,_,_,_,_,_,_,_,_,_,_) = n in
   tr
@@ -234,11 +245,6 @@ let rec processblockvalidation vl =
 let equ_tinfo (x,(y3,y2,y1,y0),z) (u,(v3,v2,v1,v0),w) =
    x = u && y3 = v3 && y2 = v2 && y1 = v1 && Int64.logand y0 (Int64.lognot 1L) = Int64.logand v0 (Int64.lognot 1L) && eq_big_int z w
 
-let fstohash a =
-  match a with
-  | None -> None
-  | Some(h,_) -> Some(h)
-
 type consensuswarning =
   | ConsensusWarningMissing of hashval * hashval option * int64 * bool * bool * string
   | ConsensusWarningWaiting of hashval * hashval option * int64 * float * bool * bool
@@ -262,18 +268,18 @@ let rec get_bestnode req =
     | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
 	begin
 	  let handle_node n =
-	    let BlocktreeNode(_,_,pbh,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
+	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
 	    if DbInvalidatedBlocks.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
 	    else if DbBlacklist.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
+	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
 	    else
 	      match !vs with
 	      | ValidBlock -> (n,cwl)
 	      | InvalidBlock ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,fstohash pbh,Int64.sub blkh 1L)::cwl)
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
 	      | Waiting(tm,_) ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,fstohash pbh,Int64.sub blkh 1L,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,node_parprevblockhash n,Int64.sub blkh 1L,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
 	  in
 	  let handle_exc comm =
 	    begin
@@ -292,7 +298,18 @@ let rec get_bestnode req =
           try
 	    handle_node (Hashtbl.find blkheadernode (Some(dbh)))
 	  with
-	  | Not_found -> handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+	  | Not_found -> (*** if we have the header, we may have simply not yet built the node of the block tree, try to build it here ***)
+	      begin
+		if DbBlockHeader.dbexists dbh then
+		  begin
+		    try
+		      add_known_header_to_blocktree dbh;
+		      handle_node (Hashtbl.find blkheadernode (Some(dbh)))
+		    with e -> handle_exc (Printexc.to_string e)
+		  end
+		else
+		  handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+	      end
 	  | NoReq -> handle_exc "not allowed to request"
 	  | GettingRemoteData -> handle_exc "requested from remote node"
 	  | e -> handle_exc (Printexc.to_string e)
@@ -631,6 +648,19 @@ and possibly_handle_orphan h n initialization knownvalid =
 	Hashtbl.remove orphanblkheaders (Some(h))
       with Not_found -> ())
     (Hashtbl.find_all orphanblkheaders (Some(h)))
+and add_known_header_to_blocktree h =
+  let bh = DbBlockHeader.dbget h in
+  let (bhd,bhs) = bh in
+  begin
+    match bhd.prevblockhash with
+    | None -> ()
+    | Some(pbh,_) ->
+	if not (hashval_hexstring pbh = !Config.lastcheckpoint) then
+	  add_known_header_to_blocktree pbh
+	else
+	  ()
+  end;
+  process_new_header_a h (hashval_hexstring h) bh bhd bhs false true
 
 (*** during initialization, go as far back as necessary in history ***)
 let rec traverse_ltc_history lb =

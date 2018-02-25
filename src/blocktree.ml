@@ -286,7 +286,10 @@ let rec get_bestnode req =
 	      try
 		let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
 		try
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		  if DbInvalidatedBlocks.dbexists h then
+		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,oprev,-1L)::cwl)
+		  else
+		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
 		with Not_found ->
 		  Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
 		  raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));

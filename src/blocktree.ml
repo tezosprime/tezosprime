@@ -286,7 +286,7 @@ let rec get_bestnode req =
 	      try
 		let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
 		try
-		  if DbInvalidatedBlocks.dbexists h then
+		  if DbInvalidatedBlocks.dbexists dbh then
 		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,oprev,-1L)::cwl)
 		  else
 		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)

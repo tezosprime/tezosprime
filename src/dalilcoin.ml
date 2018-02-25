@@ -1334,13 +1334,17 @@ let do_command oc l =
   | "invalidateblock" ->
       begin
 	match al with
-	| [h] -> DbInvalidatedBlocks.dbput (hexstring_hashval h) true
+	| [h] ->
+	    let hh = hexstring_hashval h in
+	    recursively_invalidate_blocks hh
 	| _ -> raise (Failure "invalidateblock <blockhash>")
       end
   | "revalidateblock" ->
       begin
 	match al with
-	| [h] -> DbInvalidatedBlocks.dbdelete (hexstring_hashval h)
+	| [h] ->
+	    let hh = hexstring_hashval h in
+	    recursively_revalidate_blocks hh
 	| _ -> raise (Failure "revalidateblock <blockhash>")
       end
   | "getblock" ->

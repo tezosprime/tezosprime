@@ -71,3 +71,6 @@ val get_bestnode : bool -> blocktree * consensuswarning list
 val add_to_txpool : hashval -> Tx.stx -> unit
 val remove_from_txpool : hashval -> unit
 val savetxtopool_real : hashval -> stx -> unit
+
+val recursively_invalidate_blocks : hashval -> unit
+val recursively_revalidate_blocks : hashval -> unit

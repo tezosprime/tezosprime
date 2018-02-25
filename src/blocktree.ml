@@ -1254,3 +1254,45 @@ let print_best_node () =
   | Some(h) -> Printf.fprintf !log "bestnode pbh %s\n" (hashval_hexstring h); flush !log
   | None -> Printf.fprintf !log "bestnode pbh (genesis)\n"; flush !log
 
+let rec recursively_invalidate_children n =
+  let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) = n in
+  vs := InvalidBlock;
+  List.iter
+    (fun (h,ch) ->
+      if not (DbInvalidatedBlocks.dbexists h) then DbInvalidatedBlocks.dbput h true;
+      recursively_invalidate_children ch)
+    !chlr
+
+let recursively_invalidate_blocks h =
+  DbInvalidatedBlocks.dbput h true;
+  try
+    let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) = Hashtbl.find blkheadernode (Some(h)) in
+    vs := InvalidBlock;
+    List.iter
+      (fun (h,ch) ->
+	if not (DbInvalidatedBlocks.dbexists h) then DbInvalidatedBlocks.dbput h true;
+	recursively_invalidate_children ch)
+      !chlr
+  with _ -> ()
+
+let rec recursively_revalidate_parents n =
+  let BlocktreeNode(par,_,pbh,_,_,_,_,_,_,_,_,vs,_,_) = n in
+  vs := ValidBlock;
+  begin
+    match pbh with
+    | Some(h,_) -> if DbInvalidatedBlocks.dbexists h then DbInvalidatedBlocks.dbdelete h
+    | None -> ()
+  end;
+  match par with
+  | Some(p) -> recursively_revalidate_parents p
+  | None -> ()
+
+let recursively_revalidate_blocks h =
+  DbInvalidatedBlocks.dbdelete h;
+  try
+    let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) = Hashtbl.find blkheadernode (Some(h)) in
+    vs := ValidBlock;
+    match par with
+    | Some(p) -> recursively_revalidate_parents p
+    | None -> ()
+  with _ -> ()

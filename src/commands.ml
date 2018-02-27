@@ -1131,13 +1131,28 @@ let sendtx blkh lr staustr =
     begin
       let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
-      if tx_signatures_valid blkh al (tau,tausg) then
-	let stxh = hashstx stau in
-	savetxtopool_real stxh stau;
-	publish_stx stxh stau;
-	Printf.printf "%s\n" (hashval_hexstring stxh);
-	flush stdout;
-      else
+      try
+	let b = tx_signatures_valid_asof_blkh al (tau,tausg) in
+	match b with
+	| None ->
+	    let stxh = hashstx stau in
+	    savetxtopool_real stxh stau;
+	    publish_stx stxh stau;
+	    Printf.printf "%s\n" (hashval_hexstring stxh);
+	    flush stdout;
+	| Some(b) ->
+	    if b > blkh then
+	      begin
+		Printf.printf "Tx is not valid until block height %Ld\n" b;
+		flush stdout
+	      end
+	    else
+	      let stxh = hashstx stau in
+	      savetxtopool_real stxh stau;
+	      publish_stx stxh stau;
+	      Printf.printf "%s\n" (hashval_hexstring stxh);
+	      flush stdout;
+      with BadOrMissingSignature ->
 	Printf.printf "Invalid or incomplete signatures\n"
     end
   else

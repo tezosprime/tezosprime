@@ -1147,7 +1147,7 @@ Hashtbl.add msgtype_handler STx
 		try
 		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
 		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
-		  let unsupportederror alpha h = Printf.fprintf !log "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h) in
+		  let unsupportederror alpha k = Printf.fprintf !log "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h) in
 		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
 		  if tx_signatures_valid blkh al stau then
 		    begin

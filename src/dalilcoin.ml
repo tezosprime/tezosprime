@@ -1414,7 +1414,7 @@ let do_command oc l =
 	in
 	let BlocktreeNode(_,_,prevblk,_,_,_,_,_,tmstmp,_,_,_,_,_) = n in
 	let prevblkh = fstohash prevblk in
-	let nw = Int64.of_float (Unix.time()) in
+	let nw = ltc_medtime() in (*** for staking purposes, ltc is the clock to follow ***)
 	let fromnow_string i nw =
 	  if i <= nw then
 	    "now"

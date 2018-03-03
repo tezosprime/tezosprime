@@ -40,25 +40,34 @@ let coinagefactor blkh bday obl =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
     maximum_age_sqr
   else
+    let unlocked_age () =
+      let a = Int64.sub blkh bday in (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
+      let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
+      sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
+    in
     match obl with
     | None -> (*** unlocked ***)
 	if bday >= Int64.sub blkh 1L then (*** considered mature for staking after there has been at least one proof of burn ***)
 	  zero_big_int
 	else
-	  let a = Int64.sub blkh bday in (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
-	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
+	  unlocked_age()
     | Some(_,n,r) when r -> (*** in this case it's locked until block height n and is a reward ***)
 	let mday = Int64.add bday reward_maturation in (*** insist on being age mature here, not just proof of burn maturity ***)
 	if mday > blkh || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
-	  zero_big_int
+	  if blkh >= n then (*** after unlocked age as unlocked ***)
+	    unlocked_age()
+	  else
+	    zero_big_int
 	else
 	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
 	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     | Some(_,n,_) -> (*** in this case it's locked until block height n and is not a reward ***)
 	if bday >= Int64.sub blkh 1L || Int64.add blkh close_to_unlocked >= n then (*** only start aging after it is mature and until it is close to unlocked ***)
-	  zero_big_int
+	  if blkh >= n then (*** after unlocked age as unlocked ***)
+	    unlocked_age()
+	  else
+	    zero_big_int
 	else
 	  maximum_age_sqr (*** always at maximum age during after it is mature and until it is close to unlocked ***)
 

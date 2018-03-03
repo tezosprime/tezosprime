@@ -317,6 +317,60 @@ let cants_of_fraenks s =
   done;
   Int64.add (Int64.mul !f 100000000000L) !c
 
+let ltc_of_litoshis v =
+  let w = Int64.div v 100000000L in
+  let d = Int64.to_string (Int64.rem v 100000000L) in
+  let dl = String.length d in
+  let ez = ref 0 in
+  begin
+    try
+      for i = dl-1 downto 0 do
+	if d.[i] = '0' then
+	  incr ez
+	else
+	  raise Exit
+      done
+    with Exit -> ()
+  end;
+  let b = Buffer.create 20 in
+  Buffer.add_string b (Int64.to_string w);
+  Buffer.add_char b '.';
+  for i = 1 to 8 - dl do
+    Buffer.add_char b '0'
+  done;
+  for i = 0 to dl - (1 + !ez) do
+    Buffer.add_char b d.[i]
+  done;
+  Buffer.contents b
+
+let litoshis_of_ltc s =
+  let f = ref 0L in
+  let w = ref true in
+  let c = ref 0L in
+  let d = ref 10000000L in
+  let n = String.length s in
+  let i = ref 0 in
+  while !i < n do
+    let cc = Char.code s.[!i] in
+    incr i;
+    if !w then
+      if cc = 46 then
+	w := false
+      else if cc >= 48 && cc < 58 then
+	f := Int64.add (Int64.mul !f 10L) (Int64.of_int (cc-48))
+      else
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+    else
+      if cc >= 48 && cc < 58 then
+	begin
+	  c := Int64.add !c (Int64.mul !d (Int64.of_int (cc-48)));
+	  d := Int64.div !d 10L
+	end
+      else
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+  done;
+  Int64.add (Int64.mul !f 100000000L) !c
+
 let addr_from_json j =
   match j with
   | JsonStr(a) ->

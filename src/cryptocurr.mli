@@ -24,6 +24,8 @@ val daliladdrstr_addr : string -> addr
 val btcaddrstr_addr : string -> addr
 val fraenks_of_cants : int64 -> string
 val cants_of_fraenks : string -> int64
+val ltc_of_litoshis : int64 -> string
+val litoshis_of_ltc : string -> int64
 
 val addr_from_json : jsonval -> addr
 val payaddr_from_json : jsonval -> payaddr

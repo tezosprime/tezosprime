@@ -40,7 +40,9 @@ let int64configvars = [
 ("maxburn",fun x -> Config.maxburn := x);
 ("maxburnrate",fun x -> Config.maxburnrate := x);
 ("ltctxfee",fun x -> Config.ltctxfee := x);
-("mintimebetweenburns",fun x -> Config.mintimebetweenburns := x)
+("mintimebetweenburns",fun x -> Config.mintimebetweenburns := x);
+("reward_lock_relative",fun x -> Config.reward_lock_relative := Some(x));
+("reward_lock_absolute",fun x -> Config.reward_lock_absolute := Some(x))
 ];;
 let cantsoffraenksconfigvars = [
 ("minrelayfee",fun x -> Config.minrelayfee := x)

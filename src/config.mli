@@ -37,3 +37,5 @@ val minrelayfee : int64 ref
 val extraindex : bool ref
 val offlinestakerewardskey : string option ref
 val generatenewstakingaddresses : bool ref
+val reward_lock_relative : int64 option ref
+val reward_lock_absolute : int64 option ref

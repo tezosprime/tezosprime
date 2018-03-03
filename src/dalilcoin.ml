@@ -26,6 +26,17 @@ open Blocktree;;
 open Ltcrpc;;
 open Setconfig;;
 
+let get_reward_locktime blkh =
+  let rl =
+    match !Config.reward_lock_relative with
+    | None -> reward_locktime
+    | Some(rl) -> if rl > reward_locktime then rl else reward_locktime
+  in
+  let m = Int64.add blkh rl in
+  match !Config.reward_lock_absolute with
+  | None -> m
+  | Some(a) -> if a > m then a else m
+
 let rec pblockchain s n c lr m =
   let BlocktreeNode(par,_,pbh,_,_,plr,csm,tar,tm,_,blkh,_,_,chl) = n in
   if m > 0 then
@@ -586,7 +597,7 @@ let stakingthread () =
 				  p2pkhaddr_payaddr alpha3
 			      with _ -> p2pkhaddr_payaddr alpha3
 			in
-			let stkoutl = [(alpha2,(obl2,Currency(v)));(p2pkhaddr_addr alpha3,(Some(alpha4,Int64.add blkh reward_locktime,true),Currency(Int64.add !fees (rewfn blkh))))] in
+			let stkoutl = [(alpha2,(obl2,Currency(v)));(p2pkhaddr_addr alpha3,(Some(alpha4,get_reward_locktime blkh,true),Currency(Int64.add !fees (rewfn blkh))))] in
 			let coinstk : tx = ([(alpha2,aid)],stkoutl) in
 			try
 			  dync := octree_ctree (tx_octree_trans true false blkh coinstk (Some(!dync)));

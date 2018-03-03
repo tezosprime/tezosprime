@@ -1428,9 +1428,14 @@ let do_command oc l =
 	end;
 	List.iter
 	  (fun z ->
+	    let il = ref [] in
 	    match z with
 	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
-		Printf.printf "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
+		if not (List.mem i !il) then
+		  begin
+		    il := i::!il; (** while the info should not be on the hash table more than once, sometimes it is, so only report it once **)
+		    Printf.printf "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
+		  end
 	    | _ -> ())
 	  (Hashtbl.find_all nextstakechances_hypo prevblkh)
       end

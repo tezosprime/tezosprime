@@ -1082,7 +1082,7 @@ let rec signtx_outs taue outpl sl rl rsl co =
   | _::outpr -> signtx_outs taue outpr sl rl rsl co
   | [] -> (List.rev rsl,co)
 
-let signtx lr taustr =
+let signtx oc lr taustr =
   let s = hexstring_string taustr in
   let (((tauin,tauout) as tau,(tausgin,tausgout) as tausg),_) = sei_stx seis (s,String.length s,None,0,0) in (*** may be partially signed ***)
   let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
@@ -1104,11 +1104,11 @@ let signtx lr taustr =
   let s = Buffer.create 100 in
   seosbf (seo_stx seosb (tau,(tausgin1,tausgout1)) (s,None));
   let hs = string_hexstring (Buffer.contents s) in
-  Printf.printf "%s\n" hs;
+  Printf.fprintf oc "%s\n" hs;
   if ci && co then
-    Printf.printf "Completely signed.\n"
+    Printf.fprintf oc "Completely signed.\n"
   else
-    Printf.printf "Partially signed.\n"
+    Printf.fprintf oc "Partially signed.\n"
 
 let savetxtopool blkh lr staustr =
   let s = hexstring_string staustr in
@@ -1124,12 +1124,12 @@ let savetxtopool blkh lr staustr =
   else
     Printf.printf "Invalid tx\n"
 
-let sendtx blkh lr staustr =
+let sendtx oc blkh lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
     begin
-      let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
       try
 	let b = tx_signatures_valid_asof_blkh al (tau,tausg) in
@@ -1138,25 +1138,25 @@ let sendtx blkh lr staustr =
 	    let stxh = hashstx stau in
 	    savetxtopool_real stxh stau;
 	    publish_stx stxh stau;
-	    Printf.printf "%s\n" (hashval_hexstring stxh);
+	    Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
 	    flush stdout;
 	| Some(b) ->
 	    if b > blkh then
 	      begin
-		Printf.printf "Tx is not valid until block height %Ld\n" b;
+		Printf.fprintf oc "Tx is not valid until block height %Ld\n" b;
 		flush stdout
 	      end
 	    else
 	      let stxh = hashstx stau in
 	      savetxtopool_real stxh stau;
 	      publish_stx stxh stau;
-	      Printf.printf "%s\n" (hashval_hexstring stxh);
+	      Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
 	      flush stdout;
       with BadOrMissingSignature ->
-	Printf.printf "Invalid or incomplete signatures\n"
+	Printf.fprintf oc "Invalid or incomplete signatures\n"
     end
   else
-    Printf.printf "Invalid tx\n"
+    Printf.fprintf oc "Invalid tx\n"
 
 let dalilcoin_addr_jsoninfo alpha =
   let (bn,cwl) = get_bestnode true in

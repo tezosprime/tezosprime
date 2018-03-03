@@ -49,8 +49,8 @@ val generate_newkeyandaddress : hashval -> big_int * p2pkhaddr
 val createtx : jsonval -> jsonval -> tx
 val createsplitlocktx : hashval -> payaddr -> payaddr -> addr -> hashval -> int -> int64 -> int64 -> unit
 
-val signtx : hashval -> string -> unit
+val signtx : out_channel -> hashval -> string -> unit
 val savetxtopool : int64 -> hashval -> string -> unit
-val sendtx : int64 -> hashval -> string -> unit
+val sendtx : out_channel -> int64 -> hashval -> string -> unit
 
 val query : string -> jsonval

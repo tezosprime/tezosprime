@@ -1432,9 +1432,9 @@ let do_command oc l =
 	  try
 	    match Hashtbl.find nextstakechances prevblkh with
 	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
-		Printf.printf "Can stake at time %Ld (%s) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
+		Printf.fprintf oc "Can stake at time %Ld (%s) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
 	    | NextStake(i,stkaddr,h,bday,obl,v,None,_) -> () (*** should not happen; ignore ***)
-	    | NoStakeUpTo(_) -> Printf.printf "Found no chance to stake with current wallet and ltc burn limits.\n"
+	    | NoStakeUpTo(_) -> Printf.fprintf oc "Found no chance to stake with current wallet and ltc burn limits.\n"
 	  with Not_found -> ()
 	end;
 	List.iter
@@ -1445,7 +1445,7 @@ let do_command oc l =
 		if not (List.mem i !il) then
 		  begin
 		    il := i::!il; (** while the info should not be on the hash table more than once, sometimes it is, so only report it once **)
-		    Printf.printf "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
+		    Printf.fprintf oc "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
 		  end
 	    | _ -> ())
 	  (List.sort
@@ -1610,7 +1610,7 @@ let do_command oc l =
   | "signtx" ->
       begin
 	match al with
-	| [s] -> Commands.signtx (node_ledgerroot (get_bestnode_print_warnings oc true)) s
+	| [s] -> Commands.signtx oc (node_ledgerroot (get_bestnode_print_warnings oc true)) s
 	| _ ->
 	    Printf.fprintf oc "signtx <tx in hex>\n";
 	    flush oc
@@ -1626,7 +1626,7 @@ let do_command oc l =
   | "sendtx" ->
       begin
 	match al with
-	| [s] -> Commands.sendtx (node_blockheight (get_bestnode_print_warnings oc true)) (node_ledgerroot (get_bestnode_print_warnings oc true)) s
+	| [s] -> Commands.sendtx oc (node_blockheight (get_bestnode_print_warnings oc true)) (node_ledgerroot (get_bestnode_print_warnings oc true)) s
 	| _ ->
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc

@@ -1448,7 +1448,17 @@ let do_command oc l =
 		    Printf.printf "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
 		  end
 	    | _ -> ())
-	  (Hashtbl.find_all nextstakechances_hypo prevblkh)
+	  (List.sort
+	     (fun y z ->
+	       match (y,z) with
+	       | (NextStake(i,_,_,_,_,_,Some(_),_),NextStake(j,_,_,_,_,_,Some(_),_)) -> compare i j
+	       | _ -> 0)
+	     (List.filter
+		(fun z ->
+		  match z with
+		  | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) -> true
+		  | _ -> false)
+		(Hashtbl.find_all nextstakechances_hypo prevblkh)))
       end
   | "extraburn" ->
       begin

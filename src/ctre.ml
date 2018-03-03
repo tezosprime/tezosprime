@@ -55,7 +55,7 @@ let coinagefactor blkh bday obl =
 	if mday > blkh then (*** only start aging after it is mature ***)
 	  zero_big_int
 	else if blkh >= n then (*** after unlocked, start over aging as unlocked from the time it was unlocked ***)
-	  unlocked_age(Int64.sub blkh n)
+	  unlocked_age(Int64.sub blkh (max bday n))
 	else
 	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
 	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
@@ -64,7 +64,7 @@ let coinagefactor blkh bday obl =
 	if bday >= Int64.sub blkh 1L then (*** only start aging after it is mature ***)
 	  zero_big_int
 	else if blkh >= n then (*** after unlocked, start over aging as unlocked from the time it was unlocked ***)
-	  unlocked_age(Int64.sub blkh n)
+	  unlocked_age(Int64.sub blkh (max bday n))
 	else
 	  maximum_age_sqr (*** always at maximum age during after it is mature and until it is close to unlocked ***)
 

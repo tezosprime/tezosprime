@@ -257,14 +257,14 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
-	if locktime < blkh then
+	if locktime > blkh then
 	  Buffer.add_string sb "] Currency (Reward, Locked) "
 	else
 	  Buffer.add_string sb "] Currency (Reward) ";
 	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_string sb " spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
-	if locktime < blkh then
+	if locktime > blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
 	    Buffer.add_string sb (Int64.to_string locktime);
@@ -283,14 +283,14 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
-	if locktime < blkh then
+	if locktime > blkh then
 	  Buffer.add_string sb "] Currency (Locked) "
 	else
 	  Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (fraenks_of_cants v);
 	Buffer.add_string sb " spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
-	if locktime < blkh then
+	if locktime > blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
 	    Buffer.add_string sb (Int64.to_string locktime);

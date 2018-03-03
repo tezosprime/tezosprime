@@ -269,7 +269,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	    Buffer.add_string sb " unlocks at height ";
 	    Buffer.add_string sb (Int64.to_string locktime);
 	    Buffer.add_string sb " in ";
-	    Buffer.add_string sb (Int64.to_string (Int64.sub blkh locktime));
+	    Buffer.add_string sb (Int64.to_string (Int64.sub locktime blkh));
 	    Buffer.add_string sb " blocks ";
 	  end;
 	Buffer.add_string sb "; coinage ";
@@ -295,7 +295,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	    Buffer.add_string sb " unlocks at height ";
 	    Buffer.add_string sb (Int64.to_string locktime);
 	    Buffer.add_string sb " in ";
-	    Buffer.add_string sb (Int64.to_string (Int64.sub blkh locktime));
+	    Buffer.add_string sb (Int64.to_string (Int64.sub locktime blkh));
 	    Buffer.add_string sb " blocks ";
 	  end;
 	Buffer.add_string sb "; coinage ";

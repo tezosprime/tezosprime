@@ -1390,16 +1390,16 @@ let do_command oc l =
 	      (3600 * (int_of_string hrs),100000000L,n)
 	  | [hrs;maxburn] ->
 	      let n = get_bestnode_print_warnings oc true in
-	      (3600 * (int_of_string hrs),Int64.of_float (100000000.0 *. (float_of_string maxburn)),n)
+	      (3600 * (int_of_string hrs),litoshis_of_ltc maxburn,n)
 	  | [hrs;maxburn;blockid] ->
 	      begin
 		try
 		  let n = Hashtbl.find blkheadernode (Some(hexstring_hashval blockid)) in
-		  (3600 * (int_of_string hrs),Int64.of_float (100000000.0 *. (float_of_string maxburn)),n)
+		  (3600 * (int_of_string hrs),litoshis_of_ltc maxburn,n)
 		with Not_found ->
 		  raise (Failure ("unknown block " ^ blockid))
 	      end
-	  | _ -> raise (Failure "nextstakingchances [<hours> [<maxburn> [<blockid>]]")
+	  | _ -> raise (Failure "nextstakingchances [<hours> [<max ltc to burn> [<blockid>]]")
 	in
 	let BlocktreeNode(_,_,prevblk,_,_,_,_,_,tmstmp,_,_,_,_,_) = n in
 	let prevblkh = fstohash prevblk in

@@ -1427,7 +1427,7 @@ let do_command oc l =
 	    else
 	      Printf.sprintf "%d hours %d minutes %d seconds from now" (del / 3600) ((del mod 3600) / 60) (del mod 60)
 	in
-	compute_staking_chances n tmstmp (Int64.add nw (Int64.of_int scnds));
+	compute_staking_chances n tmstmp (min (Int64.add tmstmp 604800L) (Int64.add nw (Int64.of_int scnds)));
 	begin
 	  try
 	    match Hashtbl.find nextstakechances prevblkh with

@@ -226,6 +226,8 @@ let ltc_listener () =
 type nextstakeinfo = NextStake of (int64 * p2pkhaddr * hashval * int64 * obligation * int64 * int64 option * (hashval * hashval) option ref) | NoStakeUpTo of int64;;
 
 let nextstakechances : (hashval option,nextstakeinfo) Hashtbl.t = Hashtbl.create 100;;
+let nextstakechances_hypo : (hashval option,nextstakeinfo) Hashtbl.t = Hashtbl.create 100;;
+let nextstakechances_checkedtotm : (hashval option,int64) Hashtbl.t = Hashtbl.create 100;;
 
 let stakingassetsmutex = Mutex.create();;
 
@@ -272,10 +274,14 @@ let rec hlist_stakingassets blkh alpha hl n =
   else
     ();;
 
+let extraburn : int64 ref = ref 0L;;
+
 let lastburn : int64 ref = ref 0L;;
 
 let allowedburn tm =
-  if !lastburn > 0L then
+  if !extraburn > 0L then
+    true
+  else if !lastburn > 0L then
     let sinceburn = Int64.sub tm !lastburn in
     sinceburn >= !Config.mintimebetweenburns
   else
@@ -292,10 +298,7 @@ let maxburnnow tm =
     else
       !Config.maxburn
   in
-  if mbn >= !Config.ltctxfee then
-    Int64.sub mbn !Config.ltctxfee
-  else
-    0L
+  max !extraburn (if mbn >= !Config.ltctxfee then Int64.sub mbn !Config.ltctxfee else 0L)
 
 let fstohash a =
   match a with
@@ -304,6 +307,12 @@ let fstohash a =
 
 let compute_staking_chances n fromtm totm =
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,csm1,tar1,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
+  let prevblkh = fstohash prevblk in
+  let fromtm =
+    try
+      Hashtbl.find nextstakechances_checkedtotm prevblkh
+    with Not_found -> fromtm
+  in
   let i = ref (max fromtm (Int64.add 1L tmstamp)) in
   if !Config.maxburn < 0L then (*** if must burn but not willing to burn, don't bother computing next staking chances ***)
     ()
@@ -335,7 +344,7 @@ let compute_staking_chances n fromtm totm =
     if not (!Commands.stakingassets = []) then
       let nextstake i stkaddr h bday obl v toburn =
 	let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
-	Hashtbl.add nextstakechances (fstohash prevblk) (NextStake(i,stkaddr,h,bday,obl,v,toburn,ref None));
+	Hashtbl.add nextstakechances prevblkh (NextStake(i,stkaddr,h,bday,obl,v,toburn,ref None));
 	raise Exit
       in
       try
@@ -357,20 +366,18 @@ let compute_staking_chances n fromtm totm =
 		    begin
 		      match !minburntostake with
 		      | None ->
-			  Printf.fprintf !Utils.log "Could stake with %s (at %s) at time %Ld by burning %s litoshis.\n" (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) !i (string_of_big_int toburn);
+			  Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None));
 			  minburntostake := Some(toburn,!i,stkaddr,h)
 		      | Some(mburn,_,_,_) ->
 			  if lt_big_int toburn mburn then
 			    begin
-			      Printf.fprintf !Utils.log "Could stake with %s (at %s) at time %Ld by burning %s litoshis.\n" (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) !i (string_of_big_int toburn);
+			      Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None));
 			      minburntostake := Some(toburn,!i,stkaddr,h)
 			    end
-		  end;
+		    end;
 		  if lt_big_int minv (big_int_of_int64 v) then (*** hit without burn ***)
-		    if allowedburn !i then
-		      nextstake !i stkaddr h bday obl v (Some(0L)) (*** burn nothing, but announce in the pow chain (ltc) ***)
-		    else
-		      ()
+		    (if allowedburn !i then
+		      nextstake !i stkaddr h bday obl v (Some(0L))) (*** burn nothing, but announce in the pow chain (ltc) ***)
 		  else if allowedburn !i then
 		    if lt_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn ***)
 		      nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
@@ -776,6 +783,7 @@ let stakingthread () =
 						  pendingltctxs := h::!pendingltctxs;
 						  Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid);
 						  publish_block blkh newblkid ((bhdnew,bhsnew),bdnew);
+						  extraburn := 0L;
 						  already := Some(newblkid,hexstring_hashval h);
 						  output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
 						with
@@ -833,7 +841,7 @@ let stakingthread () =
 	    end;
 	    let ltm = ltc_medtime() in
 	    let stm = Int64.sub ltm 1200L in
-	    let ftm = Int64.add ltm 43200L in
+	    let ftm = Int64.add ltm 86400L in
 	    if tm < ftm && Int64.of_float (Unix.time()) < ftm then
 	      compute_staking_chances best (if tm > stm then tm else stm) ftm
 	    else
@@ -845,7 +853,7 @@ let stakingthread () =
 	  Printf.fprintf !log "calling compute_staking_chances nextstakechances\n"; flush !log;
 	  let ltm = ltc_medtime() in
 	  let stm = Int64.sub ltm 1200L in
-	  let ftm = Int64.add ltm 43200L in
+	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best stm ftm
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
 	  Printf.fprintf !log "Pausing due to a staking bug; will retry staking in about an hour.\n";
@@ -854,7 +862,7 @@ let stakingthread () =
 	  Printf.fprintf !log "Continuing staking.\n";
 	  let ltm = ltc_medtime() in
 	  let stm = Int64.sub ltm 1200L in
-	  let ftm = Int64.add ltm 43200L in
+	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best stm ftm
     with
     | StakingPause(del) ->
@@ -1369,6 +1377,69 @@ let do_command oc l =
 		find_and_send_requestdata GetHeader h
 	    end
 	| _ -> raise (Failure "getblock <blockhash>")
+      end
+  | "nextstakingchances" ->
+      begin
+	let (scnds,maxburn,n) =
+	  match al with
+	  | [] ->
+	      let n = get_bestnode_print_warnings oc true in
+	      (3600 * 24,100000000L,n)
+	  | [hrs] ->
+	      let n = get_bestnode_print_warnings oc true in
+	      (3600 * (int_of_string hrs),100000000L,n)
+	  | [hrs;maxburn] ->
+	      let n = get_bestnode_print_warnings oc true in
+	      (3600 * (int_of_string hrs),Int64.of_float (100000000.0 *. (float_of_string maxburn)),n)
+	  | [hrs;maxburn;blockid] ->
+	      begin
+		try
+		  let n = Hashtbl.find blkheadernode (Some(hexstring_hashval blockid)) in
+		  (3600 * (int_of_string hrs),Int64.of_float (100000000.0 *. (float_of_string maxburn)),n)
+		with Not_found ->
+		  raise (Failure ("unknown block " ^ blockid))
+	      end
+	  | _ -> raise (Failure "nextstakingchances [<hours> [<maxburn> [<blockid>]]")
+	in
+	let BlocktreeNode(_,_,prevblk,_,_,_,_,_,tmstmp,_,_,_,_,_) = n in
+	let prevblkh = fstohash prevblk in
+	let nw = Int64.of_float (Unix.time()) in
+	let fromnow_string i nw =
+	  if i <= nw then
+	    "now"
+	  else
+	    let del = Int64.to_int (Int64.sub i nw) in
+	    if del < 60 then
+	      Printf.sprintf "%d seconds from now" del
+	    else if del < 3600 then
+	      Printf.sprintf "%d minutes %d seconds from now" (del / 60) (del mod 60)
+	    else
+	      Printf.sprintf "%d hours %d minutes %d seconds from now" (del / 3600) ((del mod 3600) / 60) (del mod 60)
+	in
+	compute_staking_chances n tmstmp (Int64.add nw (Int64.of_int scnds));
+	begin
+	  try
+	    match Hashtbl.find nextstakechances prevblkh with
+	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
+		Printf.printf "Can stake at time %Ld (%s from now) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
+	    | NextStake(i,stkaddr,h,bday,obl,v,None,_) -> () (*** should not happen; ignore ***)
+	    | NoStakeUpTo(_) -> Printf.printf "Found no chance to stake with current wallet and ltc burn limits.\n"
+	  with Not_found -> ()
+	end;
+	List.iter
+	  (fun z ->
+	    match z with
+	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
+		Printf.printf "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s from now) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
+	    | _ -> ())
+	  (Hashtbl.find_all nextstakechances_hypo prevblkh)
+      end
+  | "extraburn" ->
+      begin
+	match al with
+	| [a] -> extraburn := litoshis_of_ltc a
+	| [a;b] when b = "litoshis" -> extraburn := Int64.of_string a
+	| _ -> raise (Failure "extraburn <ltc> or extraburn <litoshis> litoshis")
       end
   | "printassets" when al = [] -> Commands.printassets oc
   | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger oc (hexstring_hashval h)) al

@@ -21,6 +21,8 @@ let datadir () = if !testnet then (Filename.concat !datadir "testnet") else !dat
 
 let intention_minage = 4L (** one day, at 6 hour block times **)
 
+let sqr16 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 4)) in mult_big_int y y
+
 let sqr512 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 9)) in mult_big_int y y
 
 let maximum_age = 16384L
@@ -40,7 +42,11 @@ let coinagefactor blkh bday obl =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
     maximum_age_sqr
   else
-    let unlocked_age a =
+    let prelock_age a = (*** ages more quickly at a rate of n^2 with n increasing roughly every 4 days ***)
+      let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
+      sqr16 a2 (*** multiply the currency units by (a2/16)^2 ***)
+    in
+    let postlock_age a = (*** ages slowly at a rate of n^2 with n increasing roughly every 4 months ***)
       let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
       sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
     in
@@ -49,22 +55,20 @@ let coinagefactor blkh bday obl =
 	if bday >= Int64.sub blkh 1L then (*** considered mature for staking after there has been at least one proof of burn ***)
 	  zero_big_int
 	else
-	  unlocked_age(Int64.sub blkh bday) (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
+	  prelock_age(Int64.sub blkh bday) (*** how many blocks since the output became born (changed from 'mature' to avoid needing to know first pob block after bday) ***)
     | Some(_,n,r) when r -> (*** in this case it's locked until block height n and is a reward ***)
 	let mday = Int64.add bday reward_maturation in (*** insist on being age mature here, not just proof of burn maturity ***)
 	if mday > blkh then (*** only start aging after it is mature ***)
 	  zero_big_int
 	else if blkh >= n then (*** after unlocked, start over aging as unlocked from the time it was unlocked ***)
-	  unlocked_age(Int64.sub blkh (max bday n))
+	  postlock_age(Int64.sub blkh (max mday n)) (*** after unlocking, rewards restart aging, using the slower formula ***)
 	else
-	  let a = Int64.sub blkh mday in (*** how many blocks since the output became mature ***)
-	  let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-	  sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
+	  prelock_age(Int64.sub blkh (max mday n)) (*** rewards must age, but age more quickly the longer it is locked ***)
     | Some(_,n,_) -> (*** in this case it's locked until block height n and is not a reward ***)
 	if bday >= Int64.sub blkh 1L then (*** only start aging after it is mature ***)
 	  zero_big_int
 	else if blkh >= n then (*** after unlocked, start over aging as unlocked from the time it was unlocked ***)
-	  unlocked_age(Int64.sub blkh (max bday n))
+	  postlock_age(Int64.sub blkh (max bday n))
 	else
 	  maximum_age_sqr (*** always at maximum age during after it is mature and until it is close to unlocked ***)
 

@@ -21,12 +21,13 @@ let datadir () = if !testnet then (Filename.concat !datadir "testnet") else !dat
 
 let intention_minage = 4L (** one day, at 6 hour block times **)
 
-let sqr16 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 4)) in mult_big_int y y
+let maximum_age_steps = 32L (*** aging happens in n steps, with max n = 32 ***)
 
-let sqr512 x = let y = big_int_of_int64 (Int64.add 1L (Int64.shift_right x 9)) in mult_big_int y y
+let sqrfun x = let y = big_int_of_int64 (Int64.add 1L x) in mult_big_int y y
+let sqr16 x = sqrfun (min maximum_age_steps (Int64.shift_right x 4))
+let sqr512 x = sqrfun (min maximum_age_steps (Int64.shift_right x 9))
 
-let maximum_age = 16384L
-let maximum_age_sqr = sqr512 maximum_age
+let maximum_age_sqr = sqrfun maximum_age_steps
 let reward_maturation = 32L (*** rewards become stakable after 32 blocks, about 8 days ***)
 let close_to_unlocked = 8L
 
@@ -42,13 +43,11 @@ let coinagefactor blkh bday obl =
   if bday = 0L then (*** coins in the initial distribution start out at maximum age ***)
     maximum_age_sqr
   else
-    let prelock_age a = (*** ages more quickly at a rate of n^2 with n increasing roughly every 4 days ***)
-      let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-      sqr16 a2 (*** multiply the currency units by (a2/16)^2 ***)
+    let prelock_age a = (*** ages more quickly at a rate of n^2 with n increasing roughly every 4 days, reaching maximum age in about 4 months ***)
+      sqr16 a (*** multiply the currency units by [a/16]^2 with [a/16] int max 32 ***)
     in
-    let postlock_age a = (*** ages slowly at a rate of n^2 with n increasing roughly every 4 months ***)
-      let a2 = if a < maximum_age then a else maximum_age in (*** up to maximum_age ***)
-      sqr512 a2 (*** multiply the currency units by (a2/512)^2 ***)
+    let postlock_age a = (*** ages slowly at a rate of n^2 with n increasing roughly every 4 months, reaching maximum age in about 12 years ***)
+      sqr512 a (*** multiply the currency units by [a/512]^2 with [a/512] int max 32 ***)
     in
     match obl with
     | None -> (*** unlocked ***)

@@ -461,15 +461,18 @@ let json_preasset u =
   | DocPublication(beta,nonce,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc(d))])
 
 let json_asset a =
+  let ah = hashval_hexstring (hashasset a) in
   let (aid,bday,obl,u) = a in
   match json_obligation obl with
   | None ->
       JsonObj([("type",JsonStr("asset"));
+	       ("assethash",JsonStr(ah));
 	       ("assetid",JsonStr(hashval_hexstring aid));
 	       ("bday",JsonNum(Int64.to_string bday));
 	       ("preasset",json_preasset u)])
   | Some(jobl) ->
       JsonObj([("type",JsonStr("asset"));
+	       ("assethash",JsonStr(ah));
 	       ("assetid",JsonStr(hashval_hexstring aid));
 	       ("bday",JsonNum(Int64.to_string bday));
 	       ("obligation",jobl);

@@ -422,7 +422,7 @@ let assets_at_address_in_ledger_json alpha par ledgerroot blkh =
 	let jhl = hlist_report_assets_json (Ctre.nehlist_hlist hl) in
 	let s = Buffer.create 100 in
 	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) sumcurr;
-	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s));("contentsjson",JsonArr(jhl))]
+	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
     | (None,z) ->
 	if z < 0 then
 	  begin

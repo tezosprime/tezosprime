@@ -53,4 +53,7 @@ val signtx : out_channel -> hashval -> string -> unit
 val savetxtopool : int64 -> hashval -> string -> unit
 val sendtx : out_channel -> int64 -> hashval -> string -> unit
 
+val query_at_block : string -> (hashval * Block.poburn) option -> hashval -> int64 -> jsonval
 val query : string -> jsonval
+val query_blockheight : int64 -> jsonval
+

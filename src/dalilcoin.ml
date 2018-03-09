@@ -1070,11 +1070,37 @@ let do_command oc l =
       begin
 	match al with
 	| [h] ->
-	    let j = Commands.query h in
-	    print_jsonval oc j;
-	    Printf.fprintf oc "\n"
+	    begin
+	      try
+		let blkh = Int64.of_string h in
+		let j = Commands.query_blockheight blkh in
+		print_jsonval oc j;
+		Printf.fprintf oc "\n"
+	      with Failure(_) ->
+		let j = Commands.query h in
+		print_jsonval oc j;
+		Printf.fprintf oc "\n"
+	    end
+	| [h;kh] ->
+	    let k = hexstring_hashval kh in
+	    begin
+	      try
+		let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = Hashtbl.find blkheadernode (Some(k)) in
+		let j = Commands.query_at_block h pbh ledgerroot blkh in
+		print_jsonval oc j;
+		Printf.fprintf oc "\n"
+	      with Not_found ->
+		if DbCTreeElt.dbexists k then
+		  begin
+		    let j = Commands.query_at_block h None k (-1L) in
+		    print_jsonval oc j;
+		    Printf.fprintf oc "\n"
+		  end
+		else
+		  raise (Failure ("could not interpret " ^ kh ^ " as a block or ledger root"))
+	    end
 	| _ ->
-	    raise (Failure("expected query <hashval or address>"))
+	    raise (Failure("expected query <hashval or address or int[block height]> [<blockid or ledgerroot>]"))
       end
   | "ltcstatusdump" ->
       begin

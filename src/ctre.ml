@@ -1197,7 +1197,7 @@ let truncate_nehlist hl i =
     | NehConsH(h,hr) -> NehConsH(h,truncate_hlist hr (i-1))
     | _ -> hl
 
-let rec ctree_pre exp req bl c d z =
+let rec ctree_pre ocache exp req bl c d z =
   match bl with
   | [] ->
       begin
@@ -1223,13 +1223,27 @@ let rec ctree_pre exp req bl c d z =
 	      (Some(hl),d)
 	  else
 	    (None,d)
-      | CLeft(c0) -> if b then (None,d) else ctree_pre exp req br c0 (d+1) z
-      | CRight(c1) -> if b then ctree_pre exp req br c1 (d+1) z else (None,d)
-      | CBin(c0,c1) -> if b then ctree_pre exp req br c1 (d+1) z else ctree_pre exp req br c0 (d+1) z
-      | CHash(h) -> ctree_pre exp req bl (expand_ctree_element req h) d z
+      | CLeft(c0) -> if b then (None,d) else ctree_pre ocache exp req br c0 (d+1) z
+      | CRight(c1) -> if b then ctree_pre ocache exp req br c1 (d+1) z else (None,d)
+      | CBin(c0,c1) -> if b then ctree_pre ocache exp req br c1 (d+1) z else ctree_pre ocache exp req br c0 (d+1) z
+      | CHash(h) ->
+	  match ocache with
+	  | None -> ctree_pre None exp req bl (expand_ctree_element req h) d z
+	  | Some(cache) ->
+	      begin
+		try
+		  Hashtbl.find cache h
+		with Not_found ->
+		  let r = ctree_pre ocache exp req bl (expand_ctree_element req h) d z in
+		  Hashtbl.add cache h r;
+		  r
+	      end
 
 let ctree_addr exp req alpha c z =
-  ctree_pre exp req (addr_bitseq alpha) c 0 z
+  ctree_pre None exp req (addr_bitseq alpha) c 0 z
+
+let ctree_addr_cache h exp req alpha c z =
+  ctree_pre (Some(h)) exp req (addr_bitseq alpha) c 0 z
 
 exception InsufficientInformation
 

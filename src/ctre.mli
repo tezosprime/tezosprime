@@ -86,6 +86,7 @@ val get_hlist_element : hashval -> hlist
 val get_nehlist_element : hashval -> nehlist
 val get_ctree_element : hashval -> ctree
 val ctree_addr : bool -> bool -> addr -> ctree -> int option -> nehlist option * int
+val ctree_addr_cache : (hashval,nehlist option * int) Hashtbl.t -> bool -> bool -> addr -> ctree -> int option -> nehlist option * int
 
 val strip_bitseq_true : (bool list * 'a) list -> (bool list * 'a) list
 val strip_bitseq_false : (bool list * 'a) list -> (bool list * 'a) list

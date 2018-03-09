@@ -373,7 +373,9 @@ let rec generate_newkeyandaddress ledgerroot =
   in
   newkeyandaddress_rec k
 
-let assets_at_address_in_ledger_json alpha ledgerroot blkh =
+let assets_at_address_in_ledger_json alpha par ledgerroot blkh =
+  let cache : (hashval,nehlist option * int) Hashtbl.t = Hashtbl.create 100 in
+  let reported : (hashval,unit) Hashtbl.t = Hashtbl.create 100 in
   let alphas = addr_daliladdrstr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   let warned = ref false in
@@ -392,18 +394,35 @@ let assets_at_address_in_ledger_json alpha ledgerroot blkh =
       jwl := JsonObj([("warning",JsonStr(Printexc.to_string e))])::!jwl;
       warned := true
   in
-  handler (fun () -> alpha_hl := Ctre.ctree_addr true false alpha ctr None);
-  let sumcurr tot a =
+  handler (fun () -> alpha_hl := Ctre.ctree_addr_cache cache true false alpha ctr None);
+  let sumcurr a =
     match a with
     | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
     | _ -> ()
   in
+  let rec hlist_report_assets_json hl =
+    match hl with
+    | HHash(_,_) -> []
+    | HNil -> []
+    | HCons(a,hr) ->
+	let ah = hashasset a in
+	if not (Hashtbl.mem reported ah) then
+	  begin
+	    Hashtbl.add reported ah ();
+	    json_asset a::hlist_report_assets_json hr
+	  end
+	else
+	  hlist_report_assets_json hr
+    | HConsH(ah,hr) ->
+	hlist_report_assets_json hr
+  in
   begin
     match !alpha_hl with
     | (Some(hl),_) ->
+	let jhl = hlist_report_assets_json (Ctre.nehlist_hlist hl) in
 	let s = Buffer.create 100 in
-	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) (sumcurr tot);
-	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s))]
+	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) sumcurr;
+	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s));("contentsjson",JsonArr(jhl))]
     | (None,z) ->
 	if z < 0 then
 	  begin
@@ -415,6 +434,25 @@ let assets_at_address_in_ledger_json alpha ledgerroot blkh =
     | _ ->
 	jal := [("address",JsonStr(alphas));("contents",JsonStr("no information"))]
   end;
+  let rec assets_at_address_in_ledger_json_history alpha par =
+    match par with
+    | None -> []
+    | Some(BlocktreeNode(par,_,_,_,_,ledgerroot,_,_,_,_,blkh,_,_,_)) ->
+	handler (fun () -> alpha_hl := Ctre.ctree_addr_cache cache true false alpha (Ctre.CHash(ledgerroot)) None);	
+	match !alpha_hl with
+	| (Some(hl),_) ->
+	    let jhl =
+	      List.map (fun j -> JsonObj([("type",JsonStr("spentasset"));
+					  ("spentheight",JsonNum(Int64.to_string (Int64.sub blkh 1L)));
+					  ("asset",j)]))
+		(hlist_report_assets_json (Ctre.nehlist_hlist hl))
+	    in
+	    jhl @ assets_at_address_in_ledger_json_history alpha par
+	| (None,z) ->
+	    assets_at_address_in_ledger_json_history alpha par
+  in
+  let jhl = assets_at_address_in_ledger_json_history alpha par in
+  if not (jhl = []) then jal := ("historic",JsonArr(jhl))::!jal;
   (!jal,!jwl)
 
 let printassets_in_ledger oc ledgerroot =
@@ -1158,36 +1196,41 @@ let sendtx oc blkh lr staustr =
   else
     Printf.fprintf oc "Invalid tx\n"
 
-let dalilcoin_addr_jsoninfo alpha =
-  let (bn,cwl) = get_bestnode true in
-  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+(*** should gather historic information as well ***)
+let dalilcoin_addr_jsoninfo alpha pbh ledgerroot blkh =
   let blkh = Int64.sub blkh 1L in
-  let jpbh =
+  let (jpbh,par) =
     match pbh with
-    | None -> JsonObj([("block",JsonStr("genesis"))])
+    | None -> (JsonObj([("block",JsonStr("genesis"))]),None)
     | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
-	JsonObj([("block",JsonStr(hashval_hexstring prevh));
-		 ("height",JsonNum(Int64.to_string blkh));
-		 ("ltcblock",JsonStr(hashval_hexstring lblkh));
-		 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-		 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-		 ("ltcburned",JsonNum(Int64.to_string burned))])
+	begin
+	  let jpbh = JsonObj([("block",JsonStr(hashval_hexstring prevh));
+			      ("height",JsonNum(Int64.to_string blkh));
+			      ("ltcblock",JsonStr(hashval_hexstring lblkh));
+			      ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+			      ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+			      ("ltcburned",JsonNum(Int64.to_string burned))])
+	  in
+	  try
+	    let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,_,_,_) = Hashtbl.find blkheadernode (Some(prevh)) in
+	    (jpbh,par)
+	  with Not_found ->
+	    (jpbh,None)
+	end
   in
-  let (jal,jwl) = assets_at_address_in_ledger_json alpha ledgerroot blkh in
+  let (jal,jwl) = assets_at_address_in_ledger_json alpha par ledgerroot blkh in
   if jwl = [] then
     JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::jal)
   else
     JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::("warnings",JsonArr(jwl))::jal)
     
-let query q =
+let query_at_block q pbh ledgerroot blkh =
   if String.length q = 64 || String.length q = 40 then
     begin
       try
 	let q = if String.length q = 64 then q else "000000000000000000000000" ^ q in
 	let h = hexstring_hashval q in
 	let dbentries = ref [] in
-	let (bn,cwl) = get_bestnode true in
-	let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
 	let blkh = Int64.sub blkh 1L in
 	begin
 	  try
@@ -1195,6 +1238,13 @@ let query q =
 	    let s = Buffer.create 100 in
 	    print_hlist_to_buffer s blkh (HCons(e,HNil));
 	    let j = json_asset e in
+	    dbentries := j::!dbentries
+	  with Not_found -> ()
+	end;
+	begin
+	  try
+	    let alpha = Assets.DbAssetIdAt.dbget h in
+	    let j = dalilcoin_addr_jsoninfo alpha pbh ledgerroot blkh in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
@@ -1349,14 +1399,46 @@ let query q =
     begin
       try
 	let d = daliladdrstr_addr q in
-	let j = dalilcoin_addr_jsoninfo d in
+	let j = dalilcoin_addr_jsoninfo d pbh ledgerroot blkh in
 	JsonObj([("response",JsonStr("daliladdress"));("info",j)])
       with _ ->
 	try
 	  let b = btcaddrstr_addr q in
-	  let j = dalilcoin_addr_jsoninfo b in
+	  let j = dalilcoin_addr_jsoninfo b pbh ledgerroot blkh in
 	  let d = addr_daliladdrstr b in
 	  JsonObj([("response",JsonStr("bitcoin address"));("daliladdress",JsonStr(d));("info",j)])
 	with _ ->
 	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as dalilcoin value"))])
     end
+
+let query q =
+  let (bn,cwl) = get_bestnode true in
+  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+  query_at_block q pbh ledgerroot blkh
+
+let query_blockheight findblkh =
+  if findblkh < 1L then
+    JsonObj([("response",JsonStr("no block at height < 1"))])
+  else
+    let (bn,cwl) = get_bestnode true in
+    let BlocktreeNode(par,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+    if findblkh >= blkh then
+      JsonObj([("response",JsonStr("no block at height " ^ (Int64.to_string findblkh)))])
+    else
+      let rec query_blockheight_search par pbhi blkhi =
+	if findblkh = Int64.sub blkhi 1L then
+	  begin
+	    match pbhi with
+	    | Some(h,_) -> query_at_block (hashval_hexstring h) pbh ledgerroot blkh
+	    | None -> JsonObj([("response",JsonStr("error"))])
+	  end
+	else
+	  begin
+	    match par with
+	    | Some(BlocktreeNode(par,_,pbhi,_,_,_,_,_,_,_,blkhi,_,_,_)) ->
+		query_blockheight_search par pbhi blkhi
+	    | None ->
+		JsonObj([("response",JsonStr("failed to find block at height " ^ (Int64.to_string findblkh)))])
+	  end
+      in
+      query_blockheight_search par pbh blkh

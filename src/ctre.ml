@@ -255,7 +255,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (fraenks_of_cants v);
-	Buffer.add_string sb "; coinage ";
+	Buffer.add_string sb " fraenks; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday None v));
 	Buffer.add_char sb '\n';
 	g a;
@@ -271,7 +271,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	else
 	  Buffer.add_string sb "] Currency (Reward) ";
 	Buffer.add_string sb (fraenks_of_cants v);
-	Buffer.add_string sb " spendable by ";
+	Buffer.add_string sb " fraenks spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
@@ -297,7 +297,10 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	else
 	  Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (fraenks_of_cants v);
-	Buffer.add_string sb " spendable by ";
+	if v = 100000000000L then
+	  Buffer.add_string sb " fraenk spendable by "
+	else
+	  Buffer.add_string sb " fraenks spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
@@ -320,7 +323,10 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Bounty ";
 	Buffer.add_string sb (fraenks_of_cants v);
-	Buffer.add_char sb '\n';
+	if v = 100000000000L then
+	  Buffer.add_string sb " fraenk\n"
+	else
+	  Buffer.add_string sb " fraenks\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end
@@ -335,7 +341,10 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_of_cants r);
-	Buffer.add_char sb '\n';
+	if r = 100000000000L then
+	  Buffer.add_string sb " fraenk\n"
+	else
+	  Buffer.add_string sb " fraenks\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end
@@ -363,7 +372,10 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (fraenks_of_cants r);
-	Buffer.add_char sb '\n';
+	if r = 100000000000L then
+	  Buffer.add_string sb " fraenk\n"
+	else
+	  Buffer.add_string sb " fraenks\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end

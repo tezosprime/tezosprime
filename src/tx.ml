@@ -38,6 +38,20 @@ let tx_inputs_valid inpl =
   | [] -> false
   | _ -> no_dups inpl
 
+let tx_inputs_valid_oc oc inpl =
+  match inpl with
+  | [] ->
+      Printf.fprintf oc "tx invalid since 0 inputs\n";
+      false
+  | _ ->
+      if no_dups inpl then
+	true
+      else
+	begin
+	  Printf.fprintf oc "tx invalid since duplicate inputs\n";
+	  false
+	end
+
 (*** Ensure at most one owner is declared for each object/proposition ***)
 let rec tx_outputs_valid_one_owner outpl ool pol nol =
   match outpl with
@@ -59,11 +73,34 @@ let rec tx_outputs_valid_one_owner outpl ool pol nol =
   | _::outpr -> tx_outputs_valid_one_owner outpr ool pol nol
   | [] -> true
 
+let rec tx_outputs_valid_one_owner_oc oc outpl ool pol nol =
+  match outpl with
+  | (alpha,(_,OwnsObj(h,beta,io)))::outpr ->
+      if List.mem h ool then
+	(Printf.fprintf oc "tx invalid since two OwnObj given for %s\n" (hashval_hexstring h);
+	 false)
+      else
+	tx_outputs_valid_one_owner_oc oc outpr (h::ool) pol nol
+  | (alpha,(_,OwnsProp(h,beta,io)))::outpr ->
+      if List.mem h pol then
+	(Printf.fprintf oc "tx invalid since two OwnsProp given for %s\n" (hashval_hexstring h);
+	 false)
+      else
+	tx_outputs_valid_one_owner_oc oc outpr ool (h::pol) nol
+  | (alpha,(_,OwnsNegProp))::outpr ->
+      if List.mem alpha nol then
+	(Printf.fprintf oc "tx invalid since two owners for OwnsNegProp given: %s\n" (Cryptocurr.addr_daliladdrstr alpha);
+	 false)
+      else
+	tx_outputs_valid_one_owner_oc oc outpr ool pol (alpha::nol)
+  | _::outpr -> tx_outputs_valid_one_owner_oc oc outpr ool pol nol
+  | [] -> true
+
 (*** Ensure ownership deeds are sent to term addresses and publications are sent to publication addresses. ***)
 let rec tx_outputs_valid_addr_cats outpl =
   match outpl with
-  | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> termaddr_p alpha && hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
-  | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> termaddr_p alpha && hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
+  | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
+  | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsNegProp))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr ->
       begin
@@ -79,12 +116,64 @@ let rec tx_outputs_valid_addr_cats outpl =
   | _::outpr -> tx_outputs_valid_addr_cats outpr
   | [] -> true
 
+let rec tx_outputs_valid_addr_cats_oc oc outpl =
+  match outpl with
+  | (alpha,(_,OwnsObj(h,beta,u)))::outpr ->
+      if hashval_term_addr h = alpha then
+	tx_outputs_valid_addr_cats_oc oc outpr
+      else
+	(Printf.fprintf oc "tx invalid since OwnsObj %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha); false)
+  | (alpha,(_,OwnsProp(h,beta,u)))::outpr ->
+      if hashval_term_addr h = alpha then
+	tx_outputs_valid_addr_cats_oc oc outpr
+      else
+	(Printf.fprintf oc "tx invalid since OwnsProp %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha); false)
+  | (alpha,(_,OwnsNegProp))::outpr ->
+      if termaddr_p alpha then 
+	tx_outputs_valid_addr_cats_oc oc outpr
+      else
+	(Printf.fprintf oc "tx invalid since OwnsNegProp should be sent to a term address\n"; false)
+  | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr ->
+      begin
+	match hashtheory (theoryspec_theory dl) with
+	| Some(dlh) ->
+	    if alpha = hashval_pub_addr dlh then
+	      tx_outputs_valid_addr_cats_oc oc outpr
+	    else
+	      (Printf.fprintf oc "tx invalid since Theory should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr dlh)); false)
+	| None -> false
+      end
+  | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr ->
+      if alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) then
+	tx_outputs_valid_addr_cats_oc oc outpr
+      else
+	(Printf.fprintf oc "tx invalid since Signature should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))))); false)
+  | (alpha,(_,DocPublication(beta,h,th,dl)))::outpr ->
+      if alpha = hashval_pub_addr (hashopair2 th (hashdoc dl)) then
+	tx_outputs_valid_addr_cats_oc oc outpr
+      else
+	(Printf.fprintf oc "tx invalid since Document should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr (hashopair2 th (hashdoc dl)))); false)
+  | (alpha,(_,Marker))::outpr ->
+      if pubaddr_p alpha then
+	tx_outputs_valid_addr_cats outpr (*** markers should only be published to publication addresses, since they're used to prepublish an intention to publish ***)
+      else
+	(Printf.fprintf oc "tx invalid since Marker not sent to a publication address\n"; false)
+  | _::outpr -> tx_outputs_valid_addr_cats_oc oc outpr
+  | [] -> true
+
 let tx_outputs_valid (outpl: addr_preasset list) =
   tx_outputs_valid_one_owner outpl [] [] []
     &&
   tx_outputs_valid_addr_cats outpl 
 
+let tx_outputs_valid_oc oc (outpl: addr_preasset list) =
+  tx_outputs_valid_one_owner_oc oc outpl [] [] []
+    &&
+  tx_outputs_valid_addr_cats_oc oc outpl 
+
 let tx_valid tau = tx_inputs_valid (tx_inputs tau) && tx_outputs_valid (tx_outputs tau)
+
+let tx_valid_oc oc tau = tx_inputs_valid_oc oc (tx_inputs tau) && tx_outputs_valid_oc oc (tx_outputs tau)
 
 type gensignat_or_ref = GenSignatReal of gensignat | GenSignatRef of int
 type txsigs = gensignat_or_ref option list * gensignat_or_ref option list

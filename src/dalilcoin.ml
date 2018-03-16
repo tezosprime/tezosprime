@@ -1657,6 +1657,16 @@ let do_command oc l =
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc
       end
+  | "validatetx" ->
+      begin
+	match al with
+	| [s] ->
+	    let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,_,_,_,_) = get_bestnode_print_warnings oc true in
+	    Commands.validatetx oc (node_blockheight (get_bestnode_print_warnings oc true)) tr sr lr s
+	| _ ->
+	    Printf.fprintf oc "validatetx <tx in hex>\n";
+	    flush oc
+      end
   | "querybestblock" ->
       let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in

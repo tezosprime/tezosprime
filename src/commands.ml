@@ -1162,6 +1162,55 @@ let savetxtopool blkh lr staustr =
   else
     Printf.printf "Invalid tx\n"
 
+let validatetx oc blkh tr sr lr staustr =
+  let s = hexstring_string staustr in
+  let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
+  if tx_valid_oc oc tau then
+    begin
+      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+      let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
+      try
+	let b = tx_signatures_valid_asof_blkh al (tau,tausg) in
+	match b with
+	| None ->
+	    let stxh = hashstx stau in
+	    savetxtopool_real stxh stau;
+	    publish_stx stxh stau;
+	    Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
+	    flush stdout;
+	| Some(b) ->
+	    if b > blkh then
+	      begin
+		Printf.fprintf oc "Tx is not valid until block height %Ld\n" b;
+		flush stdout
+	      end
+	    else
+	      let stxh = hashstx stau in
+	      Printf.fprintf oc "Tx is valid and has id %s\n" (hashval_hexstring stxh);
+	      begin
+		try
+		  let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		  let fee = Int64.sub 0L nfee in
+		  if fee >= !Config.minrelayfee then
+		    Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
+		  else
+		    Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
+		  flush oc
+		with
+		| NotSupported ->
+		  Printf.fprintf oc "Tx is not supported by the current ledger\n";
+		  flush oc;
+		| exn ->
+		  Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
+		  flush oc;
+	      end
+      with BadOrMissingSignature ->
+	Printf.fprintf oc "Invalid or incomplete signatures\n"
+    end
+  else
+    Printf.fprintf oc "Invalid tx\n"
+
+
 let sendtx oc blkh lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in

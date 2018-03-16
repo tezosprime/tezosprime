@@ -1652,7 +1652,9 @@ let do_command oc l =
   | "sendtx" ->
       begin
 	match al with
-	| [s] -> Commands.sendtx oc (node_blockheight (get_bestnode_print_warnings oc true)) (node_ledgerroot (get_bestnode_print_warnings oc true)) s
+	| [s] ->
+	    let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,_,_,_,_) = get_bestnode_print_warnings oc true in
+	    Commands.sendtx oc (node_blockheight (get_bestnode_print_warnings oc true)) tr sr lr s
 	| _ ->
 	    Printf.fprintf oc "sendtx <tx in hex>\n";
 	    flush oc

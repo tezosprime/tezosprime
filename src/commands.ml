@@ -1211,7 +1211,7 @@ let validatetx oc blkh tr sr lr staustr =
     Printf.fprintf oc "Invalid tx\n"
 
 
-let sendtx oc blkh lr staustr =
+let sendtx oc blkh tr sr lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
@@ -1235,10 +1235,27 @@ let sendtx oc blkh lr staustr =
 	      end
 	    else
 	      let stxh = hashstx stau in
-	      savetxtopool_real stxh stau;
-	      publish_stx stxh stau;
-	      Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
-	      flush stdout;
+	      begin
+		try
+		  let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		  let fee = Int64.sub 0L nfee in
+		  if fee >= !Config.minrelayfee then
+		    begin
+		      savetxtopool_real stxh stau;
+		      publish_stx stxh stau;
+		      Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
+		    end
+		  else
+		    Printf.fprintf oc "Tx is supported by the current ledger, but has too low fee of %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
+		  flush oc
+		with
+		| NotSupported ->
+		  Printf.fprintf oc "Tx is not supported by the current ledger\n";
+		  flush oc;
+		| exn ->
+		  Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
+		  flush oc;
+	      end
       with BadOrMissingSignature ->
 	Printf.fprintf oc "Invalid or incomplete signatures\n"
     end

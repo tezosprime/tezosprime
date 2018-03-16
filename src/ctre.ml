@@ -1555,6 +1555,13 @@ let rec ctree_lookup_addr_assets exp req tr bl =
 
 exception NotSupported
 
+let verbose_supportedcheck = ref None
+
+let vmsg f =
+  match !verbose_supportedcheck with
+  | None -> ()
+  | Some(oc) -> f oc
+
 (*** exp is a boolean indicating whether expanding hash abbrevs should be tried ***)
 (*** req is a boolean indicating whether or not missing data should be requested of peers ***)
 let rec ctree_lookup_input_assets exp req inpl tr nsf =
@@ -1679,23 +1686,35 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	  begin
 	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
 	    try
-	     ignore (match check_theoryspec thy with
-           | None -> raise CheckingFailure
-           | _ -> ()
-         );
+	      ignore (match check_theoryspec thy with
+              | None ->
+		  vmsg (fun oc -> Printf.fprintf oc "Theory does not check as correct\n");
+		  raise CheckingFailure
+              | _ -> ());
 	      match hashtheory (theoryspec_theory thy) with
 	      | Some(thyh) ->
 		  let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce thyh)) in
 		  begin
-		    match
-		      List.find
-			(fun a ->
-			  match a with
-			  | (h,bday,obl,Marker) -> List.mem (beta,h) inpl && Int64.add bday intention_minage <= blkh
-			  | _ -> false
-			)
-			al
-		    with (h,_,_,_) -> spentmarkersjustified := h::!spentmarkersjustified
+		    try
+		      match
+			List.find
+			  (fun a ->
+			    match a with
+			    | (h,bday,obl,Marker) -> List.mem (beta,h) inpl 
+			    | _ -> false
+			  )
+			  al
+		      with (h,bday,_,_) ->
+			if Int64.add bday intention_minage <= blkh then
+			  spentmarkersjustified := h::!spentmarkersjustified
+			else
+			  begin
+			    vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			    raise NotSupported
+			  end
+		    with Not_found ->
+		      vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Theory\n" (Cryptocurr.addr_daliladdrstr beta));
+		      raise NotSupported
 		  end
 	      | None -> raise NotSupported
 	    with
@@ -1724,27 +1743,38 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		| None -> false
 	      in
 	      let thy = ottree_lookup tht th in
-        ignore (match check_signaspec gvtp gvkn th thy sigt sl with
-           | None -> raise CheckingFailure
-           | _ -> ()
-         );
+              ignore (match check_signaspec gvtp gvkn th thy sigt sl with
+              | None ->
+		  vmsg (fun oc -> Printf.fprintf oc "Signature does not check as correct\n");
+		  raise CheckingFailure
+              | _ -> ());
 	      let slh = hashsigna (signaspec_signa sl) in
 	      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th slh))) in
 	      begin
-		match
-		  List.find
-		    (fun a ->
-		      match a with
-		      | (h,bday,obl,Marker) -> List.mem (beta,h) inpl && Int64.add bday intention_minage <= blkh
-		      | _ -> false
-		    )
-		    al
-		with (h,_,_,_) -> spentmarkersjustified := h::!spentmarkersjustified
+		try
+		  match
+		    List.find
+		      (fun a ->
+			match a with
+			| (h,bday,obl,Marker) -> List.mem (beta,h) inpl
+			| _ -> false
+		      )
+		      al
+		  with (h,bday,_,_) ->
+		    if Int64.add bday intention_minage <= blkh then
+		      spentmarkersjustified := h::!spentmarkersjustified
+		    else
+		      begin
+			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			raise NotSupported
+		      end
+		with Not_found ->
+		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Signature\n" (Cryptocurr.addr_daliladdrstr beta));
+		  raise NotSupported
 	      end
 	    with
 	    | CheckingFailure -> raise NotSupported
 	    | NonNormalTerm -> raise NotSupported
-	    | Not_found -> raise NotSupported
 	  end
       | DocPublication(gamma,nonce,th,dl) ->
 	  begin
@@ -1767,26 +1797,37 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		| None -> false
 	      in
 	      let thy = ottree_lookup tht th in
-        ignore (match check_doc gvtp gvkn th thy sigt dl with
-           | None -> raise CheckingFailure
-           | _ -> ()
-         );
+              ignore (match check_doc gvtp gvkn th thy sigt dl with
+              | None ->
+		  vmsg (fun oc -> Printf.fprintf oc "Document does not check as correct\n");
+		  raise CheckingFailure
+              | _ -> ());
 	      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (hashdoc dl)))) in
 	      begin
-		match
-		  List.find
-		    (fun a ->
-		      match a with
-		      | (h,bday,obl,Marker) -> List.mem (beta,h) inpl && Int64.add bday intention_minage <= blkh
-		      | _ -> false
-		    )
-		    al
-		with (h,_,_,_) -> spentmarkersjustified := h::!spentmarkersjustified
+		try
+		  match
+		    List.find
+		      (fun a ->
+			match a with
+			| (h,bday,obl,Marker) -> List.mem (beta,h) inpl
+			| _ -> false
+		      )
+		      al
+		  with (h,bday,_,_) ->
+		    if Int64.add bday intention_minage <= blkh then
+		      spentmarkersjustified := h::!spentmarkersjustified
+		    else
+		      begin
+			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			raise NotSupported
+		      end		      
+		with Not_found ->
+		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Document\n" (Cryptocurr.addr_daliladdrstr beta));
+		  raise NotSupported
 	      end
 	    with
 	    | CheckingFailure -> raise NotSupported
 	    | NonNormalTerm -> raise NotSupported
-	    | Not_found -> raise NotSupported
 	  end
       | _ -> ()
     )
@@ -1796,7 +1837,11 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     (fun (h,bday,obl,u) ->
       match u with
       | Marker ->
-	  if not (List.mem h !spentmarkersjustified) then raise NotSupported
+	  if not (List.mem h !spentmarkersjustified) then
+	    begin
+	      vmsg (fun oc -> Printf.fprintf oc "Spent Marker is not being used to publish.\n");
+	      raise NotSupported
+	    end
       | _ -> ())
     al;
   (*** If an ownership asset is spent in the input, then it must be included as an output.
@@ -1814,7 +1859,9 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | OwnsObj(oid2,beta2,r2) when oid = oid2 -> true
 			  | _ -> false)
 			outpl)
-	    with Not_found -> raise NotSupported
+	    with Not_found ->
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      raise NotSupported
 	  end
       | OwnsProp(pid,beta,r) ->
 	  begin
@@ -1826,7 +1873,9 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | OwnsProp(pid2,beta2,r2) when pid = pid2 -> true
 			  | _ -> false)
 			outpl)
-	    with Not_found -> raise NotSupported
+	    with Not_found ->
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      raise NotSupported
 	  end
       | OwnsNegProp ->
 	  begin
@@ -1838,7 +1887,9 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | OwnsNegProp -> true
 			  | _ -> false)
 			outpl)
-	    with Not_found -> raise NotSupported
+	    with Not_found ->
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsNegProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      raise NotSupported
 	  end
       | _ -> ()
     )

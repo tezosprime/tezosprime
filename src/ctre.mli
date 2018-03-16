@@ -43,6 +43,9 @@ val ctree_lookup_asset : bool -> bool -> hashval -> ctree -> bool list -> asset 
 exception NotSupported
 exception InsufficientInformation
 
+val verbose_supportedcheck : out_channel option ref
+
+
 module DbHConsElt :
     sig
       val dbinit : unit -> unit

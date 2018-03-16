@@ -1189,7 +1189,9 @@ let validatetx oc blkh tr sr lr staustr =
 	      Printf.fprintf oc "Tx is valid and has id %s\n" (hashval_hexstring stxh);
 	      begin
 		try
+		  verbose_supportedcheck := Some(oc);
 		  let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		  verbose_supportedcheck := None;
 		  let fee = Int64.sub 0L nfee in
 		  if fee >= !Config.minrelayfee then
 		    Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
@@ -1198,11 +1200,13 @@ let validatetx oc blkh tr sr lr staustr =
 		  flush oc
 		with
 		| NotSupported ->
-		  Printf.fprintf oc "Tx is not supported by the current ledger\n";
-		  flush oc;
+		    verbose_supportedcheck := None;
+		    Printf.fprintf oc "Tx is not supported by the current ledger\n";
+		    flush oc;
 		| exn ->
-		  Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
-		  flush oc;
+		    verbose_supportedcheck := None;
+		    Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
+		    flush oc;
 	      end
       with BadOrMissingSignature ->
 	Printf.fprintf oc "Invalid or incomplete signatures\n"

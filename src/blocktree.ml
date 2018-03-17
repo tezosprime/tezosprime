@@ -18,12 +18,6 @@ open Ctre
 open Block
 open Ltcrpc
 
-let checkpointsprivkeyk = ref None
-let checkpointspubkeyx = big_int_of_string "63717203732691002966627493523478395510925637964138185199101530429614494608215"
-let checkpointspubkeyy = big_int_of_string "14551538993109352432558649646564074001010059416911525032428212764782058901234"
-
-let checkpoints : (hashval,int64 * signat) Hashtbl.t = Hashtbl.create 1000;;
-
 let stxpool : (hashval,stx) Hashtbl.t = Hashtbl.create 1000;;
 let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
 let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100;;
@@ -359,34 +353,52 @@ and create_new_node_a h req =
   create_new_node_b h pob req
 and create_new_node_b h pob req =
   try
-    let (bhd,bhs) = DbBlockHeader.dbget h in
-    if DbBlockDelta.dbexists h then
-      let newcsm = poburn_stakemod pob in
-      let pbh = fstohash bhd.prevblockhash in
-      let (par,blkh,chlr) =
-	match pbh with
-	| Some(pbh) ->
-	    let par = get_or_create_node pbh req in
-	    (Some(par),node_blockheight par,node_children_ref par)
-	| None ->
-	    (Some(!genesisblocktreenode),1L,node_children_ref !genesisblocktreenode)
-      in
-      let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
-      chlr := (h,fnode)::!chlr;
-      Hashtbl.add blkheadernode (Some(h)) fnode;
-      possibly_handle_orphan h fnode false false;
-      fnode
-    else if not req then
-      raise NoReq
+    let hh = hashval_hexstring h in
+    if hh = !Config.lastcheckpoint && Sys.file_exists (Filename.concat (datadir()) ("checkpoint_" ^ hh)) then
+      begin
+	let checkpointfile = open_in_bin (Filename.concat (datadir()) ("checkpoint_" ^ hh)) in
+	let fnode : blocktree = input_value checkpointfile in
+	close_in checkpointfile;
+	fnode
+      end
     else
       begin
-	Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
-	try
-	  find_and_send_requestdata GetBlockdelta h;
-	  raise GettingRemoteData
-	with Not_found ->
-	  Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
-	  raise Exit
+	let (bhd,bhs) = DbBlockHeader.dbget h in
+	if DbBlockDelta.dbexists h then
+	  let newcsm = poburn_stakemod pob in
+	  let pbh = fstohash bhd.prevblockhash in
+	  let (par,blkh,chlr) =
+	    match pbh with
+	    | Some(pbh) ->
+		let par = get_or_create_node pbh req in
+		(Some(par),node_blockheight par,node_children_ref par)
+	    | None ->
+		(Some(!genesisblocktreenode),1L,node_children_ref !genesisblocktreenode)
+	  in
+	  let par = if hh = !Config.lastcheckpoint then None else par in
+	  let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
+	  if hh = !Config.lastcheckpoint then
+	    begin
+	      let checkpointfile = open_out_bin (Filename.concat (datadir()) ("checkpoint_" ^ hh)) in
+	      output_value checkpointfile fnode;
+	      close_out checkpointfile;
+	    end;
+	  chlr := (h,fnode)::!chlr;
+	  Hashtbl.add blkheadernode (Some(h)) fnode;
+	  possibly_handle_orphan h fnode false false;
+	  fnode
+	else if not req then
+	  raise NoReq
+	else
+	  begin
+	    Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
+	    try
+	      find_and_send_requestdata GetBlockdelta h;
+	      raise GettingRemoteData
+	    with Not_found ->
+	      Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	      raise Exit
+	  end
       end
   with Not_found ->
     if not req then
@@ -669,18 +681,20 @@ and add_known_header_to_blocktree h =
 let rec traverse_ltc_history lb =
   try
     let (prevh,tm,hght,burntxhs) = DbLtcBlock.dbget lb in
+    let stopatcheckpoint = ref false in
     let makenodes = ref [] in
     List.iter
       (fun burntxh ->
 	try
 	  let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget burntxh in
+	  if hashval_hexstring dnxt = !Config.lastcheckpoint then stopatcheckpoint := true;
 	  if (DbBlockHeader.dbexists dnxt) then
 	    makenodes := (dnxt,(Poburn(lb,burntxh,tm,burned)))::!makenodes
 	  else if not (DbBlockHeader.dbexists dnxt || DbBlacklist.dbexists dnxt || DbArchived.dbexists dnxt) then
 	    missingheaders := dnxt :: !missingheaders (*** earliest headers should be earlier on the missingheaders list ***)
 	with _ -> ())
       burntxhs;
-    if not (!Config.ltcblockcheckpoint = hashval_hexstring prevh) then traverse_ltc_history prevh; (*** allow for a checkpoint to avoid needing to go back too far ***)
+    if not !stopatcheckpoint && not (!Config.ltcblockcheckpoint = hashval_hexstring prevh) then traverse_ltc_history prevh; (*** allow for a checkpoint to avoid needing to go back too far ***)
     List.iter (fun (h,pob) -> try ignore (create_new_node_b h pob false) with _ -> ()) !makenodes
   with Not_found -> ()
 

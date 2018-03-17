@@ -12,10 +12,6 @@ open Tx
 open Ctre
 open Block
 
-val checkpointsprivkeyk : big_int option ref
-val checkpointspubkeyx : big_int
-val checkpointspubkeyy : big_int
-
 val stxpool : (hashval,stx) Hashtbl.t
 val unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t
 

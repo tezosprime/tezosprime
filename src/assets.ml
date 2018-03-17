@@ -124,10 +124,10 @@ let preasset_value blkh bday u =
   | Currency v ->
       Some
 	begin
-	  if bday = 0L && blkh > 280000L then (*** initial distribution halves along with the reward function, starting at block 280001 [the first block with 6.25 fraenks as a reward] -- i.e., after roughly 5 years ***)
-	    if blkh < 11410000L then (*** when the reward is 0 (after roughly 200 years) the initial distribution have 0 value ***)
+	  if bday = 0L && blkh >= 730L then (*** initial distribution halves every 730 blocks (6 months) until block 39420 (27 years) at which time the initial distribution has value 0 ***)
+	    if blkh < 39420L then
 	      let blki = Int64.to_int blkh in
-	      Int64.shift_right v ((blki - 70000) / 210000)
+	      Int64.shift_right v (blki / 730)
 	    else
 	      0L
 	  else

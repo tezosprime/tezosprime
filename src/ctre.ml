@@ -1906,14 +1906,20 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   let checkoblnonrew obl = (*** for ownership assets: insist on an obligation, or the ownership will not be transferable; also don't allow it to be indicated as a reward ***)
     match obl with
     | Some(_,_,b) when not b -> ()
-    | _ -> raise NotSupported
+    | _ ->
+	vmsg (fun oc -> Printf.fprintf oc "Ownership asset must have explicit (non-reward) obligation.\n");
+	raise NotSupported
   in
   List.iter
     (fun (alpha,(obl,u)) ->
       match u with
       | OwnsObj(oid,beta,r) ->
 	  begin
-	    if not (termaddr_addr (hashval_md160 oid) = alpha) then raise NotSupported; (*** the term address holding the ownership asset must be the 160-bit digest of the object's (256 bit) id ***)
+	    if not (termaddr_addr (hashval_md160 oid) = alpha) then
+	      begin
+		vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s should be sent to address %s not %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 oid))) (Cryptocurr.addr_daliladdrstr alpha));
+		raise NotSupported (*** the term address holding the ownership asset must be the 160-bit digest of the object's (256 bit) id ***)
+	      end;
 	    checkoblnonrew obl;
 	    try
 	      ignore
@@ -1932,15 +1938,24 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		begin
 		  ownobjclaims := oid::!ownobjclaims;
 		  match hlist_lookup_obj_owner exp req oid hl with
-		  | Some(beta2,r2) -> raise NotSupported (*** already owned ***)
+		  | Some(beta2,r2) ->
+		      vmsg (fun oc -> Printf.fprintf oc "Object %s already has owner %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr (payaddr_addr beta2)));
+		      raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
 	      else
-		raise NotSupported
+		begin
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsObj %s at %s not justified by publications in tx.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr alpha));
+		  raise NotSupported
+		end
 	  end
       | OwnsProp(pid,beta,r) -> 
 	  begin
-	    if not (termaddr_addr (hashval_md160 pid) = alpha) then raise NotSupported; (*** the term address holding the ownership asset must be the 160-bit digest of the proposition's (256 bit) id ***)
+	    if not (termaddr_addr (hashval_md160 pid) = alpha) then
+	      begin
+		vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s should be sent to address %s not %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 pid))) (Cryptocurr.addr_daliladdrstr alpha));
+		raise NotSupported (*** the term address holding the ownership asset must be the 160-bit digest of the proposition's (256 bit) id ***)
+	      end;
 	    checkoblnonrew obl;
 	    try
 	      ignore
@@ -1959,11 +1974,16 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		begin
 		  ownpropclaims := pid::!ownpropclaims;
 		  match hlist_lookup_prop_owner exp req pid hl with
-		  | Some(beta2,r2) -> raise NotSupported (*** already owned ***)
+		  | Some(beta2,r2) ->
+		      vmsg (fun oc -> Printf.fprintf oc "Proposition %s already has owner %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr (payaddr_addr beta2)));
+		      raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
 	      else
-		raise NotSupported
+		begin
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsProp %s at %s not justified by publications in tx.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr alpha));
+		  raise NotSupported
+		end
 	  end
       | OwnsNegProp -> 
 	  begin
@@ -1978,10 +1998,16 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		begin
 		  ownnegpropclaims := alpha::!ownnegpropclaims;
 		  if hlist_lookup_neg_prop_owner exp req hl then
-		    raise NotSupported (*** already owned ***)
+		    begin
+		      vmsg (fun oc -> Printf.fprintf oc "NegProp at %s already has owner.\n" (Cryptocurr.addr_daliladdrstr alpha));
+		      raise NotSupported (*** already owned ***)
+		    end
 		end
 	      else
-		raise NotSupported
+		begin
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsNegProp at %s not justified by publications in tx.\n" (Cryptocurr.addr_daliladdrstr alpha));
+		  raise NotSupported
+		end;
 	  end
       | _ -> ()
     )
@@ -1999,7 +2025,10 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	| None -> (*** Since alpha was listed in full_needed we know alpha really isn't owned here ***)
 	    (*** ensure that it will be owned after the tx ***)
 	    if not (List.mem oid !ownobjclaims) then
-	      raise Not_found
+	      begin
+		vmsg (fun oc -> Printf.fprintf oc "Obj %s at %s newly defined in publication in tx must be given an owner.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr alpha));
+		raise Not_found
+	      end
       in
       let alphapure = tmh in
       let alphathy = hashtag (hashopair2 th (hashpair tmh tph)) 32l in
@@ -2018,7 +2047,10 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	| None -> (*** Since alpha was listed in full_needed we know alpha really isn't owned here ***)
 	    (*** ensure that it will be owned after the tx ***)
 	    if not (List.mem pid !ownpropclaims) then
-	      raise Not_found
+	      begin
+		vmsg (fun oc -> Printf.fprintf oc "Prop %s at %s newly proven in publication in tx must be given an owner.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr alpha));
+		raise Not_found
+	      end
       in
       let alphapure = tmh in
       let alphathy = hashtag (hashopair2 th tmh) 33l in

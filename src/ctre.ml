@@ -1656,7 +1656,10 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     then
       ()
     else
-      raise NotSupported)
+      begin
+	vmsg (fun oc -> Printf.fprintf oc "Rights for object %s are not balanced.\n" (Cryptocurr.addr_daliladdrstr (termaddr_addr alpha)));
+	raise NotSupported
+      end)
     objids;
   List.iter (fun pid ->
     let alpha = hashval_md160 pid in
@@ -1670,13 +1673,18 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     then
       ()
     else
-      raise NotSupported)
+      begin
+	vmsg (fun oc -> Printf.fprintf oc "Rights for proposition %s are not balanced.\n" (Cryptocurr.addr_daliladdrstr (termaddr_addr alpha)));
+	raise NotSupported
+      end)
     propids;
   (*** publications are correct, new, and were declared in advance by placing a marker in the right pubaddr ***)
   let ensure_addr_empty alpha =
     match ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) with
     | HNil -> ()
-    | _ -> raise NotSupported
+    | _ ->
+	vmsg (fun oc -> Printf.fprintf oc "Document has already been published at %s.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	raise NotSupported
   in
   let spentmarkersjustified = ref [] in
   List.iter

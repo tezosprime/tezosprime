@@ -3,6 +3,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
+open Json
 open Hash
 open Logic
 open Htree
@@ -104,3 +105,11 @@ val import_signatures : hashval option -> stree -> hashval list -> gsign -> hash
 
 val print_trm : int -> stp list -> gsign -> trm -> stp list -> unit
 val print_tp : int -> stp -> int -> unit
+
+val json_theoryspec : theoryspec -> jsonval
+val json_signaspec : hashval option -> signaspec -> jsonval
+val json_doc : hashval option -> doc -> jsonval
+
+val theoryspec_from_json : jsonval -> theoryspec
+val signaspec_from_json : jsonval -> signaspec
+val doc_from_json : jsonval -> doc

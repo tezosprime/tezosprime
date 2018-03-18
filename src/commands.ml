@@ -1213,7 +1213,6 @@ let validatetx oc blkh tr sr lr staustr =
   else
     Printf.fprintf oc "Invalid tx\n"
 
-
 let sendtx oc blkh tr sr lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
@@ -1456,6 +1455,13 @@ let query_at_block q pbh ledgerroot blkh =
 	    let j = JsonObj([("type",JsonStr("ltcblock"))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
+	end;
+	begin
+	  try
+            let d = termaddr_addr (hashval_md160 h) in
+            let j = dalilcoin_addr_jsoninfo d pbh ledgerroot blkh in
+	    dbentries := JsonObj([("type",JsonStr("termid"));("termaddress",JsonStr(addr_daliladdrstr d));("termaddressinfo",j)])::!dbentries
+	  with _ -> ()
 	end;
 	if !dbentries = [] then
 	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("No associated information found"))])

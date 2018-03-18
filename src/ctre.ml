@@ -32,9 +32,10 @@ let reward_maturation = 32L (*** rewards become stakable after 32 blocks, about 
 let close_to_unlocked = 8L
 
 (***
-  adjustment to account for slow block times, just use 32 blocks independent of the block height.
+  rewards must be locked for at least 512 blocks (about 4 months);
+  otherwise locking rewards after their initial locktime can result in an unintentional maximization of coinage.
  ***)
-let reward_locktime = 32L
+let reward_locktime = 512L
 
 let max_assets_at_address = 32 (** preventing having long lists of assets with a small hard limit **)
 exception MaxAssetsAtAddress

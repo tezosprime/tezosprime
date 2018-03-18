@@ -256,7 +256,7 @@ let rec hlist_stakingassets blkh alpha hl n =
     match hl with
     | HCons((aid,bday,obl,Currency(v)),hr) ->
 	let ca = coinage blkh bday obl v in
-	Printf.fprintf !log "Checking asset %s %Ld %Ld %s %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) v (string_of_big_int ca);
+(*	Printf.fprintf !log "Checking asset %s %Ld %Ld %s %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) v (string_of_big_int ca); *)
 	if gt_big_int ca zero_big_int && not (Hashtbl.mem unconfirmed_spent_assets aid) then
 	  begin
 	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid);
@@ -570,9 +570,7 @@ let stakingthread () =
 			  ostxs;
 			let othertxs = List.map (fun (tau,_) -> tau) !otherstxs in
 			let alpha3 =
-			  if !Config.generatenewstakingaddresses then
-			    (let (_,alpha3) = Commands.generate_newkeyandaddress prevledgerroot in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
-			  else
+			  let default() =
 			    let (i,x0,x1,x2,x3,x4) = alpha2 in
 			    if i = 0 then
 			      (x0,x1,x2,x3,x4)
@@ -582,9 +580,33 @@ let stakingthread () =
 				flush !Utils.log;
 				raise StakingProblemPause
 			      end
+			  in
+			  match !Config.offlinestakerewardsdest with
+			  | None ->
+			      if !Config.generatenewstakingaddresses then
+				(let (_,alpha3) = Commands.generate_newkeyandaddress prevledgerroot in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			      else
+				default()
+			  | Some(x) ->
+			      try
+				let (i,x0,x1,x2,x3,x4) = daliladdrstr_addr x in
+				if i = 0 then (*** p2pkh ***)
+				  (x0,x1,x2,x3,x4)
+				else
+				  begin
+				    Printf.fprintf !Utils.log "offlinestakerewardsdest is not p2pkh address %s. Using address with staking asset instead.\n" x;
+				    flush !Utils.log;
+				    default()
+				  end
+			      with _ ->
+				begin
+				  Printf.fprintf !Utils.log "offlinestakerewardsdest is not p2pkh address %s. Using address with staking asset instead.\n" x;
+				  flush !Utils.log;
+				  default()
+				end
 			in
 			let alpha4 =
-			  match !Config.offlinestakerewardskey with
+			  match !Config.offlinestakerewardslock with
 			  | None -> p2pkhaddr_payaddr alpha3
 			  | Some(x) ->
 			      try

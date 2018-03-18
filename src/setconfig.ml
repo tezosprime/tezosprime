@@ -50,7 +50,8 @@ let cantsoffraenksconfigvars = [
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);
 ("randomseed",fun x -> Config.randomseed := x);
-("offlinestakerewardskey",fun x -> Config.offlinestakerewardskey := x);
+("offlinestakerewardsdest",fun x -> Config.offlinestakerewardsdest := x);
+("offlinestakerewardslock",fun x -> Config.offlinestakerewardslock := x);
 ];;
 let intoptionconfigvars = [
 ("socks",fun x -> Config.socks := x)

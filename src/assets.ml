@@ -494,12 +494,12 @@ let preasset_from_json j =
       let pat = List.assoc "preassettype" al in
       if pat = JsonStr("currency") then
 	begin
-	  let v = int64_from_json (List.assoc "cants" al) in
+	  let v = cants_from_json (List.assoc "val" al) in
 	  Currency(v)
 	end
       else if pat = JsonStr("bounty") then
 	begin
-	  let v = int64_from_json (List.assoc "cants" al) in
+	  let v = cants_from_json (List.assoc "val" al) in
 	  Bounty(v)
 	end
       else if pat = JsonStr("ownsobj") then

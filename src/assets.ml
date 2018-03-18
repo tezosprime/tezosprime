@@ -444,15 +444,15 @@ let json_obligation obl =
 
 let json_preasset u =
   match u with
-  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("cants",JsonNum(Int64.to_string v));("fraenks",JsonStr(fraenks_of_cants v))])
-  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("cants",JsonNum(Int64.to_string v));("fraenks",JsonStr(fraenks_of_cants v))])
-  | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
-  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royaltycants",JsonNum(Int64.to_string r));("royaltyfraenks",JsonStr(fraenks_of_cants r))])
-  | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
-  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royaltycants",JsonNum(Int64.to_string r));("royaltyfraenks",JsonStr(fraenks_of_cants r))])
+  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("val",json_cants v)])
+  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("val",json_cants v)])
+  | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
+  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",json_cants r)])
+  | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
+  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",json_cants r)])
   | OwnsNegProp -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsnegprop"))])
-  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("units",JsonNum(Int64.to_string r))])
-  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("units",JsonNum(Int64.to_string r))])
+  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
+  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
   | Marker -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("marker"))])
   | TheoryPublication(beta,nonce,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryspec",json_theoryspec(ts))])
   | SignaPublication(beta,nonce,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("signaspec",json_signaspec(ss))])
@@ -506,16 +506,14 @@ let preasset_from_json j =
 	begin
 	  let h = hashval_from_json (List.assoc "objid" al) in
 	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
-	  let jr = (try Some(List.assoc "royalty" al) with Not_found -> None) in
-	  let r = (match jr with Some(jr) -> Some(int64_from_json jr) | None -> None) in
+	  let r = try Some(cants_from_json (List.assoc "royalty" al)) with Not_found -> None in
 	  OwnsObj(h,beta,r)
 	end
       else if pat = JsonStr("ownsprop") then
 	begin
 	  let h = hashval_from_json (List.assoc "propid" al) in
 	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
-	  let jr = (try Some(List.assoc "royalty" al) with Not_found -> None) in
-	  let r = (match jr with Some(jr) -> Some(int64_from_json jr) | None -> None) in
+	  let r = try Some(cants_from_json (List.assoc "royalty" al)) with Not_found -> None in
 	  OwnsProp(h,beta,r)
 	end
       else if pat = JsonStr("ownsnegprop") then

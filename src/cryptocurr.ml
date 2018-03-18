@@ -387,3 +387,28 @@ let payaddr_from_json j =
   else
     raise (Failure("not a pay address"))
 
+let cants_from_json j =
+  match j with
+  | JsonNum(x) -> Int64.of_string x
+  | JsonStr(x) -> cants_of_fraenks x
+  | JsonObj(jl) ->
+      begin
+	try
+	  match List.assoc "cants" jl with
+	  | JsonNum(x) -> Int64.of_string x
+	  | _ -> raise Not_found
+	with Not_found ->
+	  match List.assoc "fraenks" jl with
+	  | JsonStr(x) -> cants_of_fraenks x
+	  | _ -> raise Not_found
+      end
+  | _ -> raise Not_found
+
+let fraenks_from_json j =
+  fraenks_of_cants (cants_from_json j)
+
+let json_cants x =
+  JsonObj([("cants",JsonNum(Int64.to_string x));("fraenks",JsonStr(fraenks_of_cants x))])
+
+let json_fraenks x =
+  json_cants (cants_of_fraenks x)

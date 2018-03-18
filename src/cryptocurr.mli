@@ -29,3 +29,8 @@ val litoshis_of_ltc : string -> int64
 
 val addr_from_json : jsonval -> addr
 val payaddr_from_json : jsonval -> payaddr
+val cants_from_json : jsonval -> int64
+val fraenks_from_json : jsonval -> string
+val json_fraenks : string -> jsonval
+val json_cants : int64 -> jsonval
+

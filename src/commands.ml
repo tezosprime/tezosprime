@@ -1171,43 +1171,42 @@ let validatetx oc blkh tr sr lr staustr =
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
       try
 	let b = tx_signatures_valid_asof_blkh al (tau,tausg) in
+	let validatetx_report() =
+	  let stxh = hashstx stau in
+	  Printf.fprintf oc "Tx is valid and has id %s\n" (hashval_hexstring stxh);
+	  begin
+	    try
+	      verbose_supportedcheck := Some(oc);
+	      let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+	      verbose_supportedcheck := None;
+	      let fee = Int64.sub 0L nfee in
+	      if fee >= !Config.minrelayfee then
+		Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
+	      else
+		Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
+	      flush oc
+	    with
+	    | NotSupported ->
+		verbose_supportedcheck := None;
+		Printf.fprintf oc "Tx is not supported by the current ledger\n";
+		flush oc;
+	    | exn ->
+		verbose_supportedcheck := None;
+		Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
+		flush oc;
+	  end
+	in
 	match b with
 	| None ->
-	    let stxh = hashstx stau in
-	    savetxtopool_real stxh stau;
-	    publish_stx stxh stau;
-	    Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
-	    flush stdout;
+	    validatetx_report()
 	| Some(b) ->
 	    if b > blkh then
 	      begin
 		Printf.fprintf oc "Tx is not valid until block height %Ld\n" b;
-		flush stdout
+		flush oc
 	      end
 	    else
-	      let stxh = hashstx stau in
-	      Printf.fprintf oc "Tx is valid and has id %s\n" (hashval_hexstring stxh);
-	      begin
-		try
-		  verbose_supportedcheck := Some(oc);
-		  let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
-		  verbose_supportedcheck := None;
-		  let fee = Int64.sub 0L nfee in
-		  if fee >= !Config.minrelayfee then
-		    Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
-		  else
-		    Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
-		  flush oc
-		with
-		| NotSupported ->
-		    verbose_supportedcheck := None;
-		    Printf.fprintf oc "Tx is not supported by the current ledger\n";
-		    flush oc;
-		| exn ->
-		    verbose_supportedcheck := None;
-		    Printf.fprintf oc "Tx is not supported by the current ledger: %s\n" (Printexc.to_string exn);
-		    flush oc;
-	      end
+	      validatetx_report()
       with BadOrMissingSignature ->
 	Printf.fprintf oc "Invalid or incomplete signatures\n"
     end

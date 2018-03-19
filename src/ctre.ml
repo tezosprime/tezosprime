@@ -63,7 +63,7 @@ let coinagefactor blkh bday obl =
 	else if blkh >= n then (*** after unlocked, start over aging as unlocked from the time it was unlocked ***)
 	  postlock_age(Int64.sub blkh (max mday n)) (*** after unlocking, rewards restart aging, using the slower formula ***)
 	else
-	  prelock_age(Int64.sub blkh (max mday n)) (*** rewards must age, but age more quickly the longer it is locked ***)
+	  prelock_age(Int64.sub blkh mday) (*** rewards must age, but age more quickly the longer it is locked ***)
     | Some(_,n,_) -> (*** in this case it's locked until block height n and is not a reward ***)
 	if bday >= Int64.sub blkh 1L then (*** only start aging after it is mature ***)
 	  zero_big_int

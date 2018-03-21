@@ -35,8 +35,9 @@ val randomseed : string option ref
 val minconnstostake : int ref
 val minrelayfee : int64 ref
 val extraindex : bool ref
-val offlinestakerewardsdest : string option ref
+val offlinestakerewardsdest : bool ref
 val offlinestakerewardslock : string option ref
-val generatenewstakingaddresses : bool ref
+val generatenewrewardaddresses : bool ref
+val stakewithrewards : bool ref
 val reward_lock_relative : int64 option ref
 val reward_lock_absolute : int64 option ref

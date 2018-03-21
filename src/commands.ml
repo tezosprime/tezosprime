@@ -20,13 +20,16 @@ open Ctre
 open Block
 open Blocktree
 
-let walletkeys = ref []
+let walletkeys_staking = ref []
+let walletkeys_nonstaking = ref []
+let walletkeys_staking_fresh = ref []
+let walletkeys_nonstaking_fresh = ref []
 let walletp2shs = ref []
 let walletendorsements = ref []
 let walletwatchaddrs = ref []
+let walletwatchaddrs_offlinekey = ref []
+let walletwatchaddrs_offlinekey_fresh = ref []
 let stakingassets = ref []
-let storagetrmassets = ref []
-let storagedocassets = ref []
 
 let cants_balances_in_ledger : (hashval,int64 * int64 * int64 * int64) Hashtbl.t = Hashtbl.create 100
 
@@ -58,10 +61,15 @@ let load_wallet () =
   if not (Sys.file_exists wallfn) then
     let s = open_out_bin wallfn in
     begin
-      walletkeys := [];
+      walletkeys_staking := [];
+      walletkeys_nonstaking := [];
+      walletkeys_staking_fresh := [];
+      walletkeys_nonstaking_fresh := [];
       walletp2shs := [];
       walletendorsements := [];
-      walletwatchaddrs := []
+      walletwatchaddrs := [];
+      walletwatchaddrs_offlinekey := [];
+      walletwatchaddrs_offlinekey_fresh := []
     end
   else
     let s = open_in_bin wallfn in
@@ -71,7 +79,7 @@ let load_wallet () =
 	match by with
 	| 0 ->
 	    let ((k,b),_) = sei_prod sei_big_int_256 sei_bool seic (s,None) in
-	    walletkeys :=
+	    walletkeys_staking :=
 	      (match Secp256k1.smulp k Secp256k1._g with
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
@@ -80,7 +88,43 @@ let load_wallet () =
 		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
-	      )::!walletkeys
+	      )::!walletkeys_staking
+	| 4 ->
+	    let ((k,b),_) = sei_prod sei_big_int_256 sei_bool seic (s,None) in
+	    walletkeys_nonstaking :=
+	      (match Secp256k1.smulp k Secp256k1._g with
+	      | Some(x,y) ->
+		  let h = pubkey_hashval (x,y) b in
+		  let alpha1 = hashval_md160 h in
+		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+	      | None ->
+		  raise (Failure "A private key in the wallet did not give a public key.")
+	      )::!walletkeys_nonstaking
+	| 5 ->
+	    let ((k,b),_) = sei_prod sei_big_int_256 sei_bool seic (s,None) in
+	    walletkeys_staking_fresh :=
+	      (match Secp256k1.smulp k Secp256k1._g with
+	      | Some(x,y) ->
+		  let h = pubkey_hashval (x,y) b in
+		  let alpha1 = hashval_md160 h in
+		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+	      | None ->
+		  raise (Failure "A private key in the wallet did not give a public key.")
+	      )::!walletkeys_staking_fresh
+	| 6 ->
+	    let ((k,b),_) = sei_prod sei_big_int_256 sei_bool seic (s,None) in
+	    walletkeys_nonstaking_fresh :=
+	      (match Secp256k1.smulp k Secp256k1._g with
+	      | Some(x,y) ->
+		  let h = pubkey_hashval (x,y) b in
+		  let alpha1 = hashval_md160 h in
+		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+	      | None ->
+		  raise (Failure "A private key in the wallet did not give a public key.")
+	      )::!walletkeys_nonstaking_fresh
 	| 1 ->
 	    let (scr,_) = sei_list sei_int8 seic (s,None) in
 	    walletp2shs :=
@@ -93,6 +137,12 @@ let load_wallet () =
 	| 3 ->
 	    let (watchaddr,_) = sei_addr seic (s,None) in
 	    walletwatchaddrs := watchaddr::!walletwatchaddrs
+	| 7 ->
+	    let (watchaddr,_) = sei_addr seic (s,None) in
+	    walletwatchaddrs_offlinekey := watchaddr::!walletwatchaddrs_offlinekey
+	| 8 ->
+	    let (watchaddr,_) = sei_addr seic (s,None) in
+	    walletwatchaddrs_offlinekey_fresh := watchaddr::!walletwatchaddrs_offlinekey_fresh
 	| _ ->
 	    raise (Failure "Bad entry in wallet file")
       done
@@ -109,7 +159,22 @@ let save_wallet () =
     (fun (k,b,_,_,_,_) ->
       output_byte s 0;
       seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)))
-    !walletkeys;
+    !walletkeys_staking;
+  List.iter
+    (fun (k,b,_,_,_,_) ->
+      output_byte s 4;
+      seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)))
+    !walletkeys_nonstaking;
+  List.iter
+    (fun (k,b,_,_,_,_) ->
+      output_byte s 5;
+      seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)))
+    !walletkeys_staking_fresh;
+  List.iter
+    (fun (k,b,_,_,_,_) ->
+      output_byte s 6;
+      seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)))
+    !walletkeys_nonstaking_fresh;
   List.iter
     (fun (_,_,scr) ->
       output_byte s 1;
@@ -125,6 +190,16 @@ let save_wallet () =
       output_byte s 3;
       seocf (seo_addr seoc watchaddr (s,None)))
     !walletwatchaddrs;
+  List.iter
+    (fun watchaddr ->
+      output_byte s 7;
+      seocf (seo_addr seoc watchaddr (s,None)))
+    !walletwatchaddrs_offlinekey;
+  List.iter
+    (fun watchaddr ->
+      output_byte s 8;
+      seocf (seo_addr seoc watchaddr (s,None)))
+    !walletwatchaddrs_offlinekey_fresh;
   close_out s
 
 let append_wallet f =
@@ -163,10 +238,13 @@ let privkey_in_wallet_p alpha =
   let (p,x4,x3,x2,x1,x0) = alpha in
   if p = 0 then
     begin
-      try
-	ignore (List.find (fun (_,_,_,_,h,_) -> h = (x4,x3,x2,x1,x0)) !walletkeys);
-	true
-      with Not_found -> false
+      let s kl =
+	try
+	  ignore (List.find (fun (_,_,_,_,h,_) -> h = (x4,x3,x2,x1,x0)) kl);
+	  true
+	with Not_found -> false
+      in
+      s !walletkeys_staking || s !walletkeys_nonstaking || s !walletkeys_staking_fresh || s !walletkeys_nonstaking_fresh
     end
   else
     false
@@ -200,7 +278,7 @@ let endorsement_in_wallet_2_p alpha beta =
     false
 
 let watchaddr_in_wallet_p alpha =
-  List.mem alpha !walletwatchaddrs
+  List.mem alpha !walletwatchaddrs || List.mem alpha !walletwatchaddrs_offlinekey || List.mem alpha !walletwatchaddrs_offlinekey_fresh
 
 let hexchar_invi x =
   match x with
@@ -246,7 +324,7 @@ let btctodaliladdr a =
   let a2 = addr_daliladdrstr alpha in
   Printf.printf "Dalilcoin address %s corresponds to Bitcoin address %s\n" a2 a
 
-let importprivkey_real (k,b) report =
+let importprivkey_real oc (k,b) cls report =
   match Secp256k1.smulp k Secp256k1._g with
   | Some(x,y) ->
       let h = hashval_md160 (pubkey_hashval (x,y) b) in
@@ -254,7 +332,11 @@ let importprivkey_real (k,b) report =
       let a = addr_daliladdrstr alpha in
       let replwall = ref false in
       if privkey_in_wallet_p alpha then raise (Failure "Private key already in wallet.");
-      walletkeys := (k,b,(x,y),dalilwif k b,h,a)::!walletkeys;
+      let clsn =
+	if cls = "nonstaking" then 4 else if cls = "staking_fresh" then 5 else if cls = "nonstaking_fresh" then 6 else 0
+      in
+      let wr = if clsn = 4 then walletkeys_nonstaking else if clsn = 5 then walletkeys_staking_fresh else if clsn = 6 then walletkeys_nonstaking_fresh else walletkeys_staking in
+      wr := (k,b,(x,y),dalilwif k b,h,a)::!wr;
       walletendorsements := (*** remove endorsements if the wallet has the private key for the address, since it can now sign directly ***)
 	List.filter
 	  (fun (alpha2,beta,(x,y),recid,fcomp,esg) -> if alpha = payaddr_addr alpha2 then (replwall := true; false) else true)
@@ -263,27 +345,35 @@ let importprivkey_real (k,b) report =
 	List.filter
 	  (fun alpha2 -> if alpha = alpha2 then (replwall := true; false) else true)
 	  !walletwatchaddrs;
+      walletwatchaddrs_offlinekey :=
+	List.filter
+	  (fun alpha2 -> if alpha = alpha2 then (replwall := true; false) else true)
+	  !walletwatchaddrs_offlinekey;
+      walletwatchaddrs_offlinekey_fresh :=
+	List.filter
+	  (fun alpha2 -> if alpha = alpha2 then (replwall := true; false) else true)
+	  !walletwatchaddrs_offlinekey_fresh;
       if !replwall then
 	save_wallet()
       else
-	append_wallet (*** this doesn't work. find out why ***)
+	append_wallet
 	  (fun s ->
-	    output_byte s 0;
+	    output_byte s clsn;
 	    seocf (seo_prod seo_big_int_256 seo_bool seoc (k,b) (s,None)));
-      if report then Printf.printf "Imported key for address %s\n" a;
+      if report then Printf.fprintf oc "Imported key for address %s\n" a;
       flush stdout
   | None ->
       raise (Failure "This private key does not give a public key.")
 
-let importprivkey w =
+let importprivkey oc w cls =
   let (k,b) = privkey_from_wif w in
   let w2 = dalilwif k b in
   if not (w2 = w) then raise (Failure (w ^ " is not a valid Dalilcoin wif"));
-  importprivkey_real (k,b) true
+  importprivkey_real oc (k,b) cls true
 
-let importbtcprivkey w =
+let importbtcprivkey oc w cls =
   let (k,b) = privkey_from_btcwif w in
-  importprivkey_real (k,b) true
+  importprivkey_real oc (k,b) cls true
 
 let importendorsement a b s =
   let alpha = daliladdrstr_addr a in
@@ -325,35 +415,45 @@ let importendorsement a b s =
   else
     raise (Failure (a ^ " expected to be a p2pkh or p2sh Dalilcoin address."))
 
-let importwatchaddr a =
+let importwatchaddr oc a cls =
   let alpha = daliladdrstr_addr a in
   let a2 = addr_daliladdrstr alpha in
   if not (a2 = a) then raise (Failure (a ^ " is not a valid Dalilcoin address"));
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
-  walletwatchaddrs := alpha::!walletwatchaddrs;
+  if cls = "offline" then
+    walletwatchaddrs_offlinekey := alpha::!walletwatchaddrs_offlinekey
+  else if cls = "offline_fresh" then
+    walletwatchaddrs_offlinekey_fresh := alpha::!walletwatchaddrs_offlinekey_fresh
+  else
+    walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
-let importwatchbtcaddr a =
+let importwatchbtcaddr oc a cls =
   let alpha = btcaddrstr_addr a in
   let a2 = addr_daliladdrstr alpha in
   Printf.printf "Importing as Dalilcoin address %s\n" a2;
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
-  walletwatchaddrs := alpha::!walletwatchaddrs;
+  if cls = "offlinekey" then
+    walletwatchaddrs_offlinekey := alpha::!walletwatchaddrs_offlinekey
+  else if cls = "offlinekey_fresh" then
+    walletwatchaddrs_offlinekey_fresh := alpha::!walletwatchaddrs_offlinekey_fresh
+  else
+    walletwatchaddrs := alpha::!walletwatchaddrs;
   save_wallet() (*** overkill, should append if possible ***)
 
 (*** make sure we locally know the contents of the address (which should be empty, of course) ***)
-let rec generate_newkeyandaddress ledgerroot =
+let rec randomly_generate_newkeyandaddress ledgerroot cls =
   let giveup = ref 65536 in
   let k = strong_rand_256() in
   let b = true in (*** compressed ***)
   let rec newkeyandaddress_rec k =
     match Secp256k1.smulp k Secp256k1._g with
     | None -> (*** try again, in the very unlikely event this happened ***)
-	generate_newkeyandaddress ledgerroot
+	randomly_generate_newkeyandaddress ledgerroot cls
     | Some(x,y) ->
 	let w = dalilwif k true in
 	let h = hashval_md160 (pubkey_hashval (x,y) b) in
@@ -362,7 +462,7 @@ let rec generate_newkeyandaddress ledgerroot =
 	  ignore (ctree_addr true false alpha (CHash(ledgerroot)) None);
 	  let a = addr_daliladdrstr alpha in
 	  Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
-	  importprivkey_real (k,b) false;
+	  importprivkey_real !Utils.log (k,b) cls false;
 	  (k,h)
 	with Not_found ->
 	  decr giveup;
@@ -372,6 +472,70 @@ let rec generate_newkeyandaddress ledgerroot =
 	    raise (Failure "could not generature a new address accessible by the local ledger")
   in
   newkeyandaddress_rec k
+
+let generate_newkeyandaddress ledgerroot cls =
+  if cls = "" || cls = "staking" then
+    begin
+      match !walletkeys_staking_fresh with
+      | (k::wr) ->
+	  walletkeys_staking_fresh := wr;
+	  walletkeys_staking := k::!walletkeys_staking;
+	  save_wallet();
+	  let (k,_,_,_,h,_) = k in
+	  (k,h)
+      | [] ->
+	  randomly_generate_newkeyandaddress ledgerroot cls
+    end
+  else
+    begin
+      match !walletkeys_nonstaking_fresh with
+      | (k::wr) ->
+	  walletkeys_nonstaking_fresh := wr;
+	  walletkeys_nonstaking := k::!walletkeys_nonstaking;
+	  save_wallet();
+	  let (k,_,_,_,h,_) = k in
+	  (k,h)
+      | [] ->
+	  randomly_generate_newkeyandaddress ledgerroot cls
+    end
+
+let get_fresh_offline_address oc =
+  match !walletwatchaddrs_offlinekey_fresh with
+  | alpha::wr ->
+      walletwatchaddrs_offlinekey := alpha::!walletwatchaddrs_offlinekey;
+      walletwatchaddrs_offlinekey_fresh := wr;
+      save_wallet();
+      alpha
+  | _ ->
+      Printf.fprintf oc "No fresh offline addresses\n";
+      raise (Failure("out of fresh offline addresses"))
+
+let reclassify_staking oc alpha b =
+  let (p,x4,x3,x2,x1,x0) = daliladdrstr_addr alpha in
+  if not (p = 0) then
+    Printf.fprintf oc "%s is not p2pkh\n" alpha
+  else if b then
+    begin (*** from staking to nonstaking ***)
+      try
+	let ke = List.find (fun (_,_,_,_,h,_) -> h = (x4,x3,x2,x1,x0)) !walletkeys_nonstaking in
+	let (k,b,(x,y),w,h,a) = ke in
+	walletkeys_staking := (k,b,(x,y),w,h,a)::!walletkeys_staking;
+	walletkeys_nonstaking := List.filter (fun (_,_,_,_,h,_) -> not (h = (x4,x3,x2,x1,x0))) !walletkeys_nonstaking;
+	save_wallet()
+      with Not_found ->
+	Printf.fprintf oc "%s is not among the nonstaking keys in the wallet\n" alpha
+    end
+  else
+    begin (*** from nonstaking to staking ***)
+      try
+	let ke = List.find (fun (_,_,_,_,h,_) -> h = (x4,x3,x2,x1,x0)) !walletkeys_staking in
+	let (k,b,(x,y),w,h,a) = ke in
+	walletkeys_nonstaking := (k,b,(x,y),w,h,a)::!walletkeys_nonstaking;
+	walletkeys_staking := List.filter (fun (_,_,_,_,h,_) -> not (h = (x4,x3,x2,x1,x0))) !walletkeys_staking;
+	save_wallet()
+      with Not_found ->
+	Printf.fprintf oc "%s is not among the staking keys in the wallet\n" alpha
+    end
 
 let assets_at_address_in_ledger_json alpha par ledgerroot blkh =
   let cache : (hashval,nehlist option * int) Hashtbl.t = Hashtbl.create 100 in
@@ -504,7 +668,11 @@ let printassets_in_ledger oc ledgerroot =
   List.iter
     (fun (k,b,(x,y),w,h,z) ->
       handler (fun () -> al1 := (z,Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None)::!al1))
-    !walletkeys;
+    !walletkeys_staking;
+  List.iter
+    (fun (k,b,(x,y),w,h,z) ->
+      handler (fun () -> al1 := (z,Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None)::!al1))
+    !walletkeys_nonstaking;
   List.iter
     (fun (h,z,scr) ->
       handler (fun () -> al2 := (z,Ctre.ctree_addr true true (p2shaddr_addr h) ctr None)::!al2))
@@ -518,6 +686,10 @@ let printassets_in_ledger oc ledgerroot =
     (fun alpha ->
       handler (fun () -> al4 := (alpha,Ctre.ctree_addr true true alpha ctr None)::!al4))
     !walletwatchaddrs;
+  List.iter
+    (fun alpha ->
+      handler (fun () -> al4 := (alpha,Ctre.ctree_addr true true alpha ctr None)::!al4))
+    !walletwatchaddrs_offlinekey;
   let sumcurr tot a =
     match a with
     | (_,_,_,Currency(v)) -> tot := Int64.add !tot v
@@ -657,7 +829,15 @@ let get_cants_balances_in_ledger oc ledgerroot =
 	    match Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None with
 	      (Some(hl),_) -> nehlist_sumcurr tot1 hl
 	    | _ -> ()))
-      !walletkeys;
+      !walletkeys_staking;
+    List.iter
+      (fun (k,b,(x,y),w,h,z) ->
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true (p2pkhaddr_addr h) ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot1 hl
+	    | _ -> ()))
+      !walletkeys_nonstaking;
     List.iter
       (fun (h,z,scr) ->
 	handler
@@ -683,6 +863,14 @@ let get_cants_balances_in_ledger oc ledgerroot =
 	      (Some(hl),_) -> nehlist_sumcurr tot4 hl
 	    | _ -> ()))
       !walletwatchaddrs;
+    List.iter
+      (fun alpha ->
+	handler
+	  (fun () ->
+	    match Ctre.ctree_addr true true alpha ctr None with
+	      (Some(hl),_) -> nehlist_sumcurr tot4 hl
+	    | _ -> ()))
+      !walletwatchaddrs_offlinekey;
     Hashtbl.add cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4);
     (!tot1,!tot2,!tot3,!tot4)
 
@@ -921,26 +1109,38 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
 (*** first see if private key for beta is in the wallet; if not check if an endorsement is in the wallet; if not fail ***)
 let signtx_p2pkh beta taue =
   try
-    let (k,b,(x,y),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = beta) !walletkeys in
+    let (k,b,(x,y),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = beta) !walletkeys_staking in
     let r = rand_256() in
     P2pkhSignat(Some(x,y),b,signat_big_int taue k r)
   with Not_found ->
-    let (alpha,gamma,(x,y),recid,fcomp,esg) =
-      List.find 
-	(fun (alpha,gam,_,_,_,_) ->
-	  let (p,a4,a3,a2,a1,a0) = alpha in
-	  not p && (a4,a3,a2,a1,a0) = beta)
-	!walletendorsements
-    in
-    let (p,c4,c3,c2,c1,c0) = gamma in
-    if p then
-      raise (Failure "p2psh signing not yet supported")
-    else
-      let (k,b2,(x2,y2),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = (c4,c3,c2,c1,c0)) !walletkeys in
+    try
+      let (k,b,(x,y),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = beta) !walletkeys_nonstaking in
       let r = rand_256() in
-      let s1 = signat_big_int taue k r in
-      let s = EndP2pkhToP2pkhSignat(Some(x,y),fcomp,Some(x2,y2),b2,esg,s1) in
-      s
+      P2pkhSignat(Some(x,y),b,signat_big_int taue k r)
+    with Not_found ->
+      let (alpha,gamma,(x,y),recid,fcomp,esg) =
+	List.find 
+	  (fun (alpha,gam,_,_,_,_) ->
+	    let (p,a4,a3,a2,a1,a0) = alpha in
+	    not p && (a4,a3,a2,a1,a0) = beta)
+	  !walletendorsements
+      in
+      let (p,c4,c3,c2,c1,c0) = gamma in
+      if p then
+	raise (Failure "p2psh signing not yet supported")
+      else
+	try
+	  let (k,b2,(x2,y2),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = (c4,c3,c2,c1,c0)) !walletkeys_staking in
+	  let r = rand_256() in
+	  let s1 = signat_big_int taue k r in
+	  let s = EndP2pkhToP2pkhSignat(Some(x,y),fcomp,Some(x2,y2),b2,esg,s1) in
+	  s
+	with Not_found ->
+	  let (k,b2,(x2,y2),w,h,z) = List.find (fun (_,_,_,_,h,_) -> h = (c4,c3,c2,c1,c0)) !walletkeys_nonstaking in
+	  let r = rand_256() in
+	  let s1 = signat_big_int taue k r in
+	  let s = EndP2pkhToP2pkhSignat(Some(x,y),fcomp,Some(x2,y2),b2,esg,s1) in
+	  s
 
 let getsig s rl =
   match s with

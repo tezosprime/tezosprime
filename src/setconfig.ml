@@ -22,7 +22,9 @@ let boolconfigvars = [
 ("staking",fun x -> Config.staking := x);
 ("ipv6",fun x -> Config.ipv6 := x);
 ("extraindex",fun x -> Config.extraindex := x);
-("generatenewstakingaddresses",fun x -> Config.generatenewstakingaddresses := x)
+("generatenewrewardaddresses",fun x -> Config.generatenewrewardaddresses := x);
+("stakewithrewards",fun x -> Config.stakewithrewards := x);
+("offlinestakerewardsdest",fun x -> Config.offlinestakerewardsdest := x)
 ];;
 let intconfigvars = [
 ("port",fun x -> Config.port := x);
@@ -50,7 +52,6 @@ let cantsoffraenksconfigvars = [
 let stringoptionconfigvars = [
 ("ip",fun x -> Config.ip := x);
 ("randomseed",fun x -> Config.randomseed := x);
-("offlinestakerewardsdest",fun x -> Config.offlinestakerewardsdest := x);
 ("offlinestakerewardslock",fun x -> Config.offlinestakerewardslock := x);
 ];;
 let intoptionconfigvars = [

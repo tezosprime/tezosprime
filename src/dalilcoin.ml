@@ -169,7 +169,7 @@ let lock datadir =
   let lf = Filename.concat datadir "lock" in
   let c = open_out lf in
   close_out c;
-  exitfn := (fun n -> saveknownpeers(); save_processing_deltas(); Sys.remove lf; exit n);;
+  exitfn := (fun n -> Commands.save_wallet(); saveknownpeers(); save_processing_deltas(); Sys.remove lf; exit n);;
 
 let stkth : Thread.t option ref = ref None;;
 
@@ -221,7 +221,8 @@ let ltc_init () =
   with exc ->
     Printf.fprintf !log "problem syncing with ltc. %s quitting.\n" (Printexc.to_string exc);
     Printf.printf "problem syncing with ltc. quitting.\n";
-    !exitfn 2
+(*    !exitfn 2 *)
+    ()
 
 let ltc_listener () =
   while true do
@@ -340,7 +341,7 @@ let compute_staking_chances n fromtm totm =
             hlist_stakingassets blkhght h (nehlist_hlist hl) 30
 	| _ ->
 	    ())
-      !Commands.walletkeys;
+      !Commands.walletkeys_staking;
     List.iter
       (fun (alpha,beta,_,_,_,_) ->
 	let (p,x4,x3,x2,x1,x0) = alpha in
@@ -581,29 +582,29 @@ let stakingthread () =
 				raise StakingProblemPause
 			      end
 			  in
-			  match !Config.offlinestakerewardsdest with
-			  | None ->
-			      if !Config.generatenewstakingaddresses then
-				(let (_,alpha3) = Commands.generate_newkeyandaddress prevledgerroot in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
+			  if !Config.offlinestakerewardsdest then
+			    begin
+			      match !Commands.walletwatchaddrs_offlinekey_fresh with
+			      | alpha::wr ->
+				  let (i,x0,x1,x2,x3,x4) = alpha in
+				  if i = 0 then
+				    begin
+				      Commands.walletwatchaddrs_offlinekey := alpha::!Commands.walletwatchaddrs_offlinekey;
+				      Commands.walletwatchaddrs_offlinekey_fresh := wr;
+				      (x0,x1,x2,x3,x4)
+				    end
+				  else
+				    default()
+			      | _ ->
+				  default()
+			    end
+			  else
+			    begin
+			      if !Config.generatenewrewardaddresses then
+				(let (_,alpha3) = Commands.generate_newkeyandaddress prevledgerroot (if !Config.stakewithrewards then "staking" else "nonstaking") in alpha3) (*** prevent staking address from ending up holding too many assets; max 32 are allowed ***)
 			      else
 				default()
-			  | Some(x) ->
-			      try
-				let (i,x0,x1,x2,x3,x4) = daliladdrstr_addr x in
-				if i = 0 then (*** p2pkh ***)
-				  (x0,x1,x2,x3,x4)
-				else
-				  begin
-				    Printf.fprintf !Utils.log "offlinestakerewardsdest is not p2pkh address %s. Using address with staking asset instead.\n" x;
-				    flush !Utils.log;
-				    default()
-				  end
-			      with _ ->
-				begin
-				  Printf.fprintf !Utils.log "offlinestakerewardsdest is not p2pkh address %s. Using address with staking asset instead.\n" x;
-				  flush !Utils.log;
-				  default()
-				end
+			    end
 			in
 			let alpha4 =
 			  match !Config.offlinestakerewardslock with
@@ -677,7 +678,7 @@ let stakingthread () =
 			  let bhdnewh = hash_blockheaderdata bhdnew in
 			  let bhsnew =
 			    try
-			      let (prvk,b,_,_,_,_) = List.find (fun (_,_,_,_,beta,_) -> beta = alpha) !Commands.walletkeys in
+			      let (prvk,b,_,_,_,_) = List.find (fun (_,_,_,_,beta,_) -> beta = alpha) !Commands.walletkeys_staking in
 			      let r = rand_256() in
 			      let sg : signat = signat_hashval bhdnewh prvk r in
 			      { blocksignat = sg;
@@ -698,9 +699,15 @@ let stakingthread () =
 				let (_,x0,x1,x2,x3,x4) = beta in
 				let betah = (x0,x1,x2,x3,x4) in
 				let (prvk,b,_,_,_,_) =
-				  List.find
-				    (fun (_,_,_,_,beta2,_) -> beta2 = betah)
-				    !Commands.walletkeys in
+				  try
+				    List.find
+				      (fun (_,_,_,_,beta2,_) -> beta2 = betah)
+				      !Commands.walletkeys_staking
+				  with Not_found ->
+				    List.find
+				      (fun (_,_,_,_,beta2,_) -> beta2 = betah)
+				      !Commands.walletkeys_nonstaking
+				in
 				let r = rand_256() in
 				let sg : signat = signat_hashval bhdnewh prvk r in
 				{ blocksignat = sg;
@@ -1518,10 +1525,34 @@ let do_command oc l =
   | "printassets" when al = [] -> Commands.printassets oc
   | "printassets" -> List.iter (fun h -> Commands.printassets_in_ledger oc (hexstring_hashval h)) al
   | "printtx" -> List.iter (fun h -> Commands.printtx (hexstring_hashval h)) al
-  | "importprivkey" -> List.iter Commands.importprivkey al
-  | "importbtcprivkey" -> List.iter Commands.importbtcprivkey al
-  | "importwatchaddr" -> List.iter Commands.importwatchaddr al
-  | "importwatchbtcaddr" -> List.iter Commands.importwatchbtcaddr al
+  | "importprivkey" ->
+      begin
+	match al with
+	| [w] -> Commands.importprivkey oc w "staking"
+	| [w;cls] -> Commands.importprivkey oc w cls
+	| _ -> raise (Failure("importprivkey <WIFkey> [staking|nonstaking|staking_fresh|nonstaking_fresh]"))
+      end
+  | "importbtcprivkey" ->
+      begin
+	match al with
+	| [w] -> Commands.importbtcprivkey oc w "staking"
+	| [w;cls] -> Commands.importbtcprivkey oc w cls
+	| _ -> raise (Failure("importprivkey <btcWIFkey> [staking|nonstaking|staking_fresh|nonstaking_fresh]"))
+      end
+  | "importwatchaddr" ->
+      begin
+	match al with
+	| [a] -> Commands.importwatchaddr oc a ""
+	| [a;cls] -> Commands.importwatchaddr oc a cls
+	| _ -> raise (Failure("importwatchaddr <address> [offlinekey|offlinekey_fresh]"))
+      end
+  | "importwatchbtcaddr" ->
+      begin
+	match al with
+	| [a] -> Commands.importwatchbtcaddr oc a ""
+	| [a;cls] -> Commands.importwatchbtcaddr oc a cls
+	| _ -> raise (Failure("importwatchaddr <btcaddress> [offlinekey|offlinekey_fresh]"))
+      end
   | "importendorsement" ->
       begin
 	match al with
@@ -1557,22 +1588,56 @@ let do_command oc l =
 	| [h] -> Commands.printctreeinfo (hexstring_hashval h)
 	| _ -> raise (Failure "printctreeinfo [ledgerroot]")
       end
+  | "newofflineaddress" ->
+      begin
+	let alpha = Commands.get_fresh_offline_address oc in
+	Printf.fprintf oc "%s\n" (addr_daliladdrstr alpha)
+      end
   | "newaddress" ->
       begin
 	match al with
 	| [] ->
 	    let best = get_bestnode_print_warnings oc true in
 	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
-	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot in
+	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot "nonstaking" in
 	    let alpha = p2pkhaddr_addr h in
 	    let a = addr_daliladdrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| [clr] ->
-	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) in
+	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) "nonstaking" in
 	    let alpha = p2pkhaddr_addr h in
 	    let a = addr_daliladdrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| _ -> raise (Failure "newaddress [ledgerroot]")
+      end
+  | "newstakingaddress" ->
+      begin
+	match al with
+	| [] ->
+	    let best = get_bestnode_print_warnings oc true in
+	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
+	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot "staking" in
+	    let alpha = p2pkhaddr_addr h in
+	    let a = addr_daliladdrstr alpha in
+	    Printf.fprintf oc "%s\n" a
+	| [clr] ->
+	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) "staking" in
+	    let alpha = p2pkhaddr_addr h in
+	    let a = addr_daliladdrstr alpha in
+	    Printf.fprintf oc "%s\n" a
+	| _ -> raise (Failure "newstakingaddress [ledgerroot]")
+      end
+  | "stakewith" ->
+      begin
+	match al with
+	| [alpha] -> Commands.reclassify_staking oc alpha true
+	| _ -> raise (Failure "stakewith <address>")
+      end
+  | "donotstakewith" ->
+      begin
+	match al with
+	| [alpha] -> Commands.reclassify_staking oc alpha false
+	| _ -> raise (Failure "donotstakewith <address>")
       end
   | "createtx" ->
       begin

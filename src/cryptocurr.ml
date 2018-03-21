@@ -396,9 +396,11 @@ let cants_from_json j =
 	try
 	  match List.assoc "cants" jl with
 	  | JsonNum(x) -> Int64.of_string x
+	  | JsonStr(x) -> Int64.of_string x
 	  | _ -> raise Not_found
 	with Not_found ->
 	  match List.assoc "fraenks" jl with
+	  | JsonNum(x) -> cants_of_fraenks x
 	  | JsonStr(x) -> cants_of_fraenks x
 	  | _ -> raise Not_found
       end

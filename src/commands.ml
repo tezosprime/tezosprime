@@ -537,7 +537,9 @@ let reclassify_staking oc alpha b =
 	Printf.fprintf oc "%s is not among the staking keys in the wallet\n" alpha
     end
 
-let assets_at_address_in_ledger_json alpha par ledgerroot blkh =
+exception EmptyAddress
+
+let assets_at_address_in_ledger_json raiseempty alpha par ledgerroot blkh =
   let cache : (hashval,nehlist option * int) Hashtbl.t = Hashtbl.create 100 in
   let reported : (hashval,unit) Hashtbl.t = Hashtbl.create 100 in
   let alphas = addr_daliladdrstr alpha in
@@ -588,7 +590,9 @@ let assets_at_address_in_ledger_json alpha par ledgerroot blkh =
 	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) sumcurr;
 	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
     | (None,z) ->
-	if z < 0 then
+	if raiseempty then
+	  raise EmptyAddress
+	else if z < 0 then
 	  begin
 	    jwl := JsonObj([("warning",JsonStr("Problem obtaining contents of address."))])::!jwl;
 	    jal := [("address",JsonStr(alphas))]
@@ -1465,7 +1469,7 @@ let sendtx oc blkh tr sr lr staustr =
     Printf.fprintf oc "Invalid tx\n"
 
 (*** should gather historic information as well ***)
-let dalilcoin_addr_jsoninfo alpha pbh ledgerroot blkh =
+let dalilcoin_addr_jsoninfo raiseempty alpha pbh ledgerroot blkh =
   let blkh = Int64.sub blkh 1L in
   let (jpbh,par) =
     match pbh with
@@ -1486,7 +1490,7 @@ let dalilcoin_addr_jsoninfo alpha pbh ledgerroot blkh =
 	    (jpbh,None)
 	end
   in
-  let (jal,jwl) = assets_at_address_in_ledger_json alpha par ledgerroot blkh in
+  let (jal,jwl) = assets_at_address_in_ledger_json raiseempty alpha par ledgerroot blkh in
   if jwl = [] then
     JsonObj(("ledgerroot",JsonStr(hashval_hexstring ledgerroot))::("block",jpbh)::jal)
   else
@@ -1512,9 +1516,11 @@ let query_at_block q pbh ledgerroot blkh =
 	begin
 	  try
 	    let alpha = Assets.DbAssetIdAt.dbget h in
-	    let j = dalilcoin_addr_jsoninfo alpha pbh ledgerroot blkh in
+	    let j = dalilcoin_addr_jsoninfo true alpha pbh ledgerroot blkh in
 	    dbentries := j::!dbentries
-	  with Not_found -> ()
+	  with
+	  | EmptyAddress -> ()
+	  | Not_found -> ()
 	end;
 	begin
 	  try
@@ -1659,7 +1665,7 @@ let query_at_block q pbh ledgerroot blkh =
 	begin
 	  try
             let d = termaddr_addr (hashval_md160 h) in
-            let j = dalilcoin_addr_jsoninfo d pbh ledgerroot blkh in
+            let j = dalilcoin_addr_jsoninfo true d pbh ledgerroot blkh in
 	    dbentries := JsonObj([("type",JsonStr("termid"));("termaddress",JsonStr(addr_daliladdrstr d));("termaddressinfo",j)])::!dbentries
 	  with _ -> ()
 	end;
@@ -1674,12 +1680,12 @@ let query_at_block q pbh ledgerroot blkh =
     begin
       try
 	let d = daliladdrstr_addr q in
-	let j = dalilcoin_addr_jsoninfo d pbh ledgerroot blkh in
+	let j = dalilcoin_addr_jsoninfo false d pbh ledgerroot blkh in
 	JsonObj([("response",JsonStr("daliladdress"));("info",j)])
       with _ ->
 	try
 	  let b = btcaddrstr_addr q in
-	  let j = dalilcoin_addr_jsoninfo b pbh ledgerroot blkh in
+	  let j = dalilcoin_addr_jsoninfo false b pbh ledgerroot blkh in
 	  let d = addr_daliladdrstr b in
 	  JsonObj([("response",JsonStr("bitcoin address"));("daliladdress",JsonStr(d));("info",j)])
 	with _ ->

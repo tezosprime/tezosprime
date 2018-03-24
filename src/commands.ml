@@ -1384,9 +1384,11 @@ let validatetx oc blkh tr sr lr staustr =
 	    let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
 	    verbose_supportedcheck := None;
 	    let fee = Int64.sub 0L nfee in
-	    if fee >= !Config.minrelayfee then
+	    if fee < 0L then
+              Printf.fprintf oc "Tx is supported by the current ledger and but requires %s fraenks more input.\n" (Cryptocurr.fraenks_of_cants (Int64.neg fee))
+	    else if fee >= !Config.minrelayfee then
 	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
-	    else
+            else
 	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
 	    flush oc
 	  with

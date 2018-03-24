@@ -1288,12 +1288,7 @@ let rec signtx_ins taue inpl al outpl sl rl (rsl:gensignat_or_ref option list) c
   | _,_ -> raise (Failure "problem signing inputs")
 
 let rec signtx_outs taue outpl sl rl rsl co =
-  match outpl with
-  | (_,(_,TheoryPublication(alpha,n,thy)))::outpr ->
-      raise (Failure "to do: write signtx_outs")
-  | (_,(_,SignaPublication(alpha,n,th,si)))::outpr ->
-      raise (Failure "to do: write signtx_outs")
-  | (_,(_,DocPublication(alpha,n,th,si)))::outpr ->
+  let publication_signtx_out alpha outpr =
       begin
 	match sl with
 	| [] -> signtx_outs taue outpl [None] rl rsl co
@@ -1321,6 +1316,14 @@ let rec signtx_outs taue outpl sl rl rsl co =
 		raise (Failure "bad signature already part of stx")
 	    end
       end
+  in
+  match outpl with
+  | (_,(_,TheoryPublication(alpha,n,thy)))::outpr ->
+      publication_signtx_out alpha outpr
+  | (_,(_,SignaPublication(alpha,n,th,si)))::outpr ->
+      publication_signtx_out alpha outpr
+  | (_,(_,DocPublication(alpha,n,th,si)))::outpr ->
+      publication_signtx_out alpha outpr
   | _::outpr -> signtx_outs taue outpr sl rl rsl co
   | [] -> (List.rev rsl,co)
 

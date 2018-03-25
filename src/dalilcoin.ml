@@ -334,10 +334,12 @@ let compute_staking_chances n fromtm totm =
     Commands.stakingassets := [];
     let minburntostake = ref None in
     Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght;
+    let stakingkeys : (md160,unit) Hashtbl.t = Hashtbl.create 10 in
     List.iter
       (fun (k,b,(x,y),w,h,alpha) ->
 	match try ctree_addr true true (p2pkhaddr_addr h) c None with _ -> (None,0) with
 	| (Some(hl),_) ->
+	    Hashtbl.add stakingkeys h (); (*** remember this is a staking key to decide whether to stake with related endorsed assets ***)
             hlist_stakingassets blkhght h (nehlist_hlist hl) 30
 	| _ ->
 	    ())
@@ -346,7 +348,7 @@ let compute_staking_chances n fromtm totm =
       (fun (alpha,beta,_,_,_,_) ->
 	let (p,x4,x3,x2,x1,x0) = alpha in
 	let (q,_,_,_,_,_) = beta in
-	if not p && not q then (*** only p2pkh can stake ***)
+	if not p && not q && Hashtbl.mem stakingkeys (x4,x3,x2,x1,x0) then (*** only p2pkh can stake ***)
 	  match try ctree_addr true true (payaddr_addr alpha) c None with _ -> (None,0) with
 	  | (Some(hl),_) ->
 	      hlist_stakingassets blkhght (x4,x3,x2,x1,x0) (nehlist_hlist hl) 50

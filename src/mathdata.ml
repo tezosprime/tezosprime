@@ -7,6 +7,7 @@ open Json
 open Ser
 open Sha256
 open Hash
+open Db
 open Htree
 open Logic
 
@@ -422,6 +423,8 @@ let theory_to_str thy =
   seosbf (seo_theory seosb thy (c,None));
   Buffer.contents c
 
+module DbTheory = Dbbasic (struct type t = theory let basedir = "theory" let seival = sei_theory seic let seoval = seo_theory seoc end)
+
 (** * computation of hash roots ***)
 let rec tm_hashroot m =
   match m with
@@ -500,6 +503,8 @@ let signa_to_str s =
   let c = Buffer.create 1000 in
   seosbf (seo_signa seosb s (c,None));
   Buffer.contents c
+
+module DbSigna = Dbbasic (struct type t = signa let basedir = "signa" let seival = sei_signa seic let seoval = seo_signa seoc end)
 
 (** * htrees to hold theories and signatures **)
 

@@ -235,7 +235,7 @@ let ltc_listener () =
       Thread.delay 120.0
   done;;
 
-type nextstakeinfo = NextStake of (int64 * p2pkhaddr * hashval * int64 * obligation * int64 * int64 option * (hashval * hashval) option ref) | NoStakeUpTo of int64;;
+type nextstakeinfo = NextStake of (int64 * p2pkhaddr * hashval * int64 * obligation * int64 * int64 option * (hashval * hashval) option ref * hashval option * ttree option * hashval option * stree option) | NoStakeUpTo of int64;;
 
 let nextstakechances : (hashval option,nextstakeinfo) Hashtbl.t = Hashtbl.create 100;;
 let nextstakechances_hypo : (hashval option,nextstakeinfo) Hashtbl.t = Hashtbl.create 100;;
@@ -317,8 +317,25 @@ let fstohash a =
   | None -> None
   | Some(h,_) -> Some(h)
 
+exception StakingPause of float
+exception StakingProblemPause
+
 let compute_staking_chances n fromtm totm =
   let BlocktreeNode(par,children,prevblk,thyroot,sigroot,currledgerroot,csm1,tar1,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = n in
+  let thytree =
+    try
+      lookup_thytree thyroot
+    with Not_found ->
+      Printf.fprintf !log "Do not know theory tree with root %s\n" (match thyroot with None -> "None" | Some(h) -> hashval_hexstring h);
+      raise StakingProblemPause
+  in
+  let sigtree =
+    try
+      lookup_sigtree sigroot
+    with Not_found ->
+      Printf.fprintf !log "Do not know signature tree with root %s\n" (match sigroot with None -> "None" | Some(h) -> hashval_hexstring h);
+      raise StakingProblemPause
+  in
   let prevblkh = fstohash prevblk in
   let fromtm =
     try
@@ -358,7 +375,7 @@ let compute_staking_chances n fromtm totm =
     if not (!Commands.stakingassets = []) then
       let nextstake i stkaddr h bday obl v toburn =
 	let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
-	Hashtbl.add nextstakechances prevblkh (NextStake(i,stkaddr,h,bday,obl,v,toburn,ref None));
+	Hashtbl.add nextstakechances prevblkh (NextStake(i,stkaddr,h,bday,obl,v,toburn,ref None,thyroot,thytree,sigroot,sigtree));
 	raise Exit
       in
       try
@@ -380,12 +397,12 @@ let compute_staking_chances n fromtm totm =
 		    begin
 		      match !minburntostake with
 		      | None ->
-			  Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None));
+			  Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None,thyroot,thytree,sigroot,sigtree));
 			  minburntostake := Some(toburn,!i,stkaddr,h)
 		      | Some(mburn,_,_,_) ->
 			  if lt_big_int toburn mburn then
 			    begin
-			      Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None));
+			      Hashtbl.add nextstakechances_hypo prevblkh (NextStake(!i,stkaddr,h,bday,obl,v,Some(int64_of_big_int toburn),ref None,thyroot,thytree,sigroot,sigtree));
 			      minburntostake := Some(toburn,!i,stkaddr,h)
 			    end
 		    end;
@@ -406,9 +423,6 @@ let compute_staking_chances n fromtm totm =
       | exn ->
 	  Printf.fprintf !log "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
 	    
-exception StakingPause of float
-exception StakingProblemPause
-
 let get_bestnode_cw_exception req e =
   let (best,cwl) = get_bestnode req in
   begin
@@ -451,7 +465,7 @@ let stakingthread () =
 	let pbhh1 = fstohash pbhh in
 	let blkh = node_blockheight best in
         match Hashtbl.find nextstakechances pbhh1 with
-	| NextStake(tm,alpha,aid,bday,obl,v,toburn,already) ->
+	| NextStake(tm,alpha,aid,bday,obl,v,toburn,already,thyroot,thytree,sigroot,sigtree) ->
 	    begin
 	      match !already with
 	      | Some(_,_) -> raise (StakingPause(60.0))
@@ -752,20 +766,22 @@ let stakingthread () =
 				Hashtbl.remove nextstakechances pbhh1;
 				raise StakingProblemPause
 			      end;
-			    if not ((valid_block None None blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L)) = None) then
-			      () (* (Printf.fprintf !log "New block is valid\n"; flush stdout) *)
-			    else
-			      begin
-				Printf.fprintf !log "New block is not valid\n";
-				flush !log;
-				verbose_blockcheck := Some(!Utils.log);
-				ignore (valid_block None None blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L));
-				valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L);
-				verbose_blockcheck := None;
-				let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate");
-				Hashtbl.remove nextstakechances pbhh1;
-				raise StakingProblemPause
-			      end;
+			    begin
+			      match valid_block thytree sigtree blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L) with
+			      | Some(tht2,sigt2) ->
+				  update_theories thyroot thytree tht2;
+				  update_signatures sigroot sigtree sigt2;
+			      | None ->
+				  Printf.fprintf !log "New block is not valid\n";
+				  flush !log;
+				  verbose_blockcheck := Some(!Utils.log);
+				  ignore (valid_block thytree sigtree blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L));
+				  valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L);
+				  verbose_blockcheck := None;
+				  let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidblockstate");
+				  Hashtbl.remove nextstakechances pbhh1;
+				  raise StakingProblemPause
+			    end;
 			    match pbhh1 with
 			    | None -> if blkh > 1L then (Printf.fprintf !log "No previous block but block height not 1\n"; flush !log; Hashtbl.remove nextstakechances None; raise StakingProblemPause)
 			    | Some(pbhh1) ->
@@ -1488,9 +1504,9 @@ let do_command oc l =
 	begin
 	  try
 	    match Hashtbl.find nextstakechances prevblkh with
-	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
+	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_,_,_,_,_) ->
 		Printf.fprintf oc "Can stake at time %Ld (%s) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
-	    | NextStake(i,stkaddr,h,bday,obl,v,None,_) -> () (*** should not happen; ignore ***)
+	    | NextStake(i,stkaddr,h,bday,obl,v,None,_,_,_,_,_) -> () (*** should not happen; ignore ***)
 	    | NoStakeUpTo(_) -> Printf.fprintf oc "Found no chance to stake with current wallet and ltc burn limits.\n"
 	  with Not_found -> ()
 	end;
@@ -1498,7 +1514,7 @@ let do_command oc l =
 	  (fun z ->
 	    let il = ref [] in
 	    match z with
-	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) ->
+	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_,_,_,_,_) ->
 		if not (List.mem i !il) then
 		  begin
 		    il := i::!il; (** while the info should not be on the hash table more than once, sometimes it is, so only report it once **)
@@ -1508,12 +1524,12 @@ let do_command oc l =
 	  (List.sort
 	     (fun y z ->
 	       match (y,z) with
-	       | (NextStake(i,_,_,_,_,_,Some(_),_),NextStake(j,_,_,_,_,_,Some(_),_)) -> compare i j
+	       | (NextStake(i,_,_,_,_,_,Some(_),_,_,_,_,_),NextStake(j,_,_,_,_,_,Some(_),_,_,_,_,_)) -> compare i j
 	       | _ -> 0)
 	     (List.filter
 		(fun z ->
 		  match z with
-		  | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_) -> true
+		  | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_,_,_,_,_) -> true
 		  | _ -> false)
 		(Hashtbl.find_all nextstakechances_hypo prevblkh)))
       end
@@ -1819,6 +1835,8 @@ let initialize () =
     Printf.printf "Initializing the database..."; flush stdout;
     let dbdir = Filename.concat datadir "db" in
     dbconfig dbdir; (*** configure the database ***)
+    DbTheory.dbinit();
+    DbSigna.dbinit();
     DbAsset.dbinit();
     DbAssetIdAt.dbinit();
     DbSTx.dbinit();
@@ -2197,6 +2215,9 @@ let initialize () =
 	| Invalid_argument(_) ->
 	    raise (Failure "Bad seed")
       end;
+    Printf.printf "Initializing theory and signature trees.\n"; flush stdout;
+    init_thytrees();
+    init_sigtrees();
     Printf.printf "Syncing with ltc\n"; flush stdout;
     ltc_init();
     Printf.printf "Initializing blocktree\n"; flush stdout;

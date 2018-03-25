@@ -5,6 +5,7 @@
 
 open Json
 open Hash
+open Db
 open Logic
 open Htree
 
@@ -46,6 +47,15 @@ val sei_theoryspec : (int -> 'a -> int * 'a) -> 'a -> theoryspec * 'a
 val seo_theory : (int -> int -> 'a -> 'a) -> theory -> 'a -> 'a
 val sei_theory : (int -> 'a -> int * 'a) -> 'a -> theory * 'a
 
+module DbTheory :
+    sig
+      val dbinit : unit -> unit
+      val dbget : hashval -> theory
+      val dbexists : hashval -> bool
+      val dbput : hashval -> theory -> unit
+      val dbdelete : hashval -> unit
+    end
+
 val hashtheory : theory -> hashval option
 
 val theoryspec_theory : theoryspec -> theory
@@ -60,6 +70,15 @@ val hashsigna : signa -> hashval
 
 val signaspec_signa : signaspec -> signa
 val signaspec_burncost : signaspec -> int64
+
+module DbSigna :
+    sig
+      val dbinit : unit -> unit
+      val dbget : hashval -> signa
+      val dbexists : hashval -> bool
+      val dbput : hashval -> signa -> unit
+      val dbdelete : hashval -> unit
+    end
 
 val seo_doc : (int -> int -> 'a -> 'a) -> doc -> 'a -> 'a
 val sei_doc : (int -> 'a -> int * 'a) -> 'a -> doc * 'a

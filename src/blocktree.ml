@@ -9,6 +9,7 @@ open Ser
 open Hashaux
 open Sha256
 open Hash
+open Htree
 open Net
 open Db
 open Assets
@@ -135,6 +136,148 @@ let add_sigtree sigroot osigt =
   match sigroot,osigt with
   | Some(r),Some(sigt) -> if not (Hashtbl.mem sigtree r) then Hashtbl.add sigtree r sigt
   | _,_ -> ()
+
+let rec get_all_theories t =
+  match t with
+  | None -> []
+  | Some(HBin(tl,tr)) -> get_all_theories tl @ get_all_theories tr
+  | Some(HLeaf(x)) ->
+      match Mathdata.hashtheory x with
+      | Some(h) -> [(h,x)]
+      | None -> raise (Failure "empty theory ended up in the theory tree somehow")
+
+let rec get_all_signas t =
+  match t with
+  | None -> []
+  | Some(HLeaf(x)) -> [(Mathdata.hashsigna x,x)]
+  | Some(HBin(tl,tr)) -> get_all_signas tl @ get_all_signas tr
+
+let rec get_added_theories t1 t2 =
+  match (t1,t2) with
+  | (None,t2) -> get_all_theories t2
+  | (Some(HLeaf(_)),Some(HLeaf(_))) -> [] (*** assume equal, which should be an invariant ***)
+  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_theories t1l t2l @ get_added_theories t1r t2r (*** inefficient, but new theories should be rare ***)
+  | (_,_) -> raise (Failure("Impossible pair of old and new theory trees"))
+
+let rec get_added_signas t1 t2 =
+  match (t1,t2) with
+  | (None,t2) -> get_all_signas t2
+  | (Some(HLeaf(_)),Some(HLeaf(_))) -> [] (*** assume equal, which should be an invariant ***)
+  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_signas t1l t2l @ get_added_signas t1r t2r (*** inefficient, but new signatures should be rare ***)
+  | (_,_) -> raise (Failure("Impossible pair of old and new signature trees"))
+
+(*** save information indicating how to rebuild the theory and signature trees upon initialization ***)
+let update_theories oldthyroot oldthytree newthytree =
+  let newthyroot = Mathdata.ottree_hashroot newthytree in
+  if not (oldthyroot = newthyroot) then
+    begin
+      match newthyroot with
+      | None -> raise (Failure "cannot go from nonempty thy tree to empty thy tree")
+      | Some(newthyrootreal) ->
+	  let addedtheories = get_added_theories oldthytree newthytree in
+	  List.iter
+	    (fun (h,thy) -> Mathdata.DbTheory.dbput h thy)
+	    addedtheories;
+	  let ttf = Filename.concat (datadir()) "theorytreeinfo" in
+	  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 ttf in
+	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list seo_hashval) seoc
+		   (oldthyroot,newthyrootreal,List.map (fun (h,_) -> h) addedtheories)
+		   (ch,None));
+	  close_out ch;
+	  add_thytree newthyroot newthytree
+    end
+
+let update_signatures oldsigroot oldsigtree newsigtree =
+  let newsigroot = Mathdata.ostree_hashroot newsigtree in
+  if not (oldsigroot = newsigroot) then
+    begin
+      match newsigroot with
+      | None -> raise (Failure "cannot go from nonempty sig tree to empty sig tree")
+      | Some(newsigrootreal) ->
+	  let addedsignas = get_added_signas oldsigtree newsigtree in
+	  List.iter
+	    (fun (h,signa) -> Mathdata.DbSigna.dbput h signa)
+	    addedsignas;
+	  let stf = Filename.concat (datadir()) "signatreeinfo" in
+	  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 stf in
+	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list seo_hashval) seoc
+		   (oldsigroot,newsigrootreal,List.map (fun (h,_) -> h) addedsignas)
+		   (ch,None));
+	  close_out ch;
+	  add_sigtree newsigroot newsigtree
+    end
+
+let init_thytrees () =
+  let ttf = Filename.concat (datadir()) "theorytreeinfo" in
+  let ch = open_in_bin ttf in
+  try
+    while true do
+      let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
+      try
+	let oldthytree = lookup_thytree oldroot in
+	let newthytree = ref oldthytree in
+	List.iter
+	  (fun h ->
+	    try
+	      let th = Mathdata.DbTheory.dbget h in
+	      newthytree := Some(Mathdata.ottree_insert !newthytree (hashval_bitseq h) th)
+	    with Not_found ->
+	      raise (Failure("fatal error trying to initailize theory trees; unknown theory " ^ (hashval_hexstring h))))
+	  added;
+	let newroot2 = Mathdata.ottree_hashroot !newthytree in
+	if newroot2 = Some(newroot) then
+	  begin
+	    match !newthytree with
+	    | Some(ntt) -> Hashtbl.add thytree newroot ntt
+	    | None -> () (*** should not happen ***)
+	  end
+	else
+	  begin
+	    close_in ch;
+	    raise (Failure("fatal error trying to initialize theory trees; theory tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
+	  end
+      with Not_found ->
+	close_in ch;
+	raise (Failure("fatal error trying to initialize theory trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
+    done
+  with End_of_file ->
+    close_in ch
+
+let init_sigtrees () =
+  let stf = Filename.concat (datadir()) "signatreeinfo" in
+  let ch = open_in_bin stf in
+  try
+    while true do
+      let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
+      try
+	let oldsigtree = lookup_sigtree oldroot in
+	let newsigtree = ref oldsigtree in
+	List.iter
+	  (fun h ->
+	    try
+	      let s = Mathdata.DbSigna.dbget h in
+	      newsigtree := Some(Mathdata.ostree_insert !newsigtree (hashval_bitseq h) s)
+	    with Not_found ->
+	      raise (Failure("fatal error trying to initailize signature trees; unknown signa " ^ (hashval_hexstring h))))
+	  added;
+	let newroot2 = Mathdata.ostree_hashroot !newsigtree in
+	if newroot2 = Some(newroot) then
+	  begin
+	    match !newsigtree with
+	    | Some(nst) -> Hashtbl.add sigtree newroot nst
+	    | None -> ()
+	  end
+	else
+	  begin
+	    close_in ch;
+	    raise (Failure("fatal error trying to initialize signature trees; signa tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
+	  end
+      with Not_found ->
+	close_in ch;
+	raise (Failure("fatal error trying to initialize signa trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
+    done
+  with End_of_file ->
+    close_in ch
 
 let collect_inv m cnt tosend txinv =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
@@ -454,8 +597,10 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
     let blk = (blkh,blkdel) in
     if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
       begin
+	let thytree = lookup_thytree thyroot in
+	let sigtree = lookup_sigtree sigroot in
 	Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
-	match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm tinf blk lmedtm burned with
+	match valid_block thytree sigtree blkhght csm tinf blk lmedtm burned with
 	| Some(tht2,sigt2) ->
 	    vs := ValidBlock;
 	    Hashtbl.remove tovalidate h;
@@ -464,8 +609,8 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	    process_delta_real h blkhght blk;
 	    let (bn,cwl) = get_bestnode true in
 	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
-	    add_thytree blkhd.newtheoryroot tht2;
-	    add_sigtree blkhd.newsignaroot sigt2;
+	    update_theories thyroot thytree tht2;
+	    update_signatures sigroot sigtree sigt2;
 	    (*** construct a transformed tree consisting of elements ***)
 	    processing_deltas := List.filter (fun k -> not (k = h)) !processing_deltas;
 	    broadcast_inv [(int_of_msgtype Blockdelta,h)];

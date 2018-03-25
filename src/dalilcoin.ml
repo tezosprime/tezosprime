@@ -1809,6 +1809,12 @@ let do_command oc l =
       Printf.fprintf oc "Current target (for block at height %Ld): %s\n" blkh (string_of_big_int tar);
       flush oc
   | "blockchain" -> pblockchain oc (get_bestnode_print_warnings oc true) None None 1000
+  | "reprocessblock" ->
+      begin
+	match al with
+	| [h] -> reprocessblock oc (hexstring_hashval h)
+	| _ -> raise (Failure "reprocessblock <blockid>")
+      end
   | _ ->
       (Printf.fprintf oc "Ignoring unknown command: %s\n" c; List.iter (fun a -> Printf.fprintf oc "%s\n" a) al; flush oc);;
 

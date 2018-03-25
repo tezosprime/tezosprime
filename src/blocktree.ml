@@ -694,9 +694,13 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 		  let blk = (blkh1,blkdel) in
 		  if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
 		    begin
-		      match valid_block (lookup_thytree thyroot) (lookup_sigtree sigroot) blkhght csm currtinfo blk lmedtm burned with
-		      | Some(_,_) ->
-			  validated := ValidBlock
+		      let thytree = lookup_thytree thyroot in
+		      let sigtree = lookup_sigtree sigroot in
+		      match valid_block thytree sigtree blkhght csm currtinfo blk lmedtm burned with
+		      | Some(tht2,sigt2) ->
+			  validated := ValidBlock;
+			  update_theories thyroot thytree tht2;
+			  update_signatures sigroot sigtree sigt2
 		      | None -> (*** should not have happened, delete it from the database and request it again. ***)
 			  DbBlockDelta.dbdelete h;
 			  Hashtbl.add tovalidate h ();
@@ -1460,3 +1464,51 @@ let recursively_revalidate_blocks h =
     | Some(p) -> recursively_revalidate_parents p
     | None -> ()
   with _ -> ()
+
+let reprocessblock oc h =
+  try
+    let bh = DbBlockHeader.dbget h in
+    try
+      let bd = DbBlockDelta.dbget h in
+      let (bhd,bhs) = bh in
+      let pbh = bhd.prevblockhash in
+      try
+	let n =
+	  match pbh with
+	  | Some(h,_) -> Hashtbl.find blkheadernode (Some(h))
+	  | None -> Hashtbl.find blkheadernode None
+	in
+	let BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
+	try
+	  let thytree = lookup_thytree thyroot in
+	  try
+	    let sigtree = lookup_sigtree sigroot in
+	    try
+	      let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
+	      match valid_block thytree sigtree blkhght csm currtinfo (bh,bd) lmedtm burned with
+	      | Some(tht2,sigt2) ->
+		  vsp := ValidBlock;
+		  update_theories thyroot thytree tht2;
+		  update_signatures sigroot sigtree sigt2
+	      | None -> (*** should not have happened, delete it from the database and request it again. ***)
+		  vsp := InvalidBlock;
+		  Printf.fprintf oc "Invalid block %s\n" (hashval_hexstring h)
+	    with _ ->
+	      Printf.fprintf oc "Do not have proof of burn for block %s\n" (hashval_hexstring h);
+	      flush oc
+	  with Not_found ->
+	    Printf.fprintf oc "Could not find signature tree for block\n";
+	    flush oc
+	with Not_found ->
+	  Printf.fprintf oc "Could not find theory tree for block\n";
+	  flush oc
+      with Not_found ->
+	Printf.fprintf oc "Could not find information for parent block %s\n"
+	  (match pbh with Some(h,_) -> (hashval_hexstring h) | None -> "(genesis)");
+	flush oc
+    with Not_found ->
+      Printf.fprintf oc "Do not have delta for block %s\n" (hashval_hexstring h);
+      flush oc
+  with Not_found ->
+    Printf.fprintf oc "Do not have header for block %s\n" (hashval_hexstring h);
+    flush oc

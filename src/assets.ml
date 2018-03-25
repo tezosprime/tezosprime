@@ -260,7 +260,7 @@ let rights_mentioned outpl = prop_rights_mentioned_aux outpl (obj_rights_mention
 
 let rec units_sent_to_addr beta outpl =
   match outpl with
-  | (alpha,(None,Currency(u)))::outpr when alpha = beta -> Int64.add u (units_sent_to_addr beta outpr)
+  | (alpha,(None,Currency(u)))::outpr when alpha = beta -> Int64.add u (units_sent_to_addr beta outpr) (*** important that the default None obligation is used here, since otherwise someone could "buy" rights without turning over control of the currency paid ***)
   | _::outpr -> units_sent_to_addr beta outpr
   | [] -> 0L
 

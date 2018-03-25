@@ -51,7 +51,7 @@ bin/db.cmi: src/db.mli bin/ser.cmi bin/hash.cmi
 bin/logic.cmi: src/logic.mli bin/htree.cmi bin/hash.cmi bin/json.cmi
 	$(OCAMLC) -I bin -o bin/logic.cmi -c src/logic.mli
 
-bin/mathdata.cmi: src/mathdata.mli bin/htree.cmi bin/hash.cmi bin/logic.cmi
+bin/mathdata.cmi: src/mathdata.mli bin/htree.cmi bin/hash.cmi bin/logic.cmi bin/db.cmi
 	$(OCAMLC) -I bin -o bin/mathdata.cmi -c src/mathdata.mli
 
 bin/checking.cmi: src/checking.mli bin/htree.cmi bin/hash.cmi bin/logic.cmi bin/mathdata.cmi
@@ -147,7 +147,7 @@ bin/db.cmx: src/db.ml bin/db.cmi bin/ser.cmx bin/hash.cmx bin/config.cmx bin/net
 bin/logic.cmx: src/logic.ml bin/logic.cmi bin/htree.cmx bin/hash.cmx bin/ser.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/logic.cmx -c src/logic.ml
 
-bin/mathdata.cmx: src/mathdata.ml bin/mathdata.cmi bin/logic.cmx bin/htree.cmx bin/hash.cmx bin/ser.cmx
+bin/mathdata.cmx: src/mathdata.ml bin/mathdata.cmi bin/logic.cmx bin/htree.cmx bin/hash.cmx bin/ser.cmx bin/db.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/mathdata.cmx -c src/mathdata.ml
 
 bin/checking.cmx: src/checking.ml bin/checking.cmi bin/logic.cmx bin/mathdata.cmx bin/htree.cmx bin/hash.cmx bin/ser.cmx
@@ -237,7 +237,7 @@ bin/db.cmo: src/db.ml bin/db.cmi bin/ser.cmo bin/hash.cmo bin/config.cmo bin/net
 bin/logic.cmo: src/logic.ml bin/logic.cmi bin/htree.cmo bin/hash.cmo bin/ser.cmo bin/json.cmo
 	$(OCAMLC) -I bin -o bin/logic.cmo -c src/logic.ml
 
-bin/mathdata.cmo: src/mathdata.ml bin/mathdata.cmi bin/logic.cmo bin/htree.cmo bin/hash.cmo bin/ser.cmo
+bin/mathdata.cmo: src/mathdata.ml bin/mathdata.cmi bin/logic.cmo bin/htree.cmo bin/hash.cmo bin/ser.cmo bin/db.cmo
 	$(OCAMLC) -I bin -o bin/mathdata.cmo -c src/mathdata.ml
 
 bin/checking.cmo: src/checking.ml bin/checking.cmi bin/mathdata.cmo bin/logic.cmo bin/htree.cmo bin/hash.cmo bin/ser.cmo

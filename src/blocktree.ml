@@ -209,75 +209,77 @@ let update_signatures oldsigroot oldsigtree newsigtree =
 
 let init_thytrees () =
   let ttf = Filename.concat (datadir()) "theorytreeinfo" in
-  let ch = open_in_bin ttf in
-  try
-    while true do
-      let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
-      try
-	let oldthytree = lookup_thytree oldroot in
-	let newthytree = ref oldthytree in
-	List.iter
-	  (fun h ->
-	    try
-	      let th = Mathdata.DbTheory.dbget h in
-	      newthytree := Some(Mathdata.ottree_insert !newthytree (hashval_bitseq h) th)
-	    with Not_found ->
-	      raise (Failure("fatal error trying to initailize theory trees; unknown theory " ^ (hashval_hexstring h))))
-	  added;
-	let newroot2 = Mathdata.ottree_hashroot !newthytree in
-	if newroot2 = Some(newroot) then
-	  begin
-	    match !newthytree with
-	    | Some(ntt) -> Hashtbl.add thytree newroot ntt
-	    | None -> () (*** should not happen ***)
-	  end
-	else
-	  begin
-	    close_in ch;
-	    raise (Failure("fatal error trying to initialize theory trees; theory tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
-	  end
-      with Not_found ->
-	close_in ch;
-	raise (Failure("fatal error trying to initialize theory trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
-    done
-  with End_of_file ->
-    close_in ch
+  if Sys.file_exists ttf then
+    let ch = open_in_bin ttf in
+    try
+      while true do
+	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
+	try
+	  let oldthytree = lookup_thytree oldroot in
+	  let newthytree = ref oldthytree in
+	  List.iter
+	    (fun h ->
+	      try
+		let th = Mathdata.DbTheory.dbget h in
+		newthytree := Some(Mathdata.ottree_insert !newthytree (hashval_bitseq h) th)
+	      with Not_found ->
+		raise (Failure("fatal error trying to initailize theory trees; unknown theory " ^ (hashval_hexstring h))))
+	    added;
+	  let newroot2 = Mathdata.ottree_hashroot !newthytree in
+	  if newroot2 = Some(newroot) then
+	    begin
+	      match !newthytree with
+	      | Some(ntt) -> Hashtbl.add thytree newroot ntt
+	      | None -> () (*** should not happen ***)
+	    end
+	  else
+	    begin
+	      close_in ch;
+	      raise (Failure("fatal error trying to initialize theory trees; theory tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
+	    end
+	with Not_found ->
+	  close_in ch;
+	  raise (Failure("fatal error trying to initialize theory trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
+      done
+    with End_of_file ->
+      close_in ch
 
 let init_sigtrees () =
   let stf = Filename.concat (datadir()) "signatreeinfo" in
-  let ch = open_in_bin stf in
-  try
-    while true do
-      let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
-      try
-	let oldsigtree = lookup_sigtree oldroot in
-	let newsigtree = ref oldsigtree in
-	List.iter
-	  (fun h ->
-	    try
-	      let s = Mathdata.DbSigna.dbget h in
-	      newsigtree := Some(Mathdata.ostree_insert !newsigtree (hashval_bitseq h) s)
-	    with Not_found ->
-	      raise (Failure("fatal error trying to initailize signature trees; unknown signa " ^ (hashval_hexstring h))))
-	  added;
-	let newroot2 = Mathdata.ostree_hashroot !newsigtree in
-	if newroot2 = Some(newroot) then
-	  begin
-	    match !newsigtree with
-	    | Some(nst) -> Hashtbl.add sigtree newroot nst
-	    | None -> ()
-	  end
-	else
-	  begin
-	    close_in ch;
-	    raise (Failure("fatal error trying to initialize signature trees; signa tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
-	  end
-      with Not_found ->
-	close_in ch;
-	raise (Failure("fatal error trying to initialize signa trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
-    done
-  with End_of_file ->
-    close_in ch
+  if Sys.file_exists stf then
+    let ch = open_in_bin stf in
+    try
+      while true do
+	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
+	try
+	  let oldsigtree = lookup_sigtree oldroot in
+	  let newsigtree = ref oldsigtree in
+	  List.iter
+	    (fun h ->
+	      try
+		let s = Mathdata.DbSigna.dbget h in
+		newsigtree := Some(Mathdata.ostree_insert !newsigtree (hashval_bitseq h) s)
+	      with Not_found ->
+		raise (Failure("fatal error trying to initailize signature trees; unknown signa " ^ (hashval_hexstring h))))
+	    added;
+	  let newroot2 = Mathdata.ostree_hashroot !newsigtree in
+	  if newroot2 = Some(newroot) then
+	    begin
+	      match !newsigtree with
+	      | Some(nst) -> Hashtbl.add sigtree newroot nst
+	      | None -> ()
+	    end
+	  else
+	    begin
+	      close_in ch;
+	      raise (Failure("fatal error trying to initialize signature trees; signa tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
+	    end
+	with Not_found ->
+	  close_in ch;
+	  raise (Failure("fatal error trying to initialize signa trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
+      done
+    with End_of_file ->
+      close_in ch
 
 let collect_inv m cnt tosend txinv =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in

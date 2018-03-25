@@ -1170,48 +1170,57 @@ let rec signtx_ins taue inpl al outpl sl rl (rsl:gensignat_or_ref option list) c
 	if not (assetid a = k) then raise (Failure "Asset mismatch when trying to sign inputs");
 	match a with
 	| (_,_,_,Marker) -> signtx_ins taue inpr ar outpl sl rl rsl ci propowns
-	| (_,_,Some(gamma,lkh,_),Bounty(_)) when not (List.mem alpha propowns) -> (*** gamma must sign to spend bounty where prop (or neg prop) owner is not part of tx ***)
+	| (_,_,obl,Bounty(_)) ->
 	    begin
-	      match sl with
-	      | [] -> signtx_ins taue inpl al outpl [None] rl rsl ci propowns
-	      | (None::sr) -> (*** missing signature ***)
-		  begin
-		    try
-		      match assoc_pos gamma rl 0 with
-		      | (Some(s),p) ->
-			  signtx_ins taue inpr ar outpl sr rl (Some(GenSignatRef(p))::rsl) ci propowns
-		      | (None,p) -> raise Not_found
-		    with Not_found ->
-		      let (p,b4,b3,b2,b1,b0) = gamma in
-		      if p then
-			raise (Failure "p2sh signing is not yet supported")
-		      else
-			begin
+	      if List.mem alpha propowns then (*** no signature required, bounty is being collected by owner of prop/negprop ***)
+		signtx_ins taue inpr ar outpl sl rl rsl ci propowns
+	      else
+		match obl with
+		| None -> (*** Bounty cannot be spent, but can only be collected ***)
+		    raise (Failure("bad attempt to spend bounty"))
+		| Some(gamma,lkh,_) -> (*** gamma must sign to spend bounty where prop (or neg prop) owner is not part of tx ***)
+		    begin
+		      match sl with
+		      | [] -> signtx_ins taue inpl al outpl [None] rl rsl ci propowns
+		      | (None::sr) -> (*** missing signature ***)
+			  begin
+			    try
+			      match assoc_pos gamma rl 0 with
+			      | (Some(s),p) ->
+				  signtx_ins taue inpr ar outpl sr rl (Some(GenSignatRef(p))::rsl) ci propowns
+			      | (None,p) -> raise Not_found
+			    with Not_found ->
+			      let (p,b4,b3,b2,b1,b0) = gamma in
+			      if p then
+				raise (Failure "p2sh signing is not yet supported")
+			      else
+				begin
+				  try
+				    let s = signtx_p2pkh (b4,b3,b2,b1,b0) taue in
+				    signtx_ins taue inpr ar outpl sr ((gamma,Some(s))::rl) (Some(GenSignatReal(s))::rsl) ci propowns
+				  with _ ->
+				    signtx_ins taue inpr ar outpl sr ((gamma,None)::rl) (None::rsl) false propowns
+				end
+			  end
+		      | (Some(s)::sr) ->
 			  try
-			    let s = signtx_p2pkh (b4,b3,b2,b1,b0) taue in
-			    signtx_ins taue inpr ar outpl sr ((gamma,Some(s))::rl) (Some(GenSignatReal(s))::rsl) ci propowns
-			  with _ ->
-			    signtx_ins taue inpr ar outpl sr ((gamma,None)::rl) (None::rsl) false propowns
-			end
-		  end
-	      | (Some(s)::sr) ->
-		  try
-		    let obl = assetobl a in
-		    let (s1,rl1) = getsig s rl in
-		    let blkh = lkh in (*** actually, should allow signing before the lockheight, it just can't be confirmed before the lockheight ***)
-		    if check_spend_obligation alpha blkh taue s1 obl then
-		      begin
-			match obl with
-			| None -> 
-			    let (p,a4,a3,a2,a1,a0) = alpha in
-			    signtx_ins taue inpr ar outpl sr (rl1 (p=1,a4,a3,a2,a1,a0)) (Some(GenSignatReal(s1))::rsl) ci propowns
-			| Some(gam,_,_) ->
-			    signtx_ins taue inpr ar outpl sr (rl1 gam) (Some(GenSignatReal(s1))::rsl) ci propowns
-		      end
-		    else
-		      raise (Failure "bad signature already part of stx")
-		  with BadOrMissingSignature ->
-		    raise (Failure "bad signature already part of stx")
+			    let obl = assetobl a in
+			    let (s1,rl1) = getsig s rl in
+			    let blkh = lkh in (*** actually, should allow signing before the lockheight, it just can't be confirmed before the lockheight ***)
+			    if check_spend_obligation alpha blkh taue s1 obl then
+			      begin
+				match obl with
+				| None -> 
+				    let (p,a4,a3,a2,a1,a0) = alpha in
+				    signtx_ins taue inpr ar outpl sr (rl1 (p=1,a4,a3,a2,a1,a0)) (Some(GenSignatReal(s1))::rsl) ci propowns
+				| Some(gam,_,_) ->
+				    signtx_ins taue inpr ar outpl sr (rl1 gam) (Some(GenSignatReal(s1))::rsl) ci propowns
+			      end
+			    else
+			      raise (Failure "bad signature already part of stx")
+			  with BadOrMissingSignature ->
+			    raise (Failure "bad signature already part of stx")
+		    end
 	    end
 	| _ ->
 	    let obl = assetobl a in

@@ -18,6 +18,7 @@ let stringconfigvars = [
 ("curl",fun x -> Config.curl := x)
 ];;
 let boolconfigvars = [
+("offline",fun x -> Config.offline := x);
 ("daemon",fun x -> Config.daemon := x);
 ("staking",fun x -> Config.staking := x);
 ("ipv6",fun x -> Config.ipv6 := x);

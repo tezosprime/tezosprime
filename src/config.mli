@@ -3,6 +3,7 @@
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
 val datadir : string ref
+val offline : bool ref
 val daemon : bool ref
 val testnet : bool ref
 val staking : bool ref

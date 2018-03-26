@@ -1774,6 +1774,61 @@ let do_command oc l =
 	    Printf.fprintf oc "validatetx <tx in hex>\n";
 	    flush oc
       end
+  | "terminfo" ->
+      begin
+	let (jtm,jtp,thyid) =
+	  match al with
+	  | [jtm] -> (jtm,"'\"prop\"'",None)
+	  | [jtm;jtp] -> (jtm,jtp,None)
+	  | [jtm;jtp;theoryid] -> (jtm,jtp,Some(hexstring_hashval theoryid))
+	  | _ ->
+	      raise (Failure("terminfo <term as json> [<type as json>, with default 'prop'] [<theoryid, default of empty theory>]"))
+	in
+	let (jtm,_) = parse_jsonval jtm in
+	let (jtp,_) = parse_jsonval jtp in
+	let m =
+	  match jtm with
+	  | JsonStr(x) -> Logic.TmH(hexstring_hashval x) (*** treat a string as just the term root abbreviating the term ***)
+	  | _ -> trm_from_json jtm
+	in
+	let a =
+	  match jtp with
+	  | JsonStr(x) when x = "prop" -> Logic.Prop
+	  | JsonNum(x) -> Logic.Base(int_of_string x)
+	  | _ -> stp_from_json jtp
+	in (*** not checking if the term has the type; this could depend on the theory ***)
+	let h = tm_hashroot m in
+	let tph = hashtp a in
+	Printf.fprintf oc "term root: %s\n" (hashval_hexstring h);
+	Printf.fprintf oc "pure term address: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+	if thyid = None then
+	  begin
+	    let k = hashtag (hashopair2 None (hashpair h tph)) 32l in
+	    Printf.fprintf oc "obj id in empty theory: %s\n" (hashval_hexstring k);
+	    Printf.fprintf oc "obj address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+	  end
+	else
+	  begin
+	    let k = hashtag (hashopair2 thyid (hashpair h tph)) 32l in
+	    Printf.fprintf oc "obj id in given theory: %s\n" (hashval_hexstring k);
+	    Printf.fprintf oc "obj address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+	  end;
+	if a = Logic.Prop then
+	  begin
+	    if thyid = None then
+	      begin
+		let k = hashtag (hashopair2 None h) 33l in
+		Printf.fprintf oc "prop id in empty theory: %s\n" (hashval_hexstring k);
+		Printf.fprintf oc "prop address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+	      end
+	    else
+	      begin
+		let k = hashtag (hashopair2 thyid h) 33l in
+		Printf.fprintf oc "prop id in given theory: %s\n" (hashval_hexstring k);
+		Printf.fprintf oc "prop address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+	      end
+	  end
+      end
   | "querybestblock" ->
       let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in
@@ -2224,8 +2279,11 @@ let initialize () =
     Printf.printf "Initializing theory and signature trees.\n"; flush stdout;
     init_thytrees();
     init_sigtrees();
-    Printf.printf "Syncing with ltc\n"; flush stdout;
-    ltc_init();
+    if not !Config.offline then
+      begin
+	Printf.printf "Syncing with ltc\n"; flush stdout;
+	ltc_init();
+      end;
     Printf.printf "Initializing blocktree\n"; flush stdout;
     initblocktree();
     missingheaders_th := Some(Thread.create missingheadersthread ());
@@ -2260,10 +2318,12 @@ let initialize () =
   end;;
 
 initialize();;
-initnetwork();;
-if !Config.staking then stkth := Some(Thread.create stakingthread ());;
-
-ltc_listener_th := Some(Thread.create ltc_listener ());;
+if not !Config.offline then
+  begin
+    initnetwork();
+    if !Config.staking then stkth := Some(Thread.create stakingthread ());
+    ltc_listener_th := Some(Thread.create ltc_listener ());
+  end;;
 
 let last_failure = ref None;;
 let failure_count = ref 0;;

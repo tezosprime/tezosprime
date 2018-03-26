@@ -1829,6 +1829,16 @@ let do_command oc l =
 	      end
 	  end
       end
+  | "decodetx" ->
+      begin
+	match al with
+	| [a] ->
+	    let s = hexstring_string a in
+	    let (stx,_) = sei_stx seis (s,String.length s,None,0,0) in
+	    print_jsonval oc (json_stx stx);
+	    Printf.fprintf oc "\n"
+	| _ -> raise (Failure "decode <raw tx in hex>")
+      end
   | "querybestblock" ->
       let node = get_bestnode_print_warnings oc true in
       let h = node_prevblockhash node in

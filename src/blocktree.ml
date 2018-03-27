@@ -146,11 +146,11 @@ let rec get_all_theories t =
       | Some(h) -> [(h,x)]
       | None -> raise (Failure "empty theory ended up in the theory tree somehow")
 
-let rec get_all_signas t =
+let rec get_all_signas t loc =
   match t with
   | None -> []
-  | Some(HLeaf(x)) -> [(Mathdata.hashsigna x,x)]
-  | Some(HBin(tl,tr)) -> get_all_signas tl @ get_all_signas tr
+  | Some(HLeaf(x)) -> [(bitseq_hashval (List.rev loc),Mathdata.hashsigna x,x)]
+  | Some(HBin(tl,tr)) -> get_all_signas tl (false::loc) @ get_all_signas tr (true::loc)
 
 let rec get_added_theories t1 t2 =
   match (t1,t2) with
@@ -159,11 +159,11 @@ let rec get_added_theories t1 t2 =
   | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_theories t1l t2l @ get_added_theories t1r t2r (*** inefficient, but new theories should be rare ***)
   | (_,_) -> raise (Failure("Impossible pair of old and new theory trees"))
 
-let rec get_added_signas t1 t2 =
+let rec get_added_signas t1 t2 loc =
   match (t1,t2) with
-  | (None,t2) -> get_all_signas t2
+  | (None,t2) -> get_all_signas t2 loc
   | (Some(HLeaf(_)),Some(HLeaf(_))) -> [] (*** assume equal, which should be an invariant ***)
-  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_signas t1l t2l @ get_added_signas t1r t2r (*** inefficient, but new signatures should be rare ***)
+  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_signas t1l t2l (false::loc) @ get_added_signas t1r t2r (true::loc) (*** inefficient, but new signatures should be rare ***)
   | (_,_) -> raise (Failure("Impossible pair of old and new signature trees"))
 
 (*** save information indicating how to rebuild the theory and signature trees upon initialization ***)
@@ -194,14 +194,14 @@ let update_signatures oldsigroot oldsigtree newsigtree =
       match newsigroot with
       | None -> raise (Failure "cannot go from nonempty sig tree to empty sig tree")
       | Some(newsigrootreal) ->
-	  let addedsignas = get_added_signas oldsigtree newsigtree in
+	  let addedsignas = get_added_signas oldsigtree newsigtree [] in
 	  List.iter
-	    (fun (h,signa) -> Mathdata.DbSigna.dbput h signa)
+	    (fun (_,k,signa) -> Mathdata.DbSigna.dbput k signa)
 	    addedsignas;
 	  let stf = Filename.concat (datadir()) "signatreeinfo" in
 	  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 stf in
-	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list seo_hashval) seoc
-		   (oldsigroot,newsigrootreal,List.map (fun (h,_) -> h) addedsignas)
+	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list (seo_prod seo_hashval seo_hashval)) seoc
+		   (oldsigroot,newsigrootreal,List.map (fun (h,k,_) -> (h,k)) addedsignas)
 		   (ch,None));
 	  close_out ch;
 	  add_sigtree newsigroot newsigtree
@@ -223,7 +223,7 @@ let init_thytrees () =
 		let th = Mathdata.DbTheory.dbget h in
 		newthytree := Some(Mathdata.ottree_insert !newthytree (hashval_bitseq h) th)
 	      with Not_found ->
-		raise (Failure("fatal error trying to initailize theory trees; unknown theory " ^ (hashval_hexstring h))))
+		raise (Failure("fatal error trying to initialize theory trees; unknown theory " ^ (hashval_hexstring h))))
 	    added;
 	  let newroot2 = Mathdata.ottree_hashroot !newthytree in
 	  if newroot2 = Some(newroot) then
@@ -250,17 +250,17 @@ let init_sigtrees () =
     let ch = open_in_bin stf in
     try
       while true do
-	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
+	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list (sei_prod sei_hashval sei_hashval)) seic (ch,None) in
 	try
 	  let oldsigtree = lookup_sigtree oldroot in
 	  let newsigtree = ref oldsigtree in
 	  List.iter
-	    (fun h ->
+	    (fun (h,k) ->
 	      try
-		let s = Mathdata.DbSigna.dbget h in
+		let s = Mathdata.DbSigna.dbget k in
 		newsigtree := Some(Mathdata.ostree_insert !newsigtree (hashval_bitseq h) s)
 	      with Not_found ->
-		raise (Failure("fatal error trying to initailize signature trees; unknown signa " ^ (hashval_hexstring h))))
+		raise (Failure("fatal error trying to initialize signature trees; unknown signa " ^ (hashval_hexstring h))))
 	    added;
 	  let newroot2 = Mathdata.ostree_hashroot !newsigtree in
 	  if newroot2 = Some(newroot) then

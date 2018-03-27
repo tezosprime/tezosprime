@@ -35,6 +35,7 @@ val pubaddr_p : addr -> bool
 
 val md160_bitseq : md160 -> bool list
 val hashval_bitseq : hashval -> bool list
+val bitseq_hashval : bool list -> hashval
 val hashval_md160 : hashval -> md160
 val hashval_p2pkh_payaddr : hashval -> payaddr
 val hashval_p2sh_payaddr : hashval -> payaddr

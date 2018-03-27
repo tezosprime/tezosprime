@@ -227,6 +227,17 @@ let bitseq_addr bs =
   let (x4,bl) = bitseq_int32 bl 0l 31 in
   (p,x0,x1,x2,x3,x4)
 
+let bitseq_hashval bl =
+  let (x0,bl) = bitseq_int32 bl 0l 31 in
+  let (x1,bl) = bitseq_int32 bl 0l 31 in
+  let (x2,bl) = bitseq_int32 bl 0l 31 in
+  let (x3,bl) = bitseq_int32 bl 0l 31 in
+  let (x4,bl) = bitseq_int32 bl 0l 31 in
+  let (x5,bl) = bitseq_int32 bl 0l 31 in
+  let (x6,bl) = bitseq_int32 bl 0l 31 in
+  let (x7,bl) = bitseq_int32 bl 0l 31 in
+  (x0,x1,x2,x3,x4,x5,x6,x7)
+
 (*** x is an address, 32 bits, represented here as 32 int32s ***)
 let hashaddr x =
   let (p,x0,x1,x2,x3,x4) = x in

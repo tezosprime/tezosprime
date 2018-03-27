@@ -99,6 +99,7 @@ let rec tx_outputs_valid_one_owner_oc oc outpl ool pol nol =
 (*** Ensure ownership deeds are sent to term addresses and publications are sent to publication addresses. ***)
 let rec tx_outputs_valid_addr_cats outpl =
   match outpl with
+  | (alpha,(_,Bounty(_)))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr (*** bounties should only be published to term addresses ***)
   | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsNegProp))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr

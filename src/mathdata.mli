@@ -59,6 +59,7 @@ module DbTheory :
 val hashtheory : theory -> hashval option
 
 val theoryspec_theory : theoryspec -> theory
+val theory_burncost : theory -> int64
 val theoryspec_burncost : theoryspec -> int64
 
 val seo_signaspec : (int -> int -> 'a -> 'a) -> signaspec -> 'a -> 'a
@@ -69,6 +70,7 @@ val sei_signa : (int -> 'a -> int * 'a) -> 'a -> signa * 'a
 val hashsigna : signa -> hashval
 
 val signaspec_signa : signaspec -> signa
+val signa_burncost : signa -> int64
 val signaspec_burncost : signaspec -> int64
 
 module DbSigna :

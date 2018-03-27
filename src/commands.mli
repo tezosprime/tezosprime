@@ -64,3 +64,4 @@ val query_at_block : string -> (hashval * Block.poburn) option -> hashval -> int
 val query : string -> jsonval
 val query_blockheight : int64 -> jsonval
 
+val preassetinfo_report : out_channel -> preasset -> unit

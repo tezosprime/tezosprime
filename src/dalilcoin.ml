@@ -1774,6 +1774,15 @@ let do_command oc l =
 	    Printf.fprintf oc "validatetx <tx in hex>\n";
 	    flush oc
       end
+  | "preassetinfo" ->
+      begin
+	match al with
+	| [a] ->
+	    let (j,_) = parse_jsonval a in
+	    let u = preasset_from_json j in
+	    Commands.preassetinfo_report oc u
+	| _ -> raise (Failure("preassetinfo <preasset as json>"))
+      end
   | "terminfo" ->
       begin
 	let (jtm,jtp,thyid) =

@@ -79,7 +79,7 @@ echo let reward_lock_absolute = ref None >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else
-    echo let genesistimestamp = ref 1519293016L >> src/config.ml
+    echo let genesistimestamp = ref 1522226815L >> src/config.ml
 fi
 echo let maxburn = ref 0L >> src/config.ml
 echo let maxburnrate = ref 0L >> src/config.ml

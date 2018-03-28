@@ -681,7 +681,6 @@ let ledgerroot_of_blockchain bc =
 
 (*** retargeting at each step
  (July 2017, changed to very slow block time target of 6 hours, 21600 seconds)
- (Sep 2017, changed testnet to block time target of 1 hour, 3600 seconds)
  ***)
 let retarget tar deltm =
   min_big_int
@@ -689,7 +688,7 @@ let retarget tar deltm =
     (div_big_int
        (mult_big_int tar
 	  (big_int_of_int32 (Int32.add 10000l deltm)))
-       (big_int_of_int (10000 + (if !Config.testnet then 3600 else 21600))))
+       (big_int_of_int (10000 + 21600)))
 
 let difficulty tar =
   div_big_int !max_target tar

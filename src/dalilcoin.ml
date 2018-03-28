@@ -1439,6 +1439,64 @@ let do_command oc l =
 	    recursively_revalidate_blocks hh
 	| _ -> raise (Failure "revalidateblock <blockhash>")
       end
+  | "rawblockheader" ->
+      begin
+	match al with
+	| [hh] ->
+	    begin
+	      let h = hexstring_hashval hh in
+	      try
+		let bh = DbBlockHeader.dbget h in
+		let sb = Buffer.create 1000 in
+		seosbf (seo_blockheader seosb bh (sb,None));
+		let s = string_hexstring (Buffer.contents sb) in
+		Printf.fprintf oc "%s\n" s;
+	      with Not_found ->
+		Printf.fprintf oc "Could not find header %s\n" hh
+	    end
+	| _ ->
+	    raise (Failure("rawblockheader <blockid>"))
+      end
+  | "rawblockdelta" ->
+      begin
+	match al with
+	| [hh] ->
+	    begin
+	      let h = hexstring_hashval hh in
+	      try
+		let bd = DbBlockDelta.dbget h in
+		let sb = Buffer.create 1000 in
+		seosbf (seo_blockdelta seosb bd (sb,None));
+		let s = string_hexstring (Buffer.contents sb) in
+		Printf.fprintf oc "%s\n" s;
+	      with Not_found ->
+		Printf.fprintf oc "Could not find delta %s\n" hh
+	    end
+	| _ ->
+	    raise (Failure("rawblockdelta <blockid>"))
+      end
+  | "rawblock" ->
+      begin
+	match al with
+	| [hh] ->
+	    begin
+	      let h = hexstring_hashval hh in
+	      try
+		let bh = DbBlockHeader.dbget h in
+		try
+		  let bd = DbBlockDelta.dbget h in
+		  let sb = Buffer.create 1000 in
+		  seosbf (seo_block seosb (bh,bd) (sb,None));
+		  let s = string_hexstring (Buffer.contents sb) in
+		  Printf.fprintf oc "%s\n" s;
+		with Not_found ->
+		  Printf.fprintf oc "Could not find delta %s\n" hh
+	      with Not_found ->
+		Printf.fprintf oc "Could not find header %s\n" hh
+	    end
+	| _ ->
+	    raise (Failure("rawblock <blockid>"))
+      end
   | "getblock" ->
       begin
 	match al with

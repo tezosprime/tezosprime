@@ -1959,8 +1959,6 @@ let initialize () =
     let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
     if !Config.testnet then
       begin
-	max_target := shift_left_big_int unit_big_int 210;
-	genesistarget := shift_left_big_int unit_big_int 205; (* easy initial target for testnet *)
 	if !Config.ltcrpcport = 9332 then Config.ltcrpcport := 19332;
       end;
     if Sys.file_exists (Filename.concat datadir "lock") then

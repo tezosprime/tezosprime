@@ -1847,7 +1847,7 @@ let preassetinfo_report oc u =
 	end;
       if not (createsobjs = []) then
 	begin
-	  Printf.fprintf oc "%d objects possibly created:\n" (List.length createsprops);
+	  Printf.fprintf oc "%d objects possibly created:\n" (List.length createsobjs);
 	  List.iter
 	    (fun (h,k) ->
 	      Printf.fprintf oc "If there is no owner of (pure) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
@@ -1867,7 +1867,7 @@ let preassetinfo_report oc u =
 	end;
       if not (createsnegprops = []) then
 	begin
-	  Printf.fprintf oc "%d negated propositions possibly created:\n" (List.length createsprops);
+	  Printf.fprintf oc "%d negated propositions possibly created:\n" (List.length createsnegprops);
 	  List.iter
 	    (fun h ->
 	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_daliladdrstr (hashval_term_addr h)) (hashval_hexstring h);

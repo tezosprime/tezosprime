@@ -103,15 +103,17 @@ let rec tx_outputs_valid_addr_cats outpl =
   | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsNegProp))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
-  | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr ->
+  | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr -> false (*** disable theories and signatures for now; can be hard forked in later upon demand ***)
+(***
       begin
 	match hashtheory (theoryspec_theory dl) with
 	| Some(dlh) ->
 	    alpha = hashval_pub_addr dlh && tx_outputs_valid_addr_cats outpr
 	| None -> false
       end
-  | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr ->
-      alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) && tx_outputs_valid_addr_cats outpr
+***)
+  | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr -> false (*** disable theories and signatures for now; can be hard forked in later upon demand ***)
+(***      alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) && tx_outputs_valid_addr_cats outpr ***)
   | (alpha,(_,DocPublication(beta,h,th,dl)))::outpr -> alpha = hashval_pub_addr (hashopair2 th (hashdoc dl)) && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,Marker))::outpr -> pubaddr_p alpha && tx_outputs_valid_addr_cats outpr (*** markers should only be published to publication addresses, since they're used to prepublish an intention to publish ***)
   | _::outpr -> tx_outputs_valid_addr_cats outpr

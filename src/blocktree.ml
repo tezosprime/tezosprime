@@ -670,7 +670,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
               DbBlacklist.dbput h true;
-	      DbBlockHeader.dbdelete h;
+(*	      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
             end
 	  else if
 	    valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned
@@ -755,7 +755,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
               DbBlacklist.dbput h true;
-	      DbBlockHeader.dbdelete h;
+(*	      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
             end
 	with Not_found ->
 	  Printf.fprintf !log "unexpected Not_found in process_new_header_a %s\n" hh;
@@ -794,8 +794,8 @@ and process_new_header_b h hh initialization knownvalid =
       process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid
   with (*** in some cases, failure should lead to blacklist and removal of the header, but it's not clear which cases; if it's in a block we might need to distinguish between definitely incorrect vs. possibly incorrect ***)
   | Not_found ->
-      Printf.fprintf !log "Problem with blockheader %s, deleting it\n" hh; flush !log;
-      DbBlockHeader.dbdelete h;
+      Printf.fprintf !log "Problem with blockheader %s\n" hh; flush !log;
+(*      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
   | e ->
       Printf.fprintf !log "exception %s\n" (Printexc.to_string e); flush !log;
       ()

@@ -898,7 +898,7 @@ let stakingthread () =
 		  end
 	    end;
 	    let ltm = ltc_medtime() in
-	    let stm = Int64.sub ltm 1200L in
+	    let stm = Int64.sub ltm 86400L in
 	    let ftm = Int64.add ltm 86400L in
 	    if tm < ftm && Int64.of_float (Unix.time()) < ftm then
 	      compute_staking_chances best (if tm > stm then tm else stm) ftm
@@ -910,7 +910,7 @@ let stakingthread () =
 	  Thread.delay 10.0;
 	  Printf.fprintf !log "calling compute_staking_chances nextstakechances\n"; flush !log;
 	  let ltm = ltc_medtime() in
-	  let stm = Int64.sub ltm 1200L in
+	  let stm = Int64.sub ltm 86400L in
 	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best stm ftm
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
@@ -919,7 +919,7 @@ let stakingthread () =
 	  Thread.delay 3600.0;
 	  Printf.fprintf !log "Continuing staking.\n";
 	  let ltm = ltc_medtime() in
-	  let stm = Int64.sub ltm 1200L in
+	  let stm = Int64.sub ltm 86400L in
 	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best stm ftm
     with

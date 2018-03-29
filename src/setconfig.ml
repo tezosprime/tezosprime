@@ -201,7 +201,7 @@ let datadir_from_command_line () =
         begin
           Config.testnet := true;
           if not (List.mem "port" !setl) then Config.port := 20804;
-          if not (List.mem "seed" !setl) then Config.seed := "61d447ed41c7df3d7c724fcfbef71242ae74b8b3defafe4541853d0fdcd2ce7a"; (*** litecoin block 1341062 ***)
+          if not (List.mem "seed" !setl) then Config.seed := "05db5c435747921b3fe9d39cbf5089c2918e4055ef11843a8b36eecf2a90f0a2"; (*** litecoin block 1341062 ***)
         end
     with Not_found -> ()
   done;;

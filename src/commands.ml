@@ -1870,7 +1870,6 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "%d negated propositions possibly created:\n" (List.length createsnegprops);
 	  List.iter
 	    (fun h ->
-	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_daliladdrstr (hashval_term_addr h)) (hashval_hexstring h);
 	      let h2 = hashtag (hashopair2 thyid h) 33l in
 	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_daliladdrstr (hashval_term_addr h2)) (hashval_hexstring h2))
 	    createsnegprops

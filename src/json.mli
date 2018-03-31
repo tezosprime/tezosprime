@@ -14,6 +14,8 @@ type jsonval =
 
 val print_jsonval : out_channel -> jsonval -> unit
 
+exception JsonParseFail of int * string
+
 val parse_jsonval_start : string * int -> jsonval * int
 val parse_jsonval : string -> jsonval * int
 

@@ -1719,13 +1719,25 @@ let do_command oc l =
 	try
 	  match al with
 	  | [inp;outp] ->
-	      let (inpj,_) = parse_jsonval inp in
-	      let (outpj,_) = parse_jsonval outp in
-	      let tau = Commands.createtx inpj outpj in
-	      let s = Buffer.create 100 in
-	      seosbf (seo_stx seosb (tau,([],[])) (s,None));
-	      let hs = Hashaux.string_hexstring (Buffer.contents s) in
-	      Printf.fprintf oc "%s\n" hs
+	      begin
+		try
+		  let (inpj,_) = parse_jsonval inp in
+		  begin
+		    try
+		      let (outpj,_) = parse_jsonval outp in
+		      let tau = Commands.createtx inpj outpj in
+		      let s = Buffer.create 100 in
+		      seosbf (seo_stx seosb (tau,([],[])) (s,None));
+		      let hs = Hashaux.string_hexstring (Buffer.contents s) in
+		      Printf.fprintf oc "%s\n" hs
+		    with
+		    | JsonParseFail(i,msg) ->
+			Printf.fprintf oc "Problem parsing json object for tx inputs at position %d %s\n" i msg
+		  end
+		with
+		| JsonParseFail(i,msg) ->
+		    Printf.fprintf oc "Problem parsing json object for tx outputs at position %d %s\n" i msg
+	      end
 	  | _ -> raise Exit
 	with Exit ->
 	  Printf.fprintf oc "createtx <inputs as json array> <outputs as json array>\neach input: {\"<addr>\":\"<assetid>\"}\neach output: {\"addr\":\"<addr>\",\"val\":<fraenks>,\"lock\":<height>,\"obligationaddress\":\"<addr>\"}\nwhere lock is optional (default null, unlocked output)\nand obligationaddress is optional (default null, meaning the holder address is implicitly the obligationaddress)\n"
@@ -1743,8 +1755,11 @@ let do_command oc l =
 	      Printf.fprintf oc "%s\n" hs
 	  | _ ->
 	      raise Exit
-	with Exit ->
-	  Printf.fprintf oc "creategeneraltx <tx as json object>\n"
+	with
+	| JsonParseFail(i,msg) ->
+	    Printf.fprintf oc "Problem parsing json object for tx at position %d %s\n" i msg
+	| Exit ->
+	    Printf.fprintf oc "creategeneraltx <tx as json object>\n"
       end
   | "createsplitlocktx" ->
       begin
@@ -1835,9 +1850,15 @@ let do_command oc l =
       begin
 	match al with
 	| [a] ->
-	    let (j,_) = parse_jsonval a in
-	    let u = preasset_from_json j in
-	    Commands.preassetinfo_report oc u
+	    begin
+	      try
+		let (j,_) = parse_jsonval a in
+		let u = preasset_from_json j in
+		Commands.preassetinfo_report oc u
+	      with
+	      | JsonParseFail(i,msg) ->
+		  Printf.fprintf oc "Problem parsing json object for preasset at position %d %s\n" i msg
+	    end
 	| _ -> raise (Failure("preassetinfo <preasset as json>"))
       end
   | "terminfo" ->
@@ -1850,50 +1871,62 @@ let do_command oc l =
 	  | _ ->
 	      raise (Failure("terminfo <term as json> [<type as json>, with default 'prop'] [<theoryid, default of empty theory>]"))
 	in
-	let (jtm,_) = parse_jsonval jtm in
-	let (jtp,_) = parse_jsonval jtp in
-	let m =
-	  match jtm with
-	  | JsonStr(x) -> Logic.TmH(hexstring_hashval x) (*** treat a string as just the term root abbreviating the term ***)
-	  | _ -> trm_from_json jtm
-	in
-	let a =
-	  match jtp with
-	  | JsonStr(x) when x = "prop" -> Logic.Prop
-	  | JsonNum(x) -> Logic.Base(int_of_string x)
-	  | _ -> stp_from_json jtp
-	in (*** not checking if the term has the type; this could depend on the theory ***)
-	let h = tm_hashroot m in
-	let tph = hashtp a in
-	Printf.fprintf oc "term root: %s\n" (hashval_hexstring h);
-	Printf.fprintf oc "pure term address: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
-	if thyid = None then
-	  begin
-	    let k = hashtag (hashopair2 None (hashpair h tph)) 32l in
-	    Printf.fprintf oc "obj id in empty theory: %s\n" (hashval_hexstring k);
-	    Printf.fprintf oc "obj address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
-	  end
-	else
-	  begin
-	    let k = hashtag (hashopair2 thyid (hashpair h tph)) 32l in
-	    Printf.fprintf oc "obj id in given theory: %s\n" (hashval_hexstring k);
-	    Printf.fprintf oc "obj address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
-	  end;
-	if a = Logic.Prop then
-	  begin
-	    if thyid = None then
-	      begin
-		let k = hashtag (hashopair2 None h) 33l in
-		Printf.fprintf oc "prop id in empty theory: %s\n" (hashval_hexstring k);
-		Printf.fprintf oc "prop address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
-	      end
-	    else
-	      begin
-		let k = hashtag (hashopair2 thyid h) 33l in
-		Printf.fprintf oc "prop id in given theory: %s\n" (hashval_hexstring k);
-		Printf.fprintf oc "prop address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
-	      end
-	  end
+	begin
+	  try
+	    let (jtm,_) = parse_jsonval jtm in
+	    begin
+	    try
+	      let (jtp,_) = parse_jsonval jtp in
+	      let m =
+		match jtm with
+		| JsonStr(x) -> Logic.TmH(hexstring_hashval x) (*** treat a string as just the term root abbreviating the term ***)
+		| _ -> trm_from_json jtm
+	      in
+	      let a =
+		match jtp with
+		| JsonStr(x) when x = "prop" -> Logic.Prop
+		| JsonNum(x) -> Logic.Base(int_of_string x)
+		| _ -> stp_from_json jtp
+	      in (*** not checking if the term has the type; this could depend on the theory ***)
+	      let h = tm_hashroot m in
+	      let tph = hashtp a in
+	      Printf.fprintf oc "term root: %s\n" (hashval_hexstring h);
+	      Printf.fprintf oc "pure term address: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+	      if thyid = None then
+		begin
+		  let k = hashtag (hashopair2 None (hashpair h tph)) 32l in
+		  Printf.fprintf oc "obj id in empty theory: %s\n" (hashval_hexstring k);
+		  Printf.fprintf oc "obj address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		end
+	      else
+		begin
+		  let k = hashtag (hashopair2 thyid (hashpair h tph)) 32l in
+		  Printf.fprintf oc "obj id in given theory: %s\n" (hashval_hexstring k);
+		  Printf.fprintf oc "obj address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		end;
+	      if a = Logic.Prop then
+		begin
+		  if thyid = None then
+		    begin
+		      let k = hashtag (hashopair2 None h) 33l in
+		      Printf.fprintf oc "prop id in empty theory: %s\n" (hashval_hexstring k);
+		      Printf.fprintf oc "prop address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		    end
+		  else
+		    begin
+		      let k = hashtag (hashopair2 thyid h) 33l in
+		      Printf.fprintf oc "prop id in given theory: %s\n" (hashval_hexstring k);
+		      Printf.fprintf oc "prop address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		    end
+		end
+	    with
+	    | JsonParseFail(i,msg) ->
+		Printf.fprintf oc "Problem parsing json object for tp at position %d %s\n" i msg
+	    end
+	  with
+	  | JsonParseFail(i,msg) ->
+	      Printf.fprintf oc "Problem parsing json object for tm at position %d %s\n" i msg
+	end
       end
   | "decodetx" ->
       begin

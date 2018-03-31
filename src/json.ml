@@ -46,6 +46,8 @@ let whitespace_p c = c = ' ' || c = '\n' || c = '\r' || c = '\t'
 
 let digit_p c = let d = Char.code c in d >= 48 && d <= 57
 
+exception JsonParseFail of int * string
+
 let parse_jsonval_start(x,i) =
   let rec parse_jsonval_a x i l : jsonval * int =
     if i < l then
@@ -73,9 +75,9 @@ let parse_jsonval_start(x,i) =
       else if whitespace_p c then
 	parse_jsonval_a x (i+1) l
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_b x i l : jsonval * int =
     let (v,j) = parse_jsonval_a x i l in
     if j < l then
@@ -83,21 +85,21 @@ let parse_jsonval_start(x,i) =
       if c = '\'' then
 	(v,j+1)
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_s x i l : string * int =
     let b = Buffer.create 10 in
     let j = ref i in
     while (!j < l && x.[!j] != '"') do
-      if x.[!j] = '\\' then raise Exit; (** for cryptocurrency applications, don't need to parse escaped characters **)
+      if x.[!j] = '\\' then raise (JsonParseFail(i,"")); (** for cryptocurrency applications, don't need to parse escaped characters **)
       Buffer.add_char b x.[!j];
       incr j
     done;
     if !j < l then
       (Buffer.contents b,!j+1)
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_num x i l : string * int =
     let b = Buffer.create 10 in
     let j = ref i in
@@ -128,9 +130,9 @@ let parse_jsonval_start(x,i) =
       else if whitespace_p c then
 	parse_jsonval_obj x (i+1) l
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_obj_a x y i l : (string * jsonval) list * int =
     if i < l then
       let c = x.[i] in
@@ -140,9 +142,9 @@ let parse_jsonval_start(x,i) =
 	let (v,k) = parse_jsonval_a x (i+1) l in
 	parse_jsonval_obj_b x (y,v) k l
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_obj_b x (y,v) i l : (string * jsonval) list * int =
     if i < l then
       let c = x.[i] in
@@ -154,9 +156,9 @@ let parse_jsonval_start(x,i) =
 	let (r,m) = parse_jsonval_obj x (i+1) l in
 	((y,v)::r,m)
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_arr x i l : jsonval list * int =
     if i < l then
       let c = x.[i] in
@@ -168,7 +170,7 @@ let parse_jsonval_start(x,i) =
 	let (v,k) = parse_jsonval_a x i l in
 	parse_jsonval_arr_a x v k l
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_arr_a x v i l : jsonval list * int =
     if i < l then
       let c = x.[i] in
@@ -180,24 +182,24 @@ let parse_jsonval_start(x,i) =
       else if c = ']' then
 	([v],i+1)
       else
-	raise Exit
+	raise (JsonParseFail(i,""))
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_null x i l =
     if i+2 < l && x.[i] = 'u' && x.[i+1] = 'l' && x.[i+2] = 'l' then
       (JsonNull,i+3)
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_true x i l =
     if i+2 < l && x.[i] = 'r' && x.[i+1] = 'u' && x.[i+2] = 'e' then
       (JsonBool true,i+3)
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   and parse_jsonval_false x i l =
     if i+3 < l && x.[i] = 'a' && x.[i+1] = 'l' && x.[i+2] = 's' && x.[i+3] = 'e' then
       (JsonBool false,i+4)
     else
-      raise Exit
+      raise (JsonParseFail(i,""))
   in
   parse_jsonval_a x i (String.length x)
 

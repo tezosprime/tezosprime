@@ -1592,13 +1592,13 @@ let query_at_block q pbh ledgerroot blkh =
 	      | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
 		  match bblkh with
 		  | Some(bblkh) ->
-		      [("prevblock",
-			JsonObj([("block",JsonStr(hashval_hexstring prevh));
-				 ("height",JsonNum(Int64.to_string bblkh));
-				 ("ltcblock",JsonStr(hashval_hexstring lblkh));
-				 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-				 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-				 ("ltcburned",JsonNum(Int64.to_string burned))]))]
+		      [("height",JsonNum(Int64.to_string bblkh));
+		        ("prevblock",
+			 JsonObj([("block",JsonStr(hashval_hexstring prevh));
+				  ("ltcblock",JsonStr(hashval_hexstring lblkh));
+				  ("ltcburntx",JsonStr(hashval_hexstring ltxh));
+				  ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
+				  ("ltcburned",JsonNum(Int64.to_string burned))]))]
 		  | None ->
 		      [("prevblock",
 			JsonObj([("block",JsonStr(hashval_hexstring prevh));

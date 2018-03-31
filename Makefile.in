@@ -93,7 +93,7 @@ bin/net.cmi: src/net.mli bin/hash.cmi
 bin/blocktree.cmi: src/blocktree.mli bin/hash.cmi bin/signat.cmi bin/tx.cmi bin/ctre.cmi bin/block.cmi bin/net.cmi bin/ltcrpc.cmi
 	$(OCAMLC) -I bin -o bin/blocktree.cmi -c src/blocktree.mli
 
-bin/setconfig.cmi: src/setconfig.mli
+bin/setconfig.cmi: src/setconfig.mli bin/json.cmi
 	$(OCAMLC) -I bin -o bin/setconfig.cmi -c src/setconfig.mli
 
 bin/commands.cmi: src/commands.mli bin/ctre.cmi bin/json.cmi
@@ -177,7 +177,7 @@ bin/net.cmx: src/net.ml bin/net.cmi bin/ser.cmx bin/hash.cmx bin/version.cmx bin
 bin/blocktree.cmx: src/blocktree.ml bin/blocktree.cmi bin/ser.cmx bin/hash.cmx bin/version.cmx bin/utils.cmx bin/db.cmx bin/assets.cmx bin/signat.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/net.cmx bin/ltcrpc.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/blocktree.cmx -c src/blocktree.ml
 
-bin/setconfig.cmx: src/setconfig.ml bin/setconfig.cmi bin/config.cmx
+bin/setconfig.cmx: src/setconfig.ml bin/setconfig.cmi bin/config.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -o bin/setconfig.cmx -c src/setconfig.ml
 
 bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bin/hash.cmx bin/signat.cmx bin/net.cmx bin/ctre.cmx bin/cryptocurr.cmx bin/ctre.cmx bin/blocktree.cmx bin/json.cmx
@@ -267,7 +267,7 @@ bin/net.cmo: src/net.ml bin/net.cmi bin/ser.cmo bin/hash.cmo bin/version.cmo bin
 bin/blocktree.cmo: src/blocktree.ml bin/blocktree.cmi bin/ser.cmo bin/hash.cmo bin/version.cmo bin/utils.cmo bin/db.cmo bin/assets.cmo bin/signat.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/net.cmo bin/ltcrpc.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/blocktree.cmo -c src/blocktree.ml
 
-bin/setconfig.cmo: src/setconfig.ml bin/setconfig.cmi bin/config.cmo
+bin/setconfig.cmo: src/setconfig.ml bin/setconfig.cmi bin/config.cmo bin/json.cmo
 	$(OCAMLC) -I bin -o bin/setconfig.cmo -c src/setconfig.ml
 
 bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bin/hash.cmo bin/signat.cmo bin/net.cmo bin/ctre.cmo bin/cryptocurr.cmo bin/ctre.cmo bin/blocktree.cmo bin/json.cmo

@@ -274,13 +274,12 @@ let get_blockdelta h =
 
 (***
  hitval computes a big_int by hashing the timestamp (in seconds), the stake's asset id and the current stake modifier.
- If there is no proof of burn or proof of storage, then there's a hit if the hitval is less than the target times the stake.
- If there is proof of burn, the number of litecoin satoshis * 10000 is added to the stake.
- With a proof of storage, the stake is multiplied by 1.25 before the comparison is made.
+ If there is no proof of burn, then there's a hit if the hitval is less than the target times the stake.
+ If there is proof of burn, the number of litecoin satoshis * 1000000 is added to the stake.
 ***)
 let check_hit_b blkh bday obl v csm tar tmstmp stkid stkaddr burned =
   let v =
-    Int64.add v (Int64.mul (min burned 100000000000L) 1000000L) (*** burning more than 1000 ltc still counts as only 1000 ***)
+    Int64.add v (Int64.mul (min burned 100000000000L) 1000000L) (*** burning more than 1000 ltc still counts as "only" 1000 ***)
   in
   lt_big_int (hitval tmstmp stkid csm) (mult_big_int tar (coinage blkh bday obl v))
 

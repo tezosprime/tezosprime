@@ -384,15 +384,14 @@ let compute_staking_chances n fromtm totm =
 	  (*** go through assets and check for staking at time !i ***)
 	  List.iter
 	    (fun (stkaddr,h,bday,obl,v) ->
-	      let v2 = Int64.add v (Int64.mul (maxburnnow !i) 1000L) in
               (** Printf.fprintf !log "Checking for staking of %s at time %Ld\n" (hashval_hexstring h) !i; flush !log; **)
 	      let caf = coinagefactor blkhght bday obl in
-	      if gt_big_int (mult_big_int caf (big_int_of_int64 v2)) zero_big_int then
+	      if gt_big_int caf zero_big_int then
 		begin
 		  let hv = hitval !i h csm1 in
 		  let mtar = mult_big_int tar1 caf in
-		  let minv = succ_big_int (div_big_int hv mtar) in
-		  let toburn = succ_big_int (succ_big_int (div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 1000))) in
+		  let minv = div_big_int hv mtar in
+		  let toburn = succ_big_int (div_big_int (sub_big_int minv (big_int_of_int64 v)) (big_int_of_int 1000000)) in
 		  if lt_big_int zero_big_int toburn && lt_big_int toburn (big_int_of_string "1000000000") then (*** 10 ltc limit for reporting staking chances ***)
 		    begin
 		      match !minburntostake with
@@ -1594,8 +1593,8 @@ let do_command oc l =
   | "extraburn" ->
       begin
 	match al with
-	| [a] -> extraburn := litoshis_of_ltc a
-	| [a;b] when b = "litoshis" -> extraburn := Int64.of_string a
+	| [a] -> (extraburn := litoshis_of_ltc a; Hashtbl.clear nextstakechances)
+	| [a;b] when b = "litoshis" -> (extraburn := Int64.of_string a; Hashtbl.clear nextstakechances)
 	| _ -> raise (Failure "extraburn <ltc> or extraburn <litoshis> litoshis")
       end
   | "printassets" when al = [] -> Commands.printassets oc

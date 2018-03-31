@@ -409,7 +409,7 @@ let compute_staking_chances n fromtm totm =
 		    (if allowedburn !i then
 		      nextstake !i stkaddr h bday obl v (Some(0L))) (*** burn nothing, but announce in the pow chain (ltc) ***)
 		  else if allowedburn !i then
-		    if lt_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn ***)
+		    if le_big_int toburn (big_int_of_int64 (maxburnnow !i)) then (*** hit with burn ***)
 		      nextstake !i stkaddr h bday obl v (Some(int64_of_big_int toburn))
 		end
 	    )

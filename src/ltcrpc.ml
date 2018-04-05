@@ -143,18 +143,25 @@ let json_assoc_litoshis k al =
 
 let ltc_getbestblockhash () =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"gbbh\", \"method\": \"getbestblockhash\", \"params\": [] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
-    match parse_jsonval l with
-    | (JsonObj(al),_) -> json_assoc_string "result" al
-    | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc getbestblockhash:\n%s\n" l;
-	raise Not_found
+    if !Config.ltcoffline then
+      begin
+	Printf.printf "call getbestblockhash in ltc\n>> "; flush stdout;
+	let h = read_line() in
+	h
+      end
+    else
+      let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+      let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"gbbh\", \"method\": \"getbestblockhash\", \"params\": [] }'" in
+      let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+      let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+      let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+      let l = input_line inc in
+      ignore (Unix.close_process_full (inc,outc,errc));
+      match parse_jsonval l with
+      | (JsonObj(al),_) -> json_assoc_string "result" al
+      | _ ->
+	  Printf.fprintf !Utils.log "problem return from ltc getbestblockhash:\n%s\n" l;
+	  raise Not_found
   with _ ->
     raise Not_found
 
@@ -163,13 +170,22 @@ let dalilcoin_candidate_p h =
 
 let ltc_getblock h =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"gb\", \"method\": \"getblock\", \"params\": [\"" ^ h ^ "\"] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
+    let l =
+      if !Config.ltcoffline then
+	begin
+	  Printf.printf "call getblock %s in ltc\n>> " h; flush stdout;
+	  read_line()
+	end
+      else
+	let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+	let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"gb\", \"method\": \"getblock\", \"params\": [\"" ^ h ^ "\"] }'" in
+	let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+	let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+	let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+	let l = input_line inc in
+	ignore (Unix.close_process_full (inc,outc,errc));
+	l
+    in
     match parse_jsonval l with
     | (JsonObj(al),_) ->
 	begin
@@ -207,22 +223,31 @@ let ltc_getblock h =
 
 let ltc_listunspent () =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let addrl = Buffer.create 40 in
-    let fstaddr = ref true in
-    List.iter
-      (fun a ->
-	if !fstaddr then fstaddr := false else Buffer.add_char addrl ',';
-	Buffer.add_char addrl '"';
-	Buffer.add_string addrl a;
-	Buffer.add_char addrl '"')
-      !Config.ltcaddresses;
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"lu\", \"method\": \"listunspent\", \"params\": [1,9999999,[" ^ (Buffer.contents addrl) ^ "]] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
+    let l =
+      if !Config.ltcoffline then
+	begin
+	  Printf.printf "call listunspent in ltc\n>> "; flush stdout;
+	  read_line()
+	end
+      else
+	let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+	let addrl = Buffer.create 40 in
+	let fstaddr = ref true in
+	List.iter
+	  (fun a ->
+	    if !fstaddr then fstaddr := false else Buffer.add_char addrl ',';
+	    Buffer.add_char addrl '"';
+	    Buffer.add_string addrl a;
+	    Buffer.add_char addrl '"')
+	  !Config.ltcaddresses;
+	let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"lu\", \"method\": \"listunspent\", \"params\": [1,9999999,[" ^ (Buffer.contents addrl) ^ "]] }'" in
+	let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+	let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+	let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+	let l = input_line inc in
+	ignore (Unix.close_process_full (inc,outc,errc));
+	l
+    in
     let utxol = ref [] in
     match parse_jsonval l with
     | (JsonObj(al),_) ->
@@ -258,7 +283,7 @@ let ltc_listunspent () =
 	raise Not_found
   with _ ->
     raise Not_found
-
+      
 exception InsufficientLtcFunds
 
 let le_num24 x =
@@ -349,13 +374,22 @@ let ltc_createburntx h1 h2 toburn =
 
 let ltc_signrawtransaction txs =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"srtx\", \"method\": \"signrawtransaction\", \"params\": [\"" ^ txs ^ "\"] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
+    let l =
+      if !Config.ltcoffline then
+	begin
+	  Printf.printf "call signrawtransaction %s in ltc\n>> " txs; flush stdout;
+	  read_line()
+	end
+      else
+	let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+	let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"srtx\", \"method\": \"signrawtransaction\", \"params\": [\"" ^ txs ^ "\"] }'" in
+	let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+	let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+	let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+	let l = input_line inc in
+	ignore (Unix.close_process_full (inc,outc,errc));
+	l
+    in
     match parse_jsonval l with
     | (JsonObj(al),_) ->
 	begin 
@@ -372,13 +406,22 @@ let ltc_signrawtransaction txs =
 
 let ltc_sendrawtransaction txs =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"srtx\", \"method\": \"sendrawtransaction\", \"params\": [\"" ^ txs ^ "\"] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
+    let l =
+      if !Config.ltcoffline then
+	begin
+	  Printf.printf "call sendrawtransaction %s in ltc\n>> " txs; flush stdout;
+	  read_line()
+	end
+      else
+	let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+	let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"srtx\", \"method\": \"sendrawtransaction\", \"params\": [\"" ^ txs ^ "\"] }'" in
+	let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+	let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+	let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+	let l = input_line inc in
+	ignore (Unix.close_process_full (inc,outc,errc));
+	l
+    in
     match parse_jsonval l with
     | (JsonObj(al),_) -> json_assoc_string "result" al
     | _ ->
@@ -388,13 +431,22 @@ let ltc_sendrawtransaction txs =
 
 let ltc_gettransactioninfo h =
   try
-    let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
-    let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"grtx\", \"method\": \"getrawtransaction\", \"params\": [\"" ^ h ^ "\",1] }'" in
-    let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
-    let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
-    let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
-    let l = input_line inc in
-    ignore (Unix.close_process_full (inc,outc,errc));
+    let l =
+      if !Config.ltcoffline then
+	begin
+	  Printf.printf "call getrawtransaction %s in ltc\n>> " h; flush stdout;
+	  read_line()
+	end
+      else
+	let userpass = !Config.ltcrpcuser ^ ":" ^ !Config.ltcrpcpass in
+	let call = "'{\"jsonrpc\": \"1.0\", \"id\":\"grtx\", \"method\": \"getrawtransaction\", \"params\": [\"" ^ h ^ "\",1] }'" in
+	let url = "http://127.0.0.1:" ^ (string_of_int !Config.ltcrpcport) ^ "/" in
+	let fullcall = !Config.curl ^ " --user " ^ userpass ^ " --data-binary " ^ call ^ " -H 'content-type: text/plain;' " ^ url in
+	let (inc,outc,errc) = Unix.open_process_full fullcall [| |] in
+	let l = input_line inc in
+	ignore (Unix.close_process_full (inc,outc,errc));
+	l
+    in
     match parse_jsonval l with
     | (JsonObj(al),_) ->
 	begin

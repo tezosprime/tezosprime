@@ -19,6 +19,7 @@ let stringconfigvars = [
 ];;
 let boolconfigvars = [
 ("offline",fun x -> Config.offline := x);
+("ltcoffline",fun x -> Config.ltcoffline := x);
 ("daemon",fun x -> Config.daemon := x);
 ("staking",fun x -> Config.staking := x);
 ("ipv6",fun x -> Config.ipv6 := x);

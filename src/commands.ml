@@ -759,9 +759,13 @@ let printassets_in_ledger oc ledgerroot =
   Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
-  let (bn,cwl) = get_bestnode true in
-  let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = bn in
-  printassets_in_ledger oc ledgerroot
+  match !artificialledgerroot with
+  | Some(ledgerroot) ->
+      printassets_in_ledger oc ledgerroot
+  | None ->
+      let (bn,cwl) = get_bestnode true in
+      let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = bn in
+      printassets_in_ledger oc ledgerroot
 
 let get_cants_balances_in_ledger oc ledgerroot =
   try
@@ -1708,9 +1712,13 @@ let query_at_block q pbh ledgerroot blkh =
     end
 
 let query q =
-  let (bn,cwl) = get_bestnode true in
-  let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
-  query_at_block q pbh ledgerroot blkh
+  match !artificialledgerroot with
+  | Some(ledgerroot) ->
+      query_at_block q None ledgerroot (-1L)
+  | None ->
+      let (bn,cwl) = get_bestnode true in
+      let BlocktreeNode(_,_,pbh,_,_,ledgerroot,_,_,_,_,blkh,_,_,_) = bn in
+      query_at_block q pbh ledgerroot blkh
 
 let query_blockheight findblkh =
   if findblkh < 1L then

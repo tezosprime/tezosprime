@@ -23,6 +23,8 @@ let stxpool : (hashval,stx) Hashtbl.t = Hashtbl.create 1000;;
 let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
 let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100;;
 
+let artificialledgerroot = ref None
+
 let processing_deltas : hashval list ref = ref [];;
 
 let save_processing_deltas () =
@@ -1037,6 +1039,18 @@ Hashtbl.add msgtype_handler Headers
 	    flush !log;
 	    cs.banned <- true
 	  end
+	else if !Config.ltcoffline then
+	  begin
+	    Printf.fprintf !log "Since ltcoffline is true, just accepting header %s\n" (hashval_hexstring h);
+	    DbBlockHeader.dbput h bh;
+	    match bhd.prevblockhash with
+	    | None -> ()
+	    | Some(pbh,_) ->
+		try
+		  if not (DbBlockHeader.dbexists pbh) then find_and_send_requestdata GetHeader pbh;
+		  if not (DbBlockDelta.dbexists pbh) then find_and_send_requestdata GetBlockdelta pbh;
+		with Not_found -> ()
+	  end
 	else
 	  begin
 	    missingheaders := List.filter (fun mh -> not (mh = h)) !missingheaders; (*** remove from missing list ***)
@@ -1219,37 +1233,44 @@ Hashtbl.add msgtype_handler Blockdelta
       let i = int_of_msgtype GetBlockdelta in
       if not (DbBlockDelta.dbexists h) then (*** if we already have it, abort ***)
 	begin
-	  try
-	    let tm = Unix.time() in
-	    cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq;
-	    let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) as newnode =
-	      try
-		Hashtbl.find blkheadernode (Some(h))
-	      with Not_found ->
-		create_new_node h true
-	    in
-	    match !vs with
-	    | Waiting(tm,None) ->
-		begin
-		  match par with
-		  | None -> (*** genesis node, parent implicitly valid ***)
-		      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-		      validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
-		  | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
-		      match !vsp with
-		      | InvalidBlock -> raise Not_found
-		      | Waiting(_,_) ->
-			  let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			  vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
-		      | ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
-			  begin
+	  if !Config.ltcoffline then
+	    begin
+	      Printf.fprintf !log "Since ltcoffline is true, just accepting delta %s\n" (hashval_hexstring h);
+	      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+	      DbBlockDelta.dbput h blkdel
+	    end
+	  else
+	    try
+	      let tm = Unix.time() in
+	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq;
+	      let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) as newnode =
+		try
+		  Hashtbl.find blkheadernode (Some(h))
+		with Not_found ->
+		  create_new_node h true
+	      in
+	      match !vs with
+	      | Waiting(tm,None) ->
+		  begin
+		    match par with
+		    | None -> (*** genesis node, parent implicitly valid ***)
+			let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+			validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
+		    | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
+			match !vsp with
+			| InvalidBlock -> raise Not_found
+			| Waiting(_,_) ->
 			    let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			    validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
-			  end
-		end
-	    | _ -> ()
-	  with e ->
-	    Printf.fprintf !log "Problem handling Blockdelta, presumably with getting corresponding blocktree node: %s\n" (Printexc.to_string e)
+			    vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
+			| ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
+			    begin
+			      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+			      validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
+			    end
+		  end
+	      | _ -> ()
+	    with e ->
+	      Printf.fprintf !log "Problem handling Blockdelta, presumably with getting corresponding blocktree node: %s\n" (Printexc.to_string e)
 	end);;
 
 Hashtbl.add msgtype_handler GetSTx
@@ -1448,7 +1469,9 @@ let rec recursively_revalidate_parents n =
   vs := ValidBlock;
   begin
     match pbh with
-    | Some(h,_) -> if DbInvalidatedBlocks.dbexists h then DbInvalidatedBlocks.dbdelete h
+    | Some(h,_) ->
+	if DbInvalidatedBlocks.dbexists h then DbInvalidatedBlocks.dbdelete h;
+	if DbBlacklist.dbexists h then DbBlacklist.dbdelete h
     | None -> ()
   end;
   match par with
@@ -1456,7 +1479,8 @@ let rec recursively_revalidate_parents n =
   | None -> ()
 
 let recursively_revalidate_blocks h =
-  DbInvalidatedBlocks.dbdelete h;
+  if DbInvalidatedBlocks.dbexists h then DbInvalidatedBlocks.dbdelete h;
+  if DbBlacklist.dbexists h then DbBlacklist.dbdelete h;
   try
     let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) = Hashtbl.find blkheadernode (Some(h)) in
     vs := ValidBlock;

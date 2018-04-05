@@ -72,6 +72,7 @@ let initialize_random_seed () =
 	for i = 0 to 31 do
 	  a.(i) <- input_byte r
 	done;
+	close_in r;
 	Random.full_init a;
 	random_initialized := true
       else

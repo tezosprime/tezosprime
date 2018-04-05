@@ -4,6 +4,7 @@
 
 val datadir : string ref
 val offline : bool ref
+val ltcoffline : bool ref
 val daemon : bool ref
 val testnet : bool ref
 val staking : bool ref

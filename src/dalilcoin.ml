@@ -833,16 +833,21 @@ let stakingthread () =
 					  | Some(u) ->
 					      begin (*** actually burn u litoshis and wait for a confirmation to know the block hash ***)
 						try
-						  let btx = ltc_createburntx (match pbhh with Some(_,Poburn(_,ltxh,_,_)) -> ltxh | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) newblkid u in
-						  let btxhex = Hashaux.string_hexstring btx in
-						  let btxs = ltc_signrawtransaction btxhex in
-						  let h = ltc_sendrawtransaction btxs in
-						  pendingltctxs := h::!pendingltctxs;
-						  Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid);
-						  publish_block blkh newblkid ((bhdnew,bhsnew),bdnew);
-						  extraburn := 0L;
-						  already := Some(newblkid,hexstring_hashval h);
-						  output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
+						  if !Config.ltcoffline then
+						    begin
+						      Printf.printf "to stake, after ltc medtm passes %Ld create ltc burn tx for %s %s burning %Ld litoshis\n" tm (hashval_hexstring (match pbhh with Some(_,Poburn(_,ltxh,_,_)) -> ltxh | None -> (0l,0l,0l,0l,0l,0l,0l,0l))) (hashval_hexstring newblkid) u
+						    end
+						  else
+						    let btx = ltc_createburntx (match pbhh with Some(_,Poburn(_,ltxh,_,_)) -> ltxh | None -> (0l,0l,0l,0l,0l,0l,0l,0l)) newblkid u in
+						    let btxhex = Hashaux.string_hexstring btx in
+						    let btxs = ltc_signrawtransaction btxhex in
+						    let h = ltc_sendrawtransaction btxs in
+						    pendingltctxs := h::!pendingltctxs;
+						    Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid);
+						    publish_block blkh newblkid ((bhdnew,bhsnew),bdnew);
+						    extraburn := 0L;
+						    already := Some(newblkid,hexstring_hashval h);
+						    output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
 						with
 						| InsufficientLtcFunds ->
 						    output_string !log ("insufficient ltc to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
@@ -1112,6 +1117,53 @@ let parse_command l =
 let do_command oc l =
   let (c,al) = parse_command l in
   match c with
+  | "setledgerroot" ->
+      begin
+	match al with
+	| [a] ->
+	    begin
+	      let h = hexstring_hashval a in
+	      try
+		let (bhd,_) = DbBlockHeader.dbget h in
+		artificialledgerroot := Some(bhd.newledgerroot)
+	      with Not_found ->
+		artificialledgerroot := Some(h)
+	    end
+	| _ ->
+	    raise (Failure("setledgerroot <ledgerroot or blockid>"))
+      end
+  | "requestblock" ->
+      begin
+	match al with
+	| [a] ->
+	    begin
+	      let h = hexstring_hashval a in
+	      try
+		if DbInvalidatedBlocks.dbexists h then DbInvalidatedBlocks.dbdelete h;
+		if DbBlacklist.dbexists h then DbBlacklist.dbdelete h;
+		if DbBlockHeader.dbexists h then
+		  Printf.fprintf oc "Already have header.\n"
+		else
+		  begin
+		    find_and_send_requestdata GetHeader h;
+		    Printf.fprintf oc "Block header requested.\n"
+		  end;
+		try
+		  if DbBlockDelta.dbexists h then
+		    Printf.fprintf oc "Already have delta.\n"
+		  else
+		    begin
+		      find_and_send_requestdata GetBlockdelta h;
+		      Printf.fprintf oc "Block delta requested.\n"
+		    end
+		with Not_found ->
+		  Printf.fprintf oc "No peer has delta %s.\n" a
+	      with Not_found ->
+		Printf.fprintf oc "No peer has header %s.\n" a
+	    end
+	| _ ->
+	    raise (Failure("requestblock <blockid>"))
+      end
   | "query" ->
       begin
 	match al with
@@ -2386,7 +2438,7 @@ let initialize () =
     Printf.printf "Initializing theory and signature trees.\n"; flush stdout;
     init_thytrees();
     init_sigtrees();
-    if not !Config.offline then
+    if not !Config.offline && not !Config.ltcoffline then
       begin
 	Printf.printf "Syncing with ltc\n"; flush stdout;
 	ltc_init();
@@ -2429,7 +2481,7 @@ if not !Config.offline then
   begin
     initnetwork();
     if !Config.staking then stkth := Some(Thread.create stakingthread ());
-    ltc_listener_th := Some(Thread.create ltc_listener ());
+    if not !Config.ltcoffline then ltc_listener_th := Some(Thread.create ltc_listener ());
   end;;
 
 let last_failure = ref None;;

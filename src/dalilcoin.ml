@@ -1117,6 +1117,39 @@ let parse_command l =
 let do_command oc l =
   let (c,al) = parse_command l in
   match c with
+  | "setbestblock" ->
+      begin
+	match al with
+	| [a] ->
+	    begin
+	      let h = hexstring_hashval a in
+	      try
+		let bh = DbBlockHeader.dbget h in
+		let (bhd,_) = bh in
+		artificialbestblock := Some(h);
+		artificialledgerroot := Some(bhd.newledgerroot)
+	      with Not_found ->
+		Printf.fprintf oc "Unknown block.\n"
+	    end
+	| [a;blkh;lblk;ltx] ->
+	    begin
+	      let h = hexstring_hashval a in
+	      let blkh = Int64.of_string blkh in
+	      let lblk = hexstring_md256 lblk in
+	      let ltx = hexstring_md256 ltx in
+	      try
+		let bh = DbBlockHeader.dbget h in
+		let (bhd,_) = bh in
+		artificialbestblock := Some(h);
+		let pob = Poburn(lblk,ltx,0L,0L) in
+		let newcsm = poburn_stakemod pob in
+		Hashtbl.add blkheadernode (Some(h)) (BlocktreeNode(None,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []))
+	      with Not_found ->
+		Printf.fprintf oc "Unknown block.\n"
+	    end
+	| _ ->
+	    raise (Failure("setbestblock <blockid> [<blockheight> <ltcblockid> <ltcburntx>]"))
+      end
   | "setledgerroot" ->
       begin
 	match al with

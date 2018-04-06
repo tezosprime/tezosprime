@@ -24,6 +24,7 @@ let published_stx : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
 let unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t = Hashtbl.create 100;;
 
 let artificialledgerroot = ref None
+let artificialbestblock = ref None
 
 let processing_deltas : hashval list ref = ref [];;
 
@@ -397,6 +398,15 @@ type consensuswarning =
 exception NoReq
 
 let rec get_bestnode req =
+  match !artificialbestblock with
+  | Some(h) ->
+      begin
+	try
+	  (Hashtbl.find blkheadernode (Some(h)),[])
+	with Not_found ->
+	  raise (Failure("Unknown block height and proof of burn.\nUse setbestblock with block height, ltc block id (with burn tx) and ltc burn tx id\n"))
+      end
+  | None ->
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
   let tm = ltc_medtime() in
   if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then

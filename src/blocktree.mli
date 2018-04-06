@@ -16,6 +16,7 @@ val stxpool : (hashval,stx) Hashtbl.t
 val unconfirmed_spent_assets : (hashval,hashval) Hashtbl.t
 
 val artificialledgerroot : hashval option ref
+val artificialbestblock : hashval option ref
 
 val processing_deltas : hashval list ref
 val save_processing_deltas : unit -> unit

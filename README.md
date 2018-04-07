@@ -113,14 +113,18 @@ required.
 The command `getpeerinfo` can be used to determine if your dalilcoin node is connected to
 others.
 
+```
 > getpeerinfo
 ...
+```
 
 The command `getinfo` gives more information about the current state, including the
 current best known blocks.
 
+```
 > getinfo
 ...
+```
 
 At first getinfo (and other commands) are likely to report that the node is
 out of sync, as it takes some time to request and process the dalilcoin
@@ -227,6 +231,7 @@ Testnet p2pkh addresses start with tD and testnet p2sh addresses start with td.
 
 Here is an example:
 
+```
 dalilcoin -testnet
 
 > importwatchbtcaddr 14M2d3UDXkkTL8AJmTUifUmAEwYo67cW2Q
@@ -237,12 +242,14 @@ Importing as Dalilcoin address tDhw4mHZK3TCpXhD9amY328pCduCqHe6gBT
 Importing as Dalilcoin address tDSnbikEtFpASJqjxRTyWMok4v9V1pWGuSK
 > importwatchbtcaddr 37GxXLE4tiFEKwsLzNGFdHyjVfUEbj6wt2
 Importing as Dalilcoin address tdbsqDtyhDNRJSRmc1TPTymDXFCZVquTpuy
+```
 
 We next ask Dalilcoin to print the assets. The initial ledger root
 d4b10e4b72eaa8a61427b805f206e828b22bb59192373b83fe0df501e68a5bed
 is the default ledger root for now. In the future, the default 
 ledger root will be the ledger root of the best block.
 
+```
 > printassets
 Assets in ledger with root d4b10e4b72eaa8a61427b805f206e828b22bb59192373b83fe0df501e68a5bed:
 Controlled p2pkh assets:
@@ -261,6 +268,7 @@ Total p2pkh: 0.0000000000 fraenks
 Total p2sh: 0.0000000000 fraenks
 Total via endorsement: 0.0000000000 fraenks
 Total watched: 0.1045 fraenks
+```
 
 For each of the imported addresses, there is a currency asset.
 
@@ -285,6 +293,7 @@ Warning: The complete ledger is not in the local database and there are no conne
 At the moment Dalilcoin can only be run with the -testnet option, but once the mainnet is running, the following
 should work (assuming the ledger db director is in .dalilcoin instead of or in addition to .dalilcoin/testnet):
 
+```
 dalilcoin
 
 > importwatchbtcaddr 14M2d3UDXkkTL8AJmTUifUmAEwYo67cW2Q
@@ -314,3 +323,4 @@ Total p2pkh: 0.0000000000 fraenks
 Total p2sh: 0.0000000000 fraenks
 Total via endorsement: 0.0000000000 fraenks
 Total watched: 0.1045 fraenks
+```

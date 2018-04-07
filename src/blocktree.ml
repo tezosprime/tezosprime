@@ -27,6 +27,7 @@ let artificialledgerroot = ref None
 let artificialbestblock = ref None
 
 let processing_deltas : hashval list ref = ref [];;
+let delayed_deltas : (hashval,blockdelta) Hashtbl.t = Hashtbl.create 100;;
 
 let save_processing_deltas () =
   match !processing_deltas with
@@ -407,88 +408,89 @@ let rec get_bestnode req =
 	  raise (Failure("Unknown block height and proof of burn.\nUse setbestblock with block height, ltc block id (with burn tx) and ltc burn tx id\n"))
       end
   | None ->
-  let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
-  let tm = ltc_medtime() in
-  if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
-    begin
-      Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\n"
-    end;
-  let rec get_bestnode_r2 ctips ctipsr cwl =
-    match ctips with
-    | [] -> get_bestnode_r ctipsr cwl
-    | (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
+      let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
+      let tm = ltc_medtime() in
+      if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
 	begin
-	  let handle_node n =
-	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
-	    if DbInvalidatedBlocks.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
-	    else if DbBlacklist.dbexists dbh then
-	      get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
-	    else
-	      match !vs with
-	      | ValidBlock -> (n,cwl)
-	      | InvalidBlock ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
-	      | Waiting(tm,_) ->
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,node_parprevblockhash n,Int64.sub blkh 1L,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
-	  in
-	  let handle_exc comm =
+	  Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\n"
+	end;
+      let rec get_bestnode_r2 ctips ctipsr cwl =
+	match ctips with
+	| [] -> get_bestnode_r ctipsr cwl
+	| (dbh,lbh,ltxh,ltm,lhght)::ctipr ->
 	    begin
-	      if DbInvalidatedBlocks.dbexists dbh then
-		get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,None,-1L)::cwl)
-	      else
-		try
-		  let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
-		  try
-		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
-		  with Not_found ->
-		    Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
-		    raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
-		with Not_found ->
-		  Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
-		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
-	    end
-	  in
-          try
-	    handle_node (Hashtbl.find blkheadernode (Some(dbh)))
-	  with
-	  | Not_found -> (*** if we have the header, we may have simply not yet built the node of the block tree, try to build it here ***)
-	      begin
-		if DbBlockHeader.dbexists dbh then
-		  begin
-		    try
-		      add_known_header_to_blocktree dbh;
-		      handle_node (Hashtbl.find blkheadernode (Some(dbh)))
-		    with e -> handle_exc (Printexc.to_string e)
-		  end
+	      let handle_node n =
+		let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,blkh,vs,_,_) = n in
+		if DbInvalidatedBlocks.dbexists dbh then
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
+		else if DbBlacklist.dbexists dbh then
+		  get_bestnode_r2 ctipr ctipsr (ConsensusWarningBlacklist(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
 		else
-		  handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+		  match !vs with
+		  | ValidBlock -> (n,cwl)
+		  | InvalidBlock ->
+		      get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,node_parprevblockhash n,Int64.sub blkh 1L)::cwl)
+		  | Waiting(tm,_) ->
+		      get_bestnode_r2 ctipr ctipsr (ConsensusWarningWaiting(dbh,node_parprevblockhash n,Int64.sub blkh 1L,tm,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh)::cwl)
+	      in
+	      let handle_exc comm =
+		begin
+		  if DbInvalidatedBlocks.dbexists dbh then
+		    get_bestnode_r2 ctipr ctipsr (ConsensusWarningInvalid(dbh,None,-1L)::cwl)
+		  else
+		    try
+		      let (_,oprev) = find_dalilcoin_header_ltc_burn dbh in
+		      try
+			get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
+		      with Not_found ->
+			Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
+			raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
+		    with Not_found ->
+		      Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
+		      get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
+		end
+	      in
+              try
+		handle_node (Hashtbl.find blkheadernode (Some(dbh)))
+	      with
+	      | Not_found -> (*** if we have the header, we may have simply not yet built the node of the block tree, try to build it here ***)
+		  begin
+		    if DbBlockHeader.dbexists dbh then
+		      begin
+			try
+			  add_known_header_to_blocktree dbh;
+			  handle_node (Hashtbl.find blkheadernode (Some(dbh)))
+			with e -> handle_exc (Printexc.to_string e)
+		      end
+		    else
+		      handle_exc "Recent burned header not found; May be out of sync" (*** assume we don't have the header yet if the node has not been created; add a consensus warning and continue ***)
+		  end
+	      | NoReq -> handle_exc "not allowed to request"
+	      | GettingRemoteData -> handle_exc "requested from remote node"
+	      | Failure(msg) -> raise (Failure(msg))
+	      | e -> handle_exc (Printexc.to_string e)
+	    end
+      and get_bestnode_r ctipsl cwl =
+	match ctipsl with
+	| [] ->
+	    let tm = ltc_medtime() in
+	    if tm > Int64.add !Config.genesistimestamp 604800L then
+	      begin
+		raise (Failure "cannot find best validated header; probably out of sync")
 	      end
-	  | NoReq -> handle_exc "not allowed to request"
-	  | GettingRemoteData -> handle_exc "requested from remote node"
-	  | e -> handle_exc (Printexc.to_string e)
-	end
-  and get_bestnode_r ctipsl cwl =
-    match ctipsl with
-    | [] ->
+	    else
+	      (!genesisblocktreenode,cwl)
+	| ctips::ctipsr ->
+	    get_bestnode_r2 ctips ctipsr cwl
+      in
+      let cwl =
 	let tm = ltc_medtime() in
-	if tm > Int64.add !Config.genesistimestamp 604800L then
-	  begin
-	    raise (Failure "cannot find best validated header; probably out of sync")
-	  end
+	if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
+	  [ConsensusWarningTerminal]
 	else
-	  (!genesisblocktreenode,cwl)
-    | ctips::ctipsr ->
-	get_bestnode_r2 ctips ctipsr cwl
-  in
-  let cwl =
-    let tm = ltc_medtime() in
-    if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
-      [ConsensusWarningTerminal]
-    else
-      []
-  in
-  get_bestnode_r ctips0l cwl
+	  []
+      in
+      get_bestnode_r ctips0l cwl
 and create_new_node h req =
   try
     create_new_node_a h req
@@ -542,6 +544,7 @@ and create_new_node_b h pob req =
 	    end;
 	  chlr := (h,fnode)::!chlr;
 	  Hashtbl.add blkheadernode (Some(h)) fnode;
+	  possibly_handle_delayed_delta h (bhd,bhs) fnode;
 	  possibly_handle_orphan h fnode false false;
 	  fnode
 	else if not req then
@@ -680,6 +683,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      Printf.fprintf !log "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh;
               let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
+	      possibly_handle_delayed_delta h blkh1 newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
               DbBlacklist.dbput h true;
 (*	      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
@@ -698,6 +702,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
+	      possibly_handle_delayed_delta h blkh1 newnode;
 	      succl := (h,newnode)::!succl;
 	      possibly_handle_orphan h newnode initialization knownvalid;
 	      begin
@@ -765,6 +770,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      verbose_blockcheck := None;
               let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
+	      possibly_handle_delayed_delta h blkh1 newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
               DbBlacklist.dbput h true;
 (*	      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
@@ -814,6 +820,42 @@ and process_new_header_b h hh initialization knownvalid =
 and process_new_header h hh initialization knownvalid =
   if not (Hashtbl.mem blkheaders h) then
     process_new_header_b h hh initialization knownvalid
+and possibly_handle_delayed_delta h bh n =
+  try
+    let blkdel = Hashtbl.find delayed_deltas h in
+    let BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
+    if DbBlockDelta.dbexists h then (*** was already handled ***)
+      begin
+	vsp := ValidBlock;
+	Hashtbl.remove delayed_deltas h 
+      end
+    else
+      begin
+	try
+	  let thytree = lookup_thytree thyroot in
+	  try
+	    let sigtree = lookup_sigtree sigroot in
+	    try
+	      let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
+	      match valid_block thytree sigtree blkhght csm currtinfo (bh,blkdel) lmedtm burned with
+	      | Some(tht2,sigt2) ->
+		  vsp := ValidBlock;
+		  update_theories thyroot thytree tht2;
+		  update_signatures sigroot sigtree sigt2;
+		  DbBlockDelta.dbput h blkdel;
+		  Hashtbl.remove delayed_deltas h
+	      | None -> (*** should not have happened, delete it from the database and request it again. ***)
+		  vsp := InvalidBlock;
+		  Hashtbl.remove delayed_deltas h;
+		  Printf.fprintf !log "Invalid block %s\n" (hashval_hexstring h)
+	    with _ ->
+	      Printf.fprintf !log "Do not have proof of burn for block %s\n" (hashval_hexstring h);
+	  with Not_found ->
+	    Printf.fprintf !log "Could not find signature tree for block\n";
+	with Not_found ->
+	  Printf.fprintf !log "Could not find theory tree for block\n";
+      end
+  with Not_found -> ()
 and possibly_handle_orphan h n initialization knownvalid =
   List.iter
     (fun (k,bh) ->
@@ -1280,7 +1322,9 @@ Hashtbl.add msgtype_handler Blockdelta
 		  end
 	      | _ -> ()
 	    with e ->
-	      Printf.fprintf !log "Problem handling Blockdelta, presumably with getting corresponding blocktree node: %s\n" (Printexc.to_string e)
+	      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+	      if not (Hashtbl.mem delayed_deltas h) then Hashtbl.add delayed_deltas h blkdel;
+	      Printf.fprintf !log "Delaying handling Blockdelta %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
 	end);;
 
 Hashtbl.add msgtype_handler GetSTx

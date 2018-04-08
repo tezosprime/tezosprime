@@ -422,9 +422,9 @@ let importwatchaddr oc a cls =
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
-  if cls = "offline" then
+  if cls = "offlinekey" then
     walletwatchaddrs_offlinekey := alpha::!walletwatchaddrs_offlinekey
-  else if cls = "offline_fresh" then
+  else if cls = "offlinekey_fresh" then
     walletwatchaddrs_offlinekey_fresh := alpha::!walletwatchaddrs_offlinekey_fresh
   else
     walletwatchaddrs := alpha::!walletwatchaddrs;

@@ -1703,14 +1703,22 @@ let do_command oc l =
       begin
 	match al with
 	| [a] -> Commands.importwatchaddr oc a ""
-	| [a;cls] -> Commands.importwatchaddr oc a cls
+	| [a;cls] ->
+	    if cls = "offlinekey" || cls = "offlinekey_fresh" then
+	      Commands.importwatchaddr oc a cls
+	    else
+	      raise (Failure("importwatchaddr <address> [offlinekey|offlinekey_fresh]"))
 	| _ -> raise (Failure("importwatchaddr <address> [offlinekey|offlinekey_fresh]"))
       end
   | "importwatchbtcaddr" ->
       begin
 	match al with
 	| [a] -> Commands.importwatchbtcaddr oc a ""
-	| [a;cls] -> Commands.importwatchbtcaddr oc a cls
+	| [a;cls] ->
+	    if cls = "offlinekey" || cls = "offlinekey_fresh" then
+	      Commands.importwatchbtcaddr oc a cls
+	    else
+	      raise (Failure("importwatchaddr <btcaddress> [offlinekey|offlinekey_fresh]"))
 	| _ -> raise (Failure("importwatchaddr <btcaddress> [offlinekey|offlinekey_fresh]"))
       end
   | "importendorsement" ->

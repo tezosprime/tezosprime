@@ -2072,7 +2072,6 @@ let initialize () =
     datadir_from_command_line(); (*** if -datadir=... is on the command line, then set Config.datadir so we can find the config file ***)
     process_config_file();
     process_config_args(); (*** settings on the command line shadow those in the config file ***)
-    if not !Config.testnet then (Printf.printf "Dalilcoin can only be run on testnet for now. Please give the -testnet command line argument.\n"; exit 1);
     let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in
     if !Config.testnet then
       begin

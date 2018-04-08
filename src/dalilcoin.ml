@@ -2100,6 +2100,7 @@ let initialize () =
     if !Config.testnet then
       begin
 	if !Config.ltcrpcport = 9332 then Config.ltcrpcport := 19332;
+	if !Config.genesistimestamp = 1523203501L then Config.genesistimestamp := 1522226815L
       end;
     if Sys.file_exists (Filename.concat datadir "lock") then
       begin

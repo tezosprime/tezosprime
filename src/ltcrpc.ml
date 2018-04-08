@@ -12,9 +12,9 @@ open Db
 open Block
 
 (*** mainnet ***)
-let ltc_oldest_to_consider = ref (hexstring_hashval "61d447ed41c7df3d7c724fcfbef71242ae74b8b3defafe4541853d0fdcd2ce7a")
-let ltc_oldest_to_consider_time = ref 1521659959L
-let ltc_oldest_to_consider_height = ref 999999L
+let ltc_oldest_to_consider = ref (hexstring_hashval "ffc12159965e55a2b334a83d2241bc25b409c14bf77c41eacf4a445556fe71b0")
+let ltc_oldest_to_consider_time = ref 1523203501L
+let ltc_oldest_to_consider_height = ref 1400000L
 
 (*** testnet ***)
 let ltctestnet () =

@@ -80,7 +80,7 @@ echo let reward_lock_absolute = ref None >> src/config.ml
 if [ $GENESISTIME ]; then
     echo let genesistimestamp = ref ${GENESISTIME}L >> src/config.ml
 else
-    echo let genesistimestamp = ref 1522226815L >> src/config.ml
+    echo let genesistimestamp = ref 1523203501L >> src/config.ml
 fi
 echo let maxburn = ref 0L >> src/config.ml
 echo let maxburnrate = ref 0L >> src/config.ml
@@ -92,7 +92,7 @@ echo let extraindex = ref false >> src/config.ml
 if [ $SEED ]; then
     echo let seed = ref \"$SEED\" >> src/config.ml
 else
-    echo let seed = ref \"\" >> src/config.ml
+    echo let seed = ref \"ffc12159965e55a2b334a83d2241bc25b409c14bf77c41eacf4a445556fe71b0\" >> src/config.ml
 fi
 if [ $RANDOMSEED ]; then
     echo let randomseed = ref \(Some \"$RANDOMSEED\"\) >> src/config.ml

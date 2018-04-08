@@ -623,7 +623,23 @@ let stakingthread () =
 			in
 			let alpha4 =
 			  match !Config.offlinestakerewardslock with
-			  | None -> p2pkhaddr_payaddr alpha3
+			  | None ->
+			      if !Config.offlinestakerewardsdest then
+				begin
+				  match !Commands.walletwatchaddrs_offlinekey_fresh with
+				  | alpha::wr ->
+				      let (i,x0,x1,x2,x3,x4) = alpha in
+				      if i = 0 || i = 1 then
+					begin
+					  Commands.walletwatchaddrs_offlinekey := alpha::!Commands.walletwatchaddrs_offlinekey;
+					  Commands.walletwatchaddrs_offlinekey_fresh := wr;
+					  (i=1,x0,x1,x2,x3,x4)
+					end
+				      else
+					p2pkhaddr_payaddr alpha3
+				end
+			      else
+				p2pkhaddr_payaddr alpha3
 			  | Some(x) ->
 			      try
 				let (i,x0,x1,x2,x3,x4) = daliladdrstr_addr x in

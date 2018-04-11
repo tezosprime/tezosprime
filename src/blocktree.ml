@@ -1557,6 +1557,15 @@ let reprocessblock oc h =
 	  | None -> Hashtbl.find blkheadernode None
 	in
 	let BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
+	begin
+	  let prevc = load_expanded_ctree (ctree_of_block (bh,bd)) in
+	  let (cstk,txl) = txl_of_block (bh,bd) in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
+	  try
+	    match tx_octree_trans false false blkhght cstk (txl_octree_trans false false blkhght txl (Some(prevc))) with (*** "false false" disallows database lookups and remote requests ***)
+	    | Some(newc) -> ignore (save_ctree_elements newc)
+	    | None -> raise (Failure("transformed tree was empty, although block seemed to be valid"))
+	  with MaxAssetsAtAddress -> raise (Failure("transformed tree would hold too many assets at an address"))
+	end;
 	try
 	  let thytree = lookup_thytree thyroot in
 	  try

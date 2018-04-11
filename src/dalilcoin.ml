@@ -1159,7 +1159,42 @@ let do_command oc l =
 		artificialbestblock := Some(h);
 		let pob = Poburn(lblk,ltx,0L,0L) in
 		let newcsm = poburn_stakemod pob in
-		Hashtbl.add blkheadernode (Some(h)) (BlocktreeNode(None,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []))
+		let par =
+		  match bhd.prevblockhash with
+		  | None ->
+		      begin
+			try
+			  Some(Hashtbl.find blkheadernode None)
+			with Not_found -> None
+		      end
+		  | Some(pbhid,ppob) ->
+		      try
+			Some(Hashtbl.find blkheadernode (Some(pbhid)))
+		      with Not_found ->
+			try
+			  let pbh = DbBlockHeader.dbget pbhid in
+			  let (pbhd,_) = pbh in
+			  let parpar =
+			    match pbhd.prevblockhash with
+			    | None ->
+				begin
+				  try
+				    Some(Hashtbl.find blkheadernode None)
+				  with Not_found -> None
+				end
+			    | Some(ppbhid,_) ->
+				try
+				  Some(Hashtbl.find blkheadernode (Some(ppbhid)))
+				with Not_found ->
+				  None
+			  in
+			  let pcsm = poburn_stakemod ppob in
+			  let parnode = BlocktreeNode(parpar,ref [],Some(pbhid,ppob),pbhd.newtheoryroot,pbhd.newsignaroot,pbhd.newledgerroot,pcsm,pbhd.tinfo,pbhd.timestamp,zero_big_int,blkh,ref ValidBlock,ref false,ref []) in
+			  Hashtbl.add blkheadernode (Some(pbhid)) parnode;
+			  Some(parnode)
+			with Not_found -> None
+		in
+		Hashtbl.add blkheadernode (Some(h)) (BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []))
 	      with Not_found ->
 		Printf.fprintf oc "Unknown block.\n"
 	    end

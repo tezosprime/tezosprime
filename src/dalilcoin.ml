@@ -930,9 +930,9 @@ let stakingthread () =
 	  Thread.delay 10.0;
 	  Printf.fprintf !log "calling compute_staking_chances nextstakechances\n"; flush !log;
 	  let ltm = ltc_medtime() in
-	  let stm = Int64.sub ltm 86400L in
+	  let pbhtm = node_timestamp best in
 	  let ftm = Int64.add ltm 86400L in
-	  compute_staking_chances best stm ftm
+	  compute_staking_chances best pbhtm ftm
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
 	  Printf.fprintf !log "Pausing due to a staking bug; will retry staking in about an hour.\n";
 	  flush !log;

@@ -651,8 +651,31 @@ let connsender (s,sin,sout,gcs) =
 	  connsender_end()
 
 let remove_dead_conns () =
+  let tmminus1hr = Unix.time() -. 3600.0 in
+  List.iter
+    (fun (_,_,(s,sin,sout,gcs)) ->
+      match !gcs with
+      | Some(cs) ->
+	  if cs.handshakestep < 5 && cs.lastmsgtm < tmminus1hr then (*** if the handshake has not completed in 1 hour, then kill conn ***)
+	    begin
+	      try
+		Unix.close s;
+		close_in sin;
+		close_out sout;
+		gcs := None
+	      with _ ->
+		gcs := None
+	    end
+      | _ -> ())
+    !netconns;
   Mutex.lock netconnsmutex;
-  netconns := List.filter (fun (_,_,(_,_,_,gcs)) -> match !gcs with Some(_) -> true | None -> false) !netconns;
+  netconns :=
+    List.filter
+      (fun (_,_,(_,_,_,gcs)) ->
+	match !gcs with
+	| None -> false
+	| Some(cs) -> true)
+      !netconns;
   Mutex.unlock netconnsmutex
 
 exception EnoughConnections

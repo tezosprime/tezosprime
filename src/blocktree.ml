@@ -1320,6 +1320,24 @@ Hashtbl.add msgtype_handler Blockdelta
 			      validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
 			    end
 		  end
+	      | ValidBlock -> (*** for some reason we already think the block is valid even though we did not have the delta in the database; while this probably should not happen, just revalidate it and save into db ***)
+		  begin
+		    match par with
+		    | None -> (*** genesis node, parent implicitly valid ***)
+			let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+			validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
+		    | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
+			match !vsp with
+			| InvalidBlock -> raise Not_found
+			| Waiting(_,_) ->
+			    let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+			    vs := Waiting(tm,Some(blkdel,cs)) (*** wait for the parent to be validated; remember the connstate in case we decide to ban it for giving a bad block delta ***)
+			| ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
+			    begin
+			      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
+			      validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
+			    end
+		  end
 	      | _ -> ()
 	    with e ->
 	      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in

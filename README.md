@@ -324,3 +324,98 @@ Total p2sh: 0.0000000000 fraenks
 Total via endorsement: 0.0000000000 fraenks
 Total watched: 0.1045 fraenks
 ```
+
+* Endorsements
+
+You do not need to import your bitcoin private key to claim your part
+of the airdrop.  Claims can be made using bitcoin signed
+endorsements. Here is an example:
+
+In the snapshot the Bitcoin address 1Ez6BBUGNrNqahWqF7kqzBp88fkBKfoRmj
+had 1.01 bitcoins.  The corresponding Dalilcoin address is
+DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf, a fact that can be determined
+using the btcdaliladdr command:
+
+```
+btctodaliladdr 1Ez6BBUGNrNqahWqF7kqzBp88fkBKfoRmj
+Dalilcoin address DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf corresponds to Bitcoin address 1Ez6BBUGNrNqahWqF7kqzBp88fkBKfoRmj
+```
+
+This means that if the Dalilcoin wallet has the private key for the
+Bitcoin address 1Ez6BBUGNrNqahWqF7kqzBp88fkBKfoRmj, which is the same
+as the private key for the Dalilcoin address
+DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf, then the Dalilcoin node can spend
+the 1.01 fraenks. Endorsements give a way to spend the 1.01 fraenks
+without importing this private key.
+
+Suppose we have a Dalilcoin wallet that includes a private key for the
+Dalilcoin address Dr44Xv5NJySSEQ3AfrnDio3HnTWHsrxbya. A Bitcoin
+wallet can be used to sign the endorsement message
+
+```
+endorse Dr44Xv5NJySSEQ3AfrnDio3HnTWHsrxbya
+```
+
+with the key for the address 1Ez6BBUGNrNqahWqF7kqzBp88fkBKfoRmj.
+
+This endorsement can then be imported into the Dalilcoin wallet using
+the importendorsement command:
+
+```
+importendorsement DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf Dr44Xv5NJySSEQ3AfrnDio3HnTWHsrxbya HPcwtjEomAo6+RW0CGB1yp41fthk+d154Irnkfz9rC47CCIm2Ff5rb7nzDBkmo3X27Hu2XLJaiewzt7BVpOIIRU=
+```
+
+This endorsement allows the private key for
+Dr44Xv5NJySSEQ3AfrnDio3HnTWHsrxbya to sign Dalilcoin transactions that
+would otherwise need to be signed by the private key for
+DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf.
+
+The printassets command shows which assets are controlled, including
+those controlled by endorsements.
+
+The commands createtx, signtx and sendtx can be used to spend the
+1.01. Here is an example of how the 1.01 fraenks from
+DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf could have been split among three
+balances: 0.2 at address DhffKwWrRo2F9Y9C4AGcN5aruMvjo5mjmx locked
+until block 500, 0.3 at address DYZRqxUh9NM88ZFB7TR8rvCoeppk6CQzr8
+locked until block 100 and 0.5 fraenks unlocked at address
+Dann5dycvyH7iVfcQvLsANGKghGBkcPQSF, leaving 0.01 fraenks as a
+transaction fee. (The unlocked 0.5 fraenks can be spent anytime.  The
+locked balances cannot be spent until the right block height is
+reached. Locked rewards have more coinage for staking.)  The signtx
+command uses the endorsement above and private key for
+Dr44Xv5NJySSEQ3AfrnDio3HnTWHsrxbya to sign the transaction.
+
+```
+createtx '[{"DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf":"0000000000000000000000003c21ff93ccfb652f62cb181121e942af592b0ab4"}]' '[{"addr":"DhffKwWrRo2F9Y9C4AGcN5aruMvjo5mjmx","val":0.2,"lock":500},{"addr":"DYZRqxUh9NM88ZFB7TR8rvCoeppk6CQzr8","val":0.3,"lock":1000},{"addr":"Dann5dycvyH7iVfcQvLsANGKghGBkcPQSF","val":0.5}]'
+<hexofunsignedtx>
+signtx <hexofunsignedtx>
+<hexofsignedtx>
+sendtx <hexofsignedtx>
+```
+
+* Checking Balances of Addresses
+
+The query command can be used to obtain information about addresses or
+hash values.  In particular using query with an address (Bitcoin or
+Dalilcoin) gives a list of the assets at the address. If a Bitcoin
+address is given, then the corresponding Dalilcoin address will be
+given. The output is given in json format. Here is an example:
+
+```
+query 15muB9t6z5UZBCWTkTApgEUYnMZdcnumKo
+{"response":"bitcoin address","daliladdress":"DZFbhX82zfqiXdq9WTVhi7uwHzYsjEUGgy","info":{"ledgerroot":"b20921d94ddca00cd88dadda5fb031e5230adaa3653c3674c3273a111a29ae6f","block":{"block":"2ec902ffe51a2a955838b259854d0c6a047954e47a4b96bb41ac85a053b1b4da","height":52,"ltcblock":"439765a4f73e991e81818c46d80b6eae811c7da733e65f21cf98ddea3e35da17","ltcburntx":"446157432358d4798a45ac72ef45bb0f5d65ca43e60e220b9325ba2532acc145","ltcmedtm":0,"ltcburned":0},"address":"DZFbhX82zfqiXdq9WTVhi7uwHzYsjEUGgy","total":0.0015,"contents":"0000000000000000000000003b522a6135a10dff029666431e145aa4a2d0e824 [0] Currency 0.0015 fraenks; coinage 163350000000\n","currentassets":[{"type":"asset","assethash":"5f3d6ade600b330ba405413935f32cb07dfe904ee52c894c015b8cb27ff702c4","assetid":"0000000000000000000000003b522a6135a10dff029666431e145aa4a2d0e824","bday":0,"preasset":{"type":"preasset","preassettype":"currency","val":{"cants":150000000,"fraenks":"0.0015"}}}]}}
+```
+
+The result indicates 15muB9t6z5UZBCWTkTApgEUYnMZdcnumKo is a Bitcoin
+address with corresponding Dalilcoin address
+DZFbhX82zfqiXdq9WTVhi7uwHzYsjEUGgy. The "info" part includes an array
+of "currentassets". In this case there is one asset, a currency asset
+with value 0.0015 fraenks.
+
+Here is the same example giving the Dalilcoin address to the query command:
+
+```
+query DZFbhX82zfqiXdq9WTVhi7uwHzYsjEUGgy
+{"response":"daliladdress","info":{"ledgerroot":"b20921d94ddca00cd88dadda5fb031e5230adaa3653c3674c3273a111a29ae6f","block":{"block":"2ec902ffe51a2a955838b259854d0c6a047954e47a4b96bb41ac85a053b1b4da","height":52,"ltcblock":"439765a4f73e991e81818c46d80b6eae811c7da733e65f21cf98ddea3e35da17","ltcburntx":"446157432358d4798a45ac72ef45bb0f5d65ca43e60e220b9325ba2532acc145","ltcmedtm":0,"ltcburned":0},"address":"DZFbhX82zfqiXdq9WTVhi7uwHzYsjEUGgy","total":0.0015,"contents":"0000000000000000000000003b522a6135a10dff029666431e145aa4a2d0e824 [0] Currency 0.0015 fraenks; coinage 163350000000\n","currentassets":[{"type":"asset","assethash":"5f3d6ade600b330ba405413935f32cb07dfe904ee52c894c015b8cb27ff702c4","assetid":"0000000000000000000000003b522a6135a10dff029666431e145aa4a2d0e824","bday":0,"preasset":{"type":"preasset","preassettype":"currency","val":{"cants":150000000,"fraenks":"0.0015"}}}]}}
+```

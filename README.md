@@ -371,7 +371,9 @@ would otherwise need to be signed by the private key for
 DiTnhYiCPSjzw8qX185j25FWeJjRL9fErf.
 
 The printassets command shows which assets are controlled, including
-those controlled by endorsements.
+those controlled by endorsements. Note that one can find the asset
+id for each of these assets, which is needed when creating
+a transaction with createtx or creategeneraltx.
 
 The commands createtx, signtx and sendtx can be used to spend the
 1.01. Here is an example of how the 1.01 fraenks from

@@ -90,8 +90,8 @@ staking include `maxburn`, `maxburnrate` and `mintimebetweenburns`
 which control the amount of litecoin you are willing to burn to
 stake a block. By default no litecoins will be burned.
 The parameter `ltctxfee` determines the (fixed) transaction fee
-that will be used for burn transactions, denominated in litoshies.
-The default is 100,000 litoshis (0.001 ltc).
+that will be used for burn transactions, denominated in litoshis.
+The default is 10,000 litoshis (0.0001 ltc).
 
 Connections will be created over tor (via socks proxies) if `socks=4`
 is included in the configuration file.

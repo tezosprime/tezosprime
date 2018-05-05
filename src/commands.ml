@@ -1882,3 +1882,94 @@ let preassetinfo_report oc u =
 	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_daliladdrstr (hashval_term_addr h2)) (hashval_hexstring h2))
 	    createsnegprops
 	end
+
+let requestfullledger oc h =
+  Printf.fprintf oc "Checking for missing elements of %s to request from peers. This may take several hours.\n" (hashval_hexstring h);
+  flush oc;
+  let reqh = ref [] in
+  let reqc = ref [] in
+  let cnt = ref 0 in
+  let rec requestasset oc h =
+    if not (DbAsset.dbexists h) then
+      begin
+	broadcast_requestdata GetAsset h;
+	incr cnt
+      end
+  in
+  let rec requestfullhlist_1 oc h =
+    let (k,hr) = DbHConsElt.dbget h in
+    requestasset oc k;
+    match hr with
+    | Some(k,_) -> requestfullhlist oc k
+    | _ -> ()
+  and requestfullhlist oc h =
+    try
+      requestfullhlist_1 oc h
+    with Not_found ->
+      broadcast_requestdata GetHConsElement h;
+      incr cnt;
+      reqh := h::!reqh
+  in
+  let rec requestfullctree oc h =
+    try
+      let e = DbCTreeElt.dbget h in
+      requestfullctree_2 oc e
+    with Not_found ->
+      broadcast_requestdata GetCTreeElement h;
+      incr cnt;
+      reqc := h::!reqc
+  and requestfullctree_2 oc c =
+    match c with
+    | CHash(h) -> requestfullctree oc h
+    | CLeaf(_,NehHash(h,_)) -> requestfullhlist oc h
+    | CLeaf(_,_) -> Printf.fprintf oc "Bug: Unexpected ctree elt case of nehhlist other than hash"
+    | CLeft(c0) -> requestfullctree_2 oc c0
+    | CRight(c1) -> requestfullctree_2 oc c1
+    | CBin(c0,c1) -> requestfullctree_2 oc c0; requestfullctree_2 oc c1
+  in
+  requestfullctree oc h;
+  if !cnt = 0 then
+    Printf.fprintf oc "Verified node already has full ledger.\n"
+  else
+    begin
+      Printf.fprintf oc "Made %d requests on first pass. Will try up to 10 passes to try to get all.\n" !cnt;
+      flush oc;
+      try
+	for i = 2 to 10 do
+	  Thread.delay 2.0;
+	  Printf.fprintf oc "Beginning Pass %d.\n" i;
+	  flush oc;
+	  let reqhp = !reqh in
+	  let reqcp = !reqc in
+	  cnt := 0;
+	  reqh := [];
+	  reqc := [];
+	  List.iter
+	    (fun h ->
+	      try
+		requestfullhlist_1 oc h
+	      with Not_found ->
+		incr cnt;
+		reqh := h::!reqh)
+	    reqhp;
+	  List.iter
+	    (fun h ->
+	      try
+		requestfullctree_2 oc (DbCTreeElt.dbget h)
+	      with Not_found ->
+		incr cnt;
+		reqc := h::!reqc)
+	    reqcp;
+	  if !cnt = 0 then
+	    begin
+	      Printf.fprintf oc "Ending Pass %d and ledger is complete.\n" i;
+	      raise Exit
+	    end
+	  else
+	    Printf.fprintf oc "Ending Pass %d with %d outstanding requests.\n" i !cnt;
+	done;
+	Printf.fprintf oc "Failed to obtain complete ledger. Try again, possibly after connecting to different peers.\n";
+	flush oc
+      with Exit ->
+	flush oc
+    end

@@ -197,8 +197,11 @@ dalilcoincli -testnet "getinfo"
 
 * Obtaining the Initial Ledger Tree
 
+Before running dalilcoin for the first time you have the option
+of initializing the database with the initial ledger tree.
+(The initial ledger tree is the same for the mainnet and testnet.)
 The initial ledger tree contains the initial distribution
-of Dalilcoin assets (at least for the testnet) and has hash root
+of Dalilcoin assets and has hash root
 d4b10e4b72eaa8a61427b805f206e828b22bb59192373b83fe0df501e68a5bed.
 
 The full tree is available as the file db.tgz
@@ -208,9 +211,12 @@ https://mega.nz/#!waQE1DiC!yRo9vTYPK9CZsfOxT-6eJ7vtl3WLeIMqK4LAcA2ASKc
 The sha256 hash of this file is
 1920e33fdaf3749d6cce55ab0150faf961ef22c5057c92e082c3f6209fb335d5
 
-After downloading the file cd to the testnet subdirectory of your Dalilcoin data directory.
+After downloading the file cd to your Dalilcoin data directory (for the mainnet)
+or the testnet subdirectory of your Dalilcoin data directory (for the testnet).
 Most likely this mean:
 
+cd ~/.dalilcoin
+or
 cd ~/.dalilcoin/testnet
 
 Move the downloaded file to here and untar it. For example:
@@ -218,6 +224,20 @@ Move the downloaded file to here and untar it. For example:
 tar xzvf db.tgz
 
 It will create a db subdirectory with all the necessary information.
+
+If you have already run dalilcoin and already have the db subdirectory,
+you should delete the db subdirectory before untar'ing db.tgz.
+
+An alternative to downloading the db.tgz file is to use the command
+requestfullledger to try to obtain the full ledger (piece by piece)
+from peer nodes on the network. The requestfullledger command is very
+slow and should be expected to run for several hours. The command
+requestfullledger without an argument will use the block chain to
+determine the most recent ledger root and try to find the full ledger
+for this root.  Alternatively you can give the ledgerroot as an argument.
+For example this call will try to obtain the full initial ledger:
+
+requestfullledger d4b10e4b72eaa8a61427b805f206e828b22bb59192373b83fe0df501e68a5bed
 
 * Importing Watch Addresses and Viewing Balances
 

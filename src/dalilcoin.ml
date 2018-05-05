@@ -1203,6 +1203,25 @@ let do_command oc l =
 	| _ ->
 	    raise (Failure("setledgerroot <ledgerroot or blockid>"))
       end
+  | "requestfullledger" ->
+      begin
+	match al with
+	| [a] ->
+	    begin
+	      let h = hexstring_hashval a in
+	      Commands.requestfullledger oc h
+	    end
+	| [] ->
+	    begin
+	      try
+		let BlocktreeNode(_,_,pbh,_,_,ledgerroot,csm,tar,tmstmp,_,blkh,_,_,_) = get_bestnode_print_warnings oc true in
+		Commands.requestfullledger oc ledgerroot
+	      with e ->
+		Printf.fprintf oc "Exception: %s\n" (Printexc.to_string e)
+	    end
+	| _ ->
+	    Printf.fprintf oc "requestfullledger [<ledgerroot>]"
+      end
   | "requestblock" ->
       begin
 	match al with

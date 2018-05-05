@@ -1,4 +1,5 @@
 (* Copyright (c) 2015 The Qeditas developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -65,3 +66,5 @@ val query : string -> jsonval
 val query_blockheight : int64 -> jsonval
 
 val preassetinfo_report : out_channel -> preasset -> unit
+
+val requestfullledger : out_channel -> hashval -> unit

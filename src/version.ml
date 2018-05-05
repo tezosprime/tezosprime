@@ -3,7 +3,7 @@
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
-let clientdescr = "Dalilcoin (alpha)"
-let clientversion = "0.1.0"
+let clientdescr = "Dalilcoin"
+let clientversion = "0.1.1"
 let useragent = clientdescr ^ " " ^ clientversion
 let protocolversion = 1l

@@ -1,5 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -443,10 +443,10 @@ let rec get_bestnode req =
 		      try
 			get_bestnode_r2 ctipr ctipsr (ConsensusWarningMissing(dbh,oprev,-1L,DbBlockHeader.dbexists dbh,DbBlockDelta.dbexists dbh,comm)::cwl)
 		      with Not_found ->
-			Printf.fprintf !log "Not_found raised by get_bestnode_r2, probably indicating a bug.\n";
+			log_string (Printf.sprintf "Not_found raised by get_bestnode_r2, probably indicating a bug.\n");
 			raise (Failure("Not_found raised by get_bestnode_r2, probably indicating a bug."));
 		    with Not_found ->
-		      Printf.fprintf !log "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh);
+		      log_string (Printf.sprintf "WARNING: No burn for %s although seems to be a tip, this should not have happened so there must be a bug.\n" (hashval_hexstring dbh));
 		      get_bestnode_r2 ctipr ctipsr (ConsensusWarningNoBurn(dbh)::cwl)
 		end
 	      in
@@ -496,16 +496,13 @@ and create_new_node h req =
     create_new_node_a h req
   with
   | Not_found ->
-      Printf.fprintf !log "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h);
-      flush !log;
+      log_string (Printf.sprintf "create_new_node called with %s but no such entry is in HeaderLtcBurn\n" (hashval_hexstring h));
       raise (Failure "problem in create_new_node")
   | NoReq ->
-      Printf.fprintf !log "do not have block header or delta for %s and cannot currently request it\n" (hashval_hexstring h);
-      flush !log;
+      log_string (Printf.sprintf "do not have block header or delta for %s and cannot currently request it\n" (hashval_hexstring h));
       raise (Failure "delaying create_new_node")
   | GettingRemoteData ->
-      Printf.fprintf !log "requesting block header or delta for %s\n" (hashval_hexstring h);
-      flush !log;
+      log_string (Printf.sprintf "requesting block header or delta for %s\n" (hashval_hexstring h));
       raise (Failure "delaying create_new_node")
 and create_new_node_a h req =
   let (pob,_) = find_dalilcoin_header_ltc_burn h in
@@ -551,12 +548,12 @@ and create_new_node_b h pob req =
 	  raise NoReq
 	else
 	  begin
-	    Printf.fprintf !log "trying to request delta %s\n" (hashval_hexstring h);
+	    log_string (Printf.sprintf "trying to request delta %s\n" (hashval_hexstring h));
 	    try
 	      find_and_send_requestdata GetBlockdelta h;
 	      raise GettingRemoteData
 	    with Not_found ->
-	      Printf.fprintf !log "not connected to a peer with delta %s\n" (hashval_hexstring h);
+	      log_string (Printf.sprintf "not connected to a peer with delta %s\n" (hashval_hexstring h));
 	      raise Exit
 	  end
       end
@@ -565,12 +562,12 @@ and create_new_node_b h pob req =
       raise NoReq
     else
       begin
-        Printf.fprintf !log "trying to request header %s\n" (hashval_hexstring h);
+        log_string (Printf.sprintf "trying to request header %s\n" (hashval_hexstring h));
         try
 	  find_and_send_requestdata GetHeader h;
 	  raise GettingRemoteData
         with Not_found ->
-	  Printf.fprintf !log "not connected to a peer with header %s\n" (hashval_hexstring h);
+	  log_string (Printf.sprintf "not connected to a peer with header %s\n" (hashval_hexstring h));
           Printf.printf "not connected to a peer with delta %s\n" (hashval_hexstring h);
 	  raise Exit
       end
@@ -603,7 +600,7 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
     begin
       let b = Buffer.create 1000 in
       seosbf (seo_blockdelta seosb blkdel (b,None));
-      Printf.fprintf !log "Bad block delta received for %s; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
+      log_string (Printf.sprintf "Bad block delta received for %s; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
       let tm = Unix.time() in
       cs.banned <- true;
       Hashtbl.add bannedpeers cs.addrfrom ();
@@ -616,7 +613,7 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
       begin
 	let thytree = lookup_thytree thyroot in
 	let sigtree = lookup_sigtree sigroot in
-	Printf.fprintf !log "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght;
+	log_string (Printf.sprintf "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght);
 	match valid_block thytree sigtree blkhght csm tinf blk lmedtm burned with
 	| Some(tht2,sigt2) ->
 	    vs := ValidBlock;
@@ -641,7 +638,7 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
 	| None -> (*** We can mark it as invalid because we know this is the only delta that could support the header. ***)
 	    let b = Buffer.create 1000 in
 	    seosbf (seo_blockdelta seosb blkdel (b,None));
-	    Printf.fprintf !log "Block delta for %s was invalid; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
+	    log_string (Printf.sprintf "Block delta for %s was invalid; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
 	    let tm = Unix.time() in
 	    cs.banned <- true;
 	    Hashtbl.add bannedpeers cs.addrfrom ();
@@ -654,10 +651,10 @@ and process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid =
     process_new_header_aa h hh blkh1 blkhd1 blkhs1 (blockheader_stakeasset blkhd1) initialization knownvalid
   with
   | HeaderStakedAssetNotMin ->
-      Printf.fprintf !log "Header %s has extra information beyong supporting staked asset; should have been caught before process_new_header_a\n" hh;
+      log_string (Printf.sprintf "Header %s has extra information beyong supporting staked asset; should have been caught before process_new_header_a\n" hh);
       raise (Failure "header does not only support staked asset")
   | HeaderNoStakedAsset ->
-      Printf.fprintf !log "Header %s does not support staked asset; should have been caught before process_new_header_a\n" hh;
+      log_string (Printf.sprintf "Header %s does not support staked asset; should have been caught before process_new_header_a\n" hh);
       raise (Failure "header does not support staked asset")
 and process_new_header_aa h hh blkh1 blkhd1 blkhs1 a initialization knownvalid =
   if valid_blockheader_signat blkh1 a then
@@ -665,7 +662,7 @@ and process_new_header_aa h hh blkh1 blkhd1 blkhs1 a initialization knownvalid =
     process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid pob
   else
     begin
-      Printf.fprintf !log "Header %s has an invalid signature; should have been caught before process_new_header_aa\n" hh;
+      log_string (Printf.sprintf "Header %s has an invalid signature; should have been caught before process_new_header_aa\n" hh);
       raise (Failure "header has invalid signature")
     end
 and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid pob =
@@ -680,7 +677,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	  if !blacklisted then (*** child of a blacklisted node, drop and blacklist it ***)
             begin
 	      let newcsm = poburn_stakemod pob in
-	      Printf.fprintf !log "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh;
+	      log_string (Printf.sprintf "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh);
               let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_delayed_delta h blkh1 newnode;
@@ -726,15 +723,15 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
                               try
                                 find_and_send_requestdata GetBlockdelta h
 			      with Not_found ->
-                                Printf.fprintf !log "No source for block delta of %s; must wait until it is explicitly requested\n" hh
+                                log_string (Printf.sprintf "No source for block delta of %s; must wait until it is explicitly requested\n" hh)
                             end
                           else
                             begin
                               try
-                                Printf.fprintf !log "Do not have header for %s; trying to request it.\n" hh;
+                                log_string (Printf.sprintf "Do not have header for %s; trying to request it.\n" hh);
                                 find_and_send_requestdata GetHeader h
                               with Not_found ->
-                                Printf.fprintf !log "No source for block header of %s\n" hh
+                                log_string (Printf.sprintf "No source for block header of %s\n" hh)
                             end
 		    end
 		  else
@@ -746,24 +743,24 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
                       try
                         find_and_send_requestdata GetBlockdelta h
                       with Not_found ->
-                        Printf.fprintf !log "No source for block delta of %s; must wait until it is explicitly requested\n" hh
+                        log_string (Printf.sprintf "No source for block delta of %s; must wait until it is explicitly requested\n" hh)
                     end
                   else
                     begin
                       try
-                        Printf.fprintf !log "Do not have header for %s; trying to request it.\n" hh;
+                        log_string (Printf.sprintf "Do not have header for %s; trying to request it.\n" hh);
                         find_and_send_requestdata GetHeader h
                       with Not_found ->
-                        Printf.fprintf !log "No source for block header of %s\n" hh
+                        log_string (Printf.sprintf "No source for block header of %s\n" hh)
                     end
 	      end
 	    end
 	  else
 	    let newcsm = poburn_stakemod pob in
 	    begin (*** if it's wrong, delete it and blacklist it so it won't look new in the future [note: signature is assumed to have been checked to be valid by now] ***)
-	      Printf.fprintf !log "Header %s was invalid, deleting and blacklisting it.\n" hh;
-	      Printf.fprintf !log "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
-	      Printf.fprintf !log "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
+	      log_string (Printf.sprintf "Header %s was invalid, deleting and blacklisting it.\n" hh);
+	      log_string (Printf.sprintf "vbh %Ld %s %b\n" blkhght (targetinfo_string currtinfo) (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned));
+	      log_string (Printf.sprintf "bhsa %s %Ld %s %b\n" (hashval_hexstring ledgerroot) tmstamp (targetinfo_string currtinfo) (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1));
 	      verbose_blockcheck := Some(!log);
 	      ignore (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
 	      ignore (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
@@ -776,7 +773,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 (*	      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
             end
 	with Not_found ->
-	  Printf.fprintf !log "unexpected Not_found in process_new_header_a %s\n" hh;
+	  log_string (Printf.sprintf "unexpected Not_found in process_new_header_a %s\n" hh);
 	  raise (Failure "unexpected Not_found in process_new_header_a")
       end
     with Not_found -> (*** orphan block header, put it on the relevant hash table and possibly request parent ***)
@@ -784,38 +781,38 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
       | Some(parblkh) ->
 	  begin
 	    let parblkhh = hashval_hexstring parblkh in
-	    Printf.fprintf !log "Got header %s before parent %s; keeping as orphan and possibly requesting parent\n" hh parblkhh;
+	    log_string (Printf.sprintf "Got header %s before parent %s; keeping as orphan and possibly requesting parent\n" hh parblkhh);
 	    Hashtbl.add orphanblkheaders prevblkh (h,blkh1);
 	    try
 	      if DbBlockHeader.dbexists parblkh then
 		process_new_header_b parblkh parblkhh initialization knownvalid
 	      else
 		find_and_send_requestdata GetHeader parblkh
-	    with Not_found -> Printf.fprintf !log "no peer has parent header %s\n" parblkhh
+	    with Not_found -> log_string (Printf.sprintf "no peer has parent header %s\n" parblkhh)
 	  end
       | None ->
 	  begin
-	    Printf.fprintf !log "Bug: Block header %s is marked as a genesis block, but there is no root to the blocktree.\n" hh
+	    log_string (Printf.sprintf "Bug: Block header %s is marked as a genesis block, but there is no root to the blocktree.\n" hh)
 	  end
   end
 and process_new_header_b h hh initialization knownvalid =
-  Printf.fprintf !log "Processing new header %s\n" hh; flush !log;
+  log_string (Printf.sprintf "Processing new header %s\n" hh);
   try
     let (blkhd1,blkhs1) = DbBlockHeader.dbget h in
     let blkh1 = (blkhd1,blkhs1) in
     if not (blockheader_id blkh1 = h) then (*** wrong hash, remove it but don't blacklist the (wrong) id ***)
       begin
-        Printf.fprintf !log "WARNING: Block header in database has different hash than key, removing %s\nThis must be due to a bug.\n" hh; flush !log;
+        log_string (Printf.sprintf "WARNING: Block header in database has different hash than key, removing %s\nThis must be due to a bug.\n" hh);
 	DbBlockHeader.dbdelete h;
       end
     else
       process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid
   with (*** in some cases, failure should lead to blacklist and removal of the header, but it's not clear which cases; if it's in a block we might need to distinguish between definitely incorrect vs. possibly incorrect ***)
   | Not_found ->
-      Printf.fprintf !log "Problem with blockheader %s\n" hh; flush !log;
+      log_string (Printf.sprintf "Problem with blockheader %s\n" hh);
 (*      DbBlockHeader.dbdelete h; *) (* do not delete header in case we want to inspect or reconsider it *)
   | e ->
-      Printf.fprintf !log "exception %s\n" (Printexc.to_string e); flush !log;
+      log_string (Printf.sprintf "exception %s\n" (Printexc.to_string e));
       ()
 and process_new_header h hh initialization knownvalid =
   if not (Hashtbl.mem blkheaders h) then
@@ -847,13 +844,13 @@ and possibly_handle_delayed_delta h bh n =
 	      | None -> (*** should not have happened, delete it from the database and request it again. ***)
 		  vsp := InvalidBlock;
 		  Hashtbl.remove delayed_deltas h;
-		  Printf.fprintf !log "Invalid block %s\n" (hashval_hexstring h)
+		  log_string (Printf.sprintf "Invalid block %s\n" (hashval_hexstring h))
 	    with _ ->
-	      Printf.fprintf !log "Do not have proof of burn for block %s\n" (hashval_hexstring h);
+	      log_string (Printf.sprintf "Do not have proof of burn for block %s\n" (hashval_hexstring h));
 	  with Not_found ->
-	    Printf.fprintf !log "Could not find signature tree for block\n";
+	    log_string (Printf.sprintf "Could not find signature tree for block\n");
 	with Not_found ->
-	  Printf.fprintf !log "Could not find theory tree for block\n";
+	  log_string (Printf.sprintf "Could not find theory tree for block\n");
       end
   with Not_found -> ()
 and possibly_handle_orphan h n initialization knownvalid =
@@ -910,7 +907,7 @@ let process_delta h =
 
 let rec init_headers_to h =
   if DbInvalidatedBlocks.dbexists h || DbBlacklist.dbexists h then
-    Printf.fprintf !log "Skipping invalidated or blacklisted header %s" (hashval_hexstring h)
+    log_string (Printf.sprintf "Skipping invalidated or blacklisted header %s" (hashval_hexstring h))
   else
     try
       let (blkhd1,blkhs1) as blkh1 = DbBlockHeader.dbget h in
@@ -969,7 +966,7 @@ let publish_stx txh stx1 =
   broadcast_inv [(int_of_msgtype STx,txh)]
 
 let publish_block blkh bhh (bh,bd) =
-  Printf.fprintf !log "publishing block %s\n" (hashval_hexstring bhh); flush !log;
+  log_string (Printf.sprintf "publishing block %s\n" (hashval_hexstring bhh));
   broadcast_inv [(int_of_msgtype Headers,bhh);(int_of_msgtype Blockdelta,bhh)];;
 
 let initblocktree () =
@@ -982,7 +979,7 @@ let initblocktree () =
       ignore (get_bestnode true)
     else
       begin
-	Printf.fprintf !log "%d headers are missing.\n" (List.length !missingheaders);
+	log_string (Printf.sprintf "%d headers are missing.\n" (List.length !missingheaders));
 	find_and_send_requestmissingheaders()
       end
   with
@@ -995,14 +992,13 @@ Hashtbl.add msgtype_handler GetHeader
     let tm = Unix.time() in
     if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
       begin
-	Printf.fprintf !log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	flush !log
+	log_string (Printf.sprintf "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom);
       end
     else
       try
 	let (bhd,bhs) as bh = DbBlockHeader.dbget h in
 	let s = Buffer.create 1000 in
-	Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeader)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
+	log_string (Printf.sprintf "sending header %s to %s upon request at time %f (GetHeader)\n" (hashval_hexstring h) cs.addrfrom (Unix.time()));
 	seosbf (seo_blockheader seosb bh (seo_hashval seosb h (seo_int8 seosb 1 (s,None))));
 	cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv;
 	let ss = Buffer.contents s in
@@ -1025,19 +1021,18 @@ Hashtbl.add msgtype_handler GetHeaders
       c := cn;
       if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
 	begin
-	  Printf.fprintf !log "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	  flush !log
+	  log_string (Printf.sprintf "recently sent header %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom);
 	end
       else
 	try
 	  let (blkhd1,blkhs1) as bh = DbBlockHeader.dbget h in
 	  if not (blockheader_id bh = h) then
-	    Printf.fprintf !log "Serious bug: not sending blockheader %s since it does not have correct id but instead %s\n" (hashval_hexstring h) (hashval_hexstring (blockheader_id bh))
+	    log_string (Printf.sprintf "Serious bug: not sending blockheader %s since it does not have correct id but instead %s\n" (hashval_hexstring h) (hashval_hexstring (blockheader_id bh)))
 	  else
 	    begin
 	      incr m;
 	      bhl := (h,bh)::!bhl;
-	      Printf.fprintf !log "sending header %s to %s upon request at time %f (GetHeaders)\n" (hashval_hexstring h) cs.addrfrom (Unix.time());
+	      log_string (Printf.sprintf "sending header %s to %s upon request at time %f (GetHeaders)\n" (hashval_hexstring h) cs.addrfrom (Unix.time()));
 	      cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	    end;
 	with
@@ -1045,10 +1040,10 @@ Hashtbl.add msgtype_handler GetHeaders
 	  (*** don't have it to send, ignore ***)
 	    ()
 	| e -> (** ignore any other exception ***)
-	    Printf.fprintf !log "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e)
+	    log_string (Printf.sprintf "unexpected exception when handling GetHeaders: %s\n" (Printexc.to_string e))
       done;
     let s = Buffer.create 10000 in
-    Printf.fprintf !log "sending %d headers\n" !m;
+    log_string (Printf.sprintf "sending %d headers\n" !m);
     let co = ref (seo_int8 seosb !m (s,None)) in
     List.iter (fun (h,bh) -> co := seo_blockheader seosb bh (seo_hashval seosb h !co)) !bhl;
     seosbf !co;
@@ -1060,8 +1055,7 @@ let deserialize_exc_protect cs f =
   try
     f()
   with e ->
-    Printf.fprintf !log "Deserialization exception: %s\nDisconnecting and banning node %s\n" (Printexc.to_string e) cs.realaddr;
-    flush !log;
+    log_string (Printf.sprintf "Deserialization exception: %s\nDisconnecting and banning node %s\n" (Printexc.to_string e) cs.realaddr);
     cs.banned <- true;
     raise e;;
 
@@ -1069,7 +1063,7 @@ Hashtbl.add msgtype_handler Headers
   (fun (sin,sout,cs,ms) ->
     let c = ref (ms,String.length ms,None,0,0) in
     let (n,cn) = sei_int8 seis !c in (*** peers can request at most 255 headers at a time **)
-    Printf.fprintf !log "get %d Headers\n" n; flush !log;
+    log_string (Printf.sprintf "get %d Headers\n" n);
     c := cn;
     let tm = Unix.time() in
     let i = int_of_msgtype GetHeader in
@@ -1077,23 +1071,22 @@ Hashtbl.add msgtype_handler Headers
       let (h,cn) = sei_hashval seis !c in
       let (bh,cn) = deserialize_exc_protect cs (fun () -> sei_blockheader seis cn) in (*** deserialize if only to get to the next one ***)
       c := cn;
-      Printf.fprintf !log "Headers msg %d %s at time %f\n"j (hashval_hexstring h) tm;
+      log_string (Printf.sprintf "Headers msg %d %s at time %f\n"j (hashval_hexstring h) tm);
       if not (DbBlockHeader.dbexists h) &&
 	((try ignore (find_dalilcoin_header_ltc_burn h); true with Not_found -> false) || recently_requested (i,h) tm cs.invreq)
       then
 	let (bhd,bhs) = bh in
 	if not (blockheader_id bh = h) then
 	  begin (*** this may be the result of a misbehaving peer ***)
-	    Printf.fprintf !log "got a header with the wrong hash, dropping it and banning node\n";
+	    log_string (Printf.sprintf "got a header with the wrong hash, dropping it and banning node\n");
 	    let b = Buffer.create 1000 in
 	    seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
-	    Printf.fprintf !log "given id h = %s header with wrong id = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
-	    flush !log;
+	    log_string (Printf.sprintf "given id h = %s header with wrong id = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
 	    cs.banned <- true
 	  end
 	else if !Config.ltcoffline then
 	  begin
-	    Printf.fprintf !log "Since ltcoffline is true, just accepting header %s\n" (hashval_hexstring h);
+	    log_string (Printf.sprintf "Since ltcoffline is true, just accepting header %s\n" (hashval_hexstring h));
 	    DbBlockHeader.dbput h bh;
 	    match bhd.prevblockhash with
 	    | None -> ()
@@ -1118,36 +1111,35 @@ Hashtbl.add msgtype_handler Headers
 		      let (Poburn(lblkh2,ltxh2,lmedtm2,burned2),_) = find_dalilcoin_header_ltc_burn prevh in (* previous proof of burn *)
 		      if not (lblkh = lblkh2) then
 			begin
-			  Printf.fprintf !log "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2);
+			  log_string (Printf.sprintf "Rejecting incoming header %s since ltc block hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring lblkh) (hashval_hexstring lblkh2));
 			  validsofar := false
 			end;
 		      if not (ltxh = ltxh2) then
 			begin
-			  Printf.fprintf !log "Rejecting incoming header %s since ltc tx hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring ltxh) (hashval_hexstring ltxh2);
+			  log_string (Printf.sprintf "Rejecting incoming header %s since ltc tx hash mismatch in poburn: %s vs %s\n" (hashval_hexstring h) (hashval_hexstring ltxh) (hashval_hexstring ltxh2));
 			  validsofar := false
 			end;
 		      if not (lmedtm = lmedtm2) then
 			begin
-			  Printf.fprintf !log "Rejecting incoming header %s since ltc median time mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) lmedtm lmedtm2;
+			  log_string (Printf.sprintf "Rejecting incoming header %s since ltc median time mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) lmedtm lmedtm2);
 			  validsofar := false
 			end;
 		      if not (burned = burned2) then
 			begin
-			  Printf.fprintf !log "Rejecting incoming header %s since ltc burn amount mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) burned burned2;
+			  log_string (Printf.sprintf "Rejecting incoming header %s since ltc burn amount mismatch in poburn: %Ld vs %Ld\n" (hashval_hexstring h) burned burned2);
 			  validsofar := false
 			end;
 		    with Not_found ->
-		      Printf.fprintf !log "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevh);
+		      log_string (Printf.sprintf "Rejecting incoming header %s (without banning or blacklisting) since no corresponding ltc burn of previous %s.\n" (hashval_hexstring h) (hashval_hexstring prevh));
 		      validsofar := false;
 		      dontban := true
 	      end;
 	      if not !validsofar then
 		begin
-		  Printf.fprintf !log "Got invalid header %s\n" (hashval_hexstring h);
+		  log_string (Printf.sprintf "Got invalid header %s\n" (hashval_hexstring h));
 		  let b = Buffer.create 1000 in
 		  seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
-		  Printf.fprintf !log "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
-		  flush !log;
+		  log_string (Printf.sprintf "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
 		  if not !dontban then cs.banned <- true
 		end
 	      else if not (valid_blockheader_signat (bhd,bhs) a) then
@@ -1155,8 +1147,7 @@ Hashtbl.add msgtype_handler Headers
 		  Printf.printf "Got invalid header %s (signature invalid)\n" (hashval_hexstring h);
 		  let b = Buffer.create 1000 in
 		  seosbf (seo_blockheader seosb (bhd,bhs) (b,None));
-		  Printf.fprintf !log "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b));
-		  flush !log;
+		  log_string (Printf.sprintf "full invalid header for %s = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
 		  if not !dontban then cs.banned <- true
 		end
 	      else
@@ -1164,19 +1155,16 @@ Hashtbl.add msgtype_handler Headers
 		  let (pob,_) = find_dalilcoin_header_ltc_burn h in
 		  process_new_header_ab h (hashval_hexstring h) bh bhd bhs a false false pob
 		with Not_found -> (*** before the pob has been completed; should not have been requested yet ***)
-		  Printf.fprintf !log "Header %s was requested and received before the proof-of-burn was confirmed; ignoring it and waiting\n" (hashval_hexstring h);
-		  flush !log
+		  log_string (Printf.sprintf "Header %s was requested and received before the proof-of-burn was confirmed; ignoring it and waiting\n" (hashval_hexstring h));
 	    with
 	    | HeaderStakedAssetNotMin -> (*** here it is safe to blacklist the header's hash since no valid header can have this hash ***)
 		begin
-		  Printf.fprintf !log "header does not only have the staked asset; blacklisting it and banning node\n";
-		  flush !log;
+		  log_string (Printf.sprintf "header does not only have the staked asset; blacklisting it and banning node\n");
 		  cs.banned <- true
 		end
 	    | HeaderNoStakedAsset -> (*** here it is safe to blacklist the header's hash since no valid header can have this hash ***)
 		begin
-		  Printf.fprintf !log "header does not have the staked asset; blacklisting it and banning node\n";
-		  flush !log;
+		  log_string (Printf.sprintf "header does not have the staked asset; blacklisting it and banning node\n");
 		  cs.banned <- true
 		end
 	  end
@@ -1209,14 +1197,14 @@ Hashtbl.add msgtype_handler Inv
     let c = ref (ms,String.length ms,None,0,0) in
     let hl = ref [] in
     let (n,cn) = sei_int32 seis !c in
-    Printf.fprintf !log "Inv msg %ld entries\n" n;
+    log_string (Printf.sprintf "Inv msg %ld entries\n" n);
     c := cn;
     for j = 1 to Int32.to_int n do
       let ((i,h),cn) = sei_prod sei_int8 sei_hashval seis !c in
       c := cn;
       cs.rinv <- (i,h)::cs.rinv;
-      if i = int_of_msgtype Headers then Printf.fprintf !log "Headers, dbexists %b, archived %b\n" (DbBlockHeader.dbexists h) (DbArchived.dbexists h);
-      Printf.fprintf !log "Inv %d %s\n" i (hashval_hexstring h);
+      if i = int_of_msgtype Headers then log_string (Printf.sprintf "Headers, dbexists %b, archived %b\n" (DbBlockHeader.dbexists h) (DbArchived.dbexists h));
+      log_string (Printf.sprintf "Inv %d %s\n" i (hashval_hexstring h));
       if i = int_of_msgtype Headers && not (DbArchived.dbexists h) then
 	begin
 	  try
@@ -1238,9 +1226,9 @@ Hashtbl.add msgtype_handler Inv
             cs.invreq <- (int_of_msgtype GetBlockdelta,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 	    let s = Buffer.create 1000 in
 	    seosbf (seo_hashval seosb h (s,None));
-	    Printf.fprintf !log "Immediately requesting blockdelta %s\n" (hashval_hexstring h);
+	    log_string (Printf.sprintf "Immediately requesting blockdelta %s\n" (hashval_hexstring h));
 	    ignore (queue_msg cs GetBlockdelta (Buffer.contents s))
-	  with exn -> Printf.fprintf !log "inv blockdelta %s\n" (Printexc.to_string exn)
+	  with exn -> log_string (Printf.sprintf "inv blockdelta %s\n" (Printexc.to_string exn))
 	end
       else if i = int_of_msgtype STx && not (DbArchived.dbexists h) then
 	begin
@@ -1250,7 +1238,7 @@ Hashtbl.add msgtype_handler Inv
               cs.invreq <- (int_of_msgtype GetSTx,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
               let s = Buffer.create 1000 in
 	      seosbf (seo_hashval seosb h (s,None));
-	      Printf.fprintf !log "Sending GetSTx %s to %s at %f\n" (hashval_hexstring h) cs.realaddr tm;
+	      log_string (Printf.sprintf "Sending GetSTx %s to %s at %f\n" (hashval_hexstring h) cs.realaddr tm);
 	      ignore (queue_msg cs GetSTx (Buffer.contents s))
 	    end
 	end
@@ -1264,8 +1252,7 @@ Hashtbl.add msgtype_handler GetBlockdelta
       let tm = Unix.time() in
       if recently_sent (i,h) tm cs.sentinv then (*** don't resend ***)
 	begin
-	  Printf.fprintf !log "recently sent delta %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom;
-	  flush !log
+	  log_string (Printf.sprintf "recently sent delta %s to %s; not resending\n" (hashval_hexstring h) cs.addrfrom);
 	end
       else
 	try
@@ -1276,7 +1263,7 @@ Hashtbl.add msgtype_handler GetBlockdelta
 	  ignore (queue_msg cs Blockdelta bdser);
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
-	  Printf.fprintf !log "Unknown Block Delta %s (Bad Peer or Did I Advertize False Inventory?)\n" (hashval_hexstring h);
+	  log_string (Printf.sprintf "Unknown Block Delta %s (Bad Peer or Did I Advertize False Inventory?)\n" (hashval_hexstring h));
 	  ());;
 
 Hashtbl.add msgtype_handler Blockdelta
@@ -1287,7 +1274,7 @@ Hashtbl.add msgtype_handler Blockdelta
 	begin
 	  if !Config.ltcoffline then
 	    begin
-	      Printf.fprintf !log "Since ltcoffline is true, just accepting delta %s\n" (hashval_hexstring h);
+	      log_string (Printf.sprintf "Since ltcoffline is true, just accepting delta %s\n" (hashval_hexstring h));
 	      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
 	      DbBlockDelta.dbput h blkdel
 	    end
@@ -1342,7 +1329,7 @@ Hashtbl.add msgtype_handler Blockdelta
 	    with e ->
 	      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
 	      if not (Hashtbl.mem delayed_deltas h) then Hashtbl.add delayed_deltas h blkdel;
-	      Printf.fprintf !log "Delaying handling Blockdelta %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
+	      log_string (Printf.sprintf "Delaying handling Blockdelta %s: %s\n" (hashval_hexstring h) (Printexc.to_string e))
 	end);;
 
 Hashtbl.add msgtype_handler GetSTx
@@ -1356,7 +1343,7 @@ Hashtbl.add msgtype_handler GetSTx
 	  let stausb = Buffer.create 100 in
 	  seosbf (seo_stx seosb stau (seo_hashval seosb h (stausb,None)));
 	  let stauser = Buffer.contents stausb in
-	  Printf.fprintf !log "Sending Signed Tx (from pool) %s\n" (hashval_hexstring h);
+	  log_string (Printf.sprintf "Sending Signed Tx (from pool) %s\n" (hashval_hexstring h));
 	  ignore (queue_msg cs STx stauser);
 	  cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	with Not_found ->
@@ -1365,11 +1352,11 @@ Hashtbl.add msgtype_handler GetSTx
 	    let stausb = Buffer.create 100 in
 	    seosbf (seo_stx seosb stau (seo_hashval seosb h (stausb,None)));
 	    let stauser = Buffer.contents stausb in
-	    Printf.fprintf !log "Sending Signed Tx (from db) %s\n" (hashval_hexstring h);
+	    log_string (Printf.sprintf "Sending Signed Tx (from db) %s\n" (hashval_hexstring h));
 	    ignore (queue_msg cs STx stauser);
 	    cs.sentinv <- (i,h,tm)::List.filter (fun (_,_,tm0) -> tm -. tm0 < 3600.0) cs.sentinv
 	  with Not_found ->
-	    Printf.fprintf !log "Unknown Tx %s\n" (hashval_hexstring h);
+	    log_string (Printf.sprintf "Unknown Tx %s\n" (hashval_hexstring h));
 	    ());;
 
 let add_to_txpool txid stau =
@@ -1395,7 +1382,7 @@ Hashtbl.add msgtype_handler STx
       let (h,r) = sei_hashval seis (ms,String.length ms,None,0,0) in
       let i = int_of_msgtype GetSTx in
       let tm = Unix.time() in
-      Printf.fprintf !log "Got Signed Tx %s from %s at %f\n" (hashval_hexstring h) cs.realaddr tm;
+      log_string (Printf.sprintf "Got Signed Tx %s from %s at %f\n" (hashval_hexstring h) cs.realaddr tm);
       if not (DbSTx.dbexists h) && not (Hashtbl.mem stxpool h) then (*** if we already have it, abort ***)
 	if recently_requested (i,h) tm cs.invreq then (*** only continue if it was requested ***)
           let (((tauin,tauout) as tau,_) as stau,_) = deserialize_exc_protect cs (fun () -> sei_stx seis r) in
@@ -1405,7 +1392,7 @@ Hashtbl.add msgtype_handler STx
 		try
 		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
 		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
-		  let unsupportederror alpha k = Printf.fprintf !log "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h) in
+		  let unsupportederror alpha k = log_string (Printf.sprintf "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h)) in
 		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
 		  if tx_signatures_valid blkh al stau then
 		    begin
@@ -1414,25 +1401,24 @@ Hashtbl.add msgtype_handler STx
 		      if fee >= !Config.minrelayfee then
 			begin
 			  Hashtbl.add stxpool h stau;
-			  Printf.fprintf !log "Accepting tx %s into pool\n" (hashval_hexstring h);
-			  flush !log;
+			  log_string (Printf.sprintf "Accepting tx %s into pool\n" (hashval_hexstring h));
 			  add_to_txpool h stau;
 			  savetxtopool_real h stau
 			end
 		      else
-			(Printf.fprintf !log "ignoring tx %s with low fee of %s fraenks (%Ld cants)\n" (hashval_hexstring h) (Cryptocurr.fraenks_of_cants fee) fee; flush !log)
+			(log_string (Printf.sprintf "ignoring tx %s with low fee of %s fraenks (%Ld cants)\n" (hashval_hexstring h) (Cryptocurr.fraenks_of_cants fee) fee))
 		    end
 		  else
-		    (Printf.fprintf !log "ignoring tx %s since signatures are not valid at the current block height of %Ld\n" (hashval_hexstring h) blkh; flush !log)
+		    (log_string (Printf.sprintf "ignoring tx %s since signatures are not valid at the current block height of %Ld\n" (hashval_hexstring h) blkh))
 		with _ ->
-		  (Printf.fprintf !log "Tx %s is unsupported by the local ledger, dropping it.\n" (hashval_hexstring h); flush !log)
+		  (log_string (Printf.sprintf "Tx %s is unsupported by the local ledger, dropping it.\n" (hashval_hexstring h)))
 	      end
 	    else
-	      (Printf.fprintf !log "misbehaving peer? [invalid Tx %s]\n" (hashval_hexstring h); flush !log)
+	      (log_string (Printf.sprintf "misbehaving peer? [invalid Tx %s]\n" (hashval_hexstring h)))
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-	    (Printf.fprintf !log "misbehaving peer? [malformed Tx]\n"; flush !log)
+	    (log_string (Printf.sprintf "misbehaving peer? [malformed Tx]\n"))
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !log "misbehaving peer? [unrequested Tx %s]\n" (hashval_hexstring h); flush !log));;
+	  (log_string (Printf.sprintf "misbehaving peer? [unrequested Tx %s]\n" (hashval_hexstring h))));;
 
 let dumpblocktreestate sa =
   Printf.fprintf sa "=========\nstxpool:\n";
@@ -1512,8 +1498,8 @@ let print_best_node () =
   let (bn,cwl) = get_bestnode true in
   let BlocktreeNode(_,_,_,pbh,_,_,_,_,_,_,_,_,_,_) = bn in
   match pbh with
-  | Some(h) -> Printf.fprintf !log "bestnode pbh %s\n" (hashval_hexstring h); flush !log
-  | None -> Printf.fprintf !log "bestnode pbh (genesis)\n"; flush !log
+  | Some(h) -> log_string (Printf.sprintf "bestnode pbh %s\n" (hashval_hexstring h))
+  | None -> log_string (Printf.sprintf "bestnode pbh (genesis)\n")
 
 let rec recursively_invalidate_children n =
   let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,chlr) = n in

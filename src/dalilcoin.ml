@@ -163,8 +163,6 @@ let dumpstate fa =
   dumpblocktreestate sa;
   close_out sa
 
-let exitfn : (int -> unit) ref = ref (fun n -> exit n);;
-
 let lock datadir =
   let lf = Filename.concat datadir "lock" in
   let c = open_out lf in
@@ -209,19 +207,19 @@ let ltc_listener_th : Thread.t option ref = ref None;;
 let ltc_init () =
   if !Config.testnet then ltctestnet();
   try
-    Printf.fprintf !log "syncing with ltc\n";
+    log_string (Printf.sprintf "syncing with ltc\n");
     let lbh = ltc_getbestblockhash () in
-    Printf.fprintf !log "ltc bestblock %s\n" lbh;
+    log_string (Printf.sprintf "ltc bestblock %s\n" lbh);
     ltc_process_block lbh;
     ltc_bestblock := hexstring_hashval lbh;
-    Printf.fprintf !log "finished initial syncing with ltc, now checking for new blocks\n";
+    log_string (Printf.sprintf "finished initial syncing with ltc, now checking for new blocks\n");
     let lbh = ltc_getbestblockhash () in
-    Printf.fprintf !log "ltc bestblock %s\n" lbh;
+    log_string (Printf.sprintf "ltc bestblock %s\n" lbh);
     ltc_process_block lbh;
     ltc_bestblock := hexstring_hashval lbh;
-    Printf.fprintf !log "finished syncing with ltc\n";
+    log_string (Printf.sprintf "finished syncing with ltc\n");
   with exc ->
-    Printf.fprintf !log "problem syncing with ltc. %s quitting.\n" (Printexc.to_string exc);
+    log_string (Printf.sprintf "problem syncing with ltc. %s quitting.\n" (Printexc.to_string exc));
     Printf.printf "problem syncing with ltc. quitting.\n";
 (*    !exitfn 2 *)
     ()
@@ -259,10 +257,10 @@ let rec hlist_stakingassets blkh alpha hl n =
     match hl with
     | HCons((aid,bday,obl,Currency(v)),hr) ->
 	let ca = coinage blkh bday obl v in
-(*	Printf.fprintf !log "Checking asset %s %Ld %Ld %s %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) v (string_of_big_int ca); *)
+(*	log_string (Printf.sprintf "Checking asset %s %Ld %Ld %s %Ld %s\n" (hashval_hexstring aid) blkh bday (obligation_string obl) v (string_of_big_int ca)); *)
 	if gt_big_int ca zero_big_int && not (Hashtbl.mem unconfirmed_spent_assets aid) then
 	  begin
-	    Printf.fprintf !log "Staking asset: %s\n" (hashval_hexstring aid);
+	    log_string (Printf.sprintf "Staking asset: %s\n" (hashval_hexstring aid));
 	    Mutex.lock stakingassetsmutex;
 	    Commands.stakingassets := (alpha,aid,bday,obl,v)::!Commands.stakingassets;
 	    Mutex.unlock stakingassetsmutex;
@@ -328,14 +326,14 @@ let compute_staking_chances n fromtm totm =
     try
       lookup_thytree thyroot
     with Not_found ->
-      Printf.fprintf !log "Do not know theory tree with root %s\n" (match thyroot with None -> "None" | Some(h) -> hashval_hexstring h);
+      log_string (Printf.sprintf "Do not know theory tree with root %s\n" (match thyroot with None -> "None" | Some(h) -> hashval_hexstring h));
       raise StakingProblemPause
   in
   let sigtree =
     try
       lookup_sigtree sigroot
     with Not_found ->
-      Printf.fprintf !log "Do not know signature tree with root %s\n" (match sigroot with None -> "None" | Some(h) -> hashval_hexstring h);
+      log_string (Printf.sprintf "Do not know signature tree with root %s\n" (match sigroot with None -> "None" | Some(h) -> hashval_hexstring h));
       raise StakingProblemPause
   in
   let prevblkh = fstohash prevblk in
@@ -352,7 +350,7 @@ let compute_staking_chances n fromtm totm =
     (*** collect assets allowed to stake now ***)
     Commands.stakingassets := [];
     let minburntostake = ref None in
-    Printf.fprintf !log "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght;
+    log_string (Printf.sprintf "Collecting staking assets in ledger %s (block height %Ld).\n" (hashval_hexstring currledgerroot) blkhght);
     let stakingkeys : (md160,unit) Hashtbl.t = Hashtbl.create 10 in
     List.iter
       (fun (k,b,(x,y),w,h,alpha) ->
@@ -373,7 +371,7 @@ let compute_staking_chances n fromtm totm =
 	      hlist_stakingassets blkhght (x4,x3,x2,x1,x0) (nehlist_hlist hl) 50
 	  | _ -> ())
       !Commands.walletendorsements;
-    Printf.fprintf !log "%d staking assets\n" (List.length !Commands.stakingassets); flush !log;
+    log_string (Printf.sprintf "%d staking assets\n" (List.length !Commands.stakingassets));
     if not (!Commands.stakingassets = []) then
       let nextstake i stkaddr h bday obl v toburn =
 	let deltm = Int64.to_int32 (Int64.sub i tmstamp) in
@@ -386,7 +384,7 @@ let compute_staking_chances n fromtm totm =
 	  (*** go through assets and check for staking at time !i ***)
 	  List.iter
 	    (fun (stkaddr,h,bday,obl,v) ->
-              (** Printf.fprintf !log "Checking for staking of %s at time %Ld\n" (hashval_hexstring h) !i; flush !log; **)
+              (** log_string (Printf.sprintf "Checking for staking of %s at time %Ld\n" (hashval_hexstring h) !i); **)
 	      let caf = coinagefactor blkhght bday obl in
 	      if gt_big_int caf zero_big_int then
 		begin
@@ -417,12 +415,12 @@ let compute_staking_chances n fromtm totm =
 	    )
 	    !Commands.stakingassets
 	done;
-	Printf.fprintf !log "No staking chances up to time %Ld\n" totm; flush !log;
+	log_string (Printf.sprintf "No staking chances up to time %Ld\n" totm);
 	Hashtbl.add nextstakechances (fstohash prevblk) (NoStakeUpTo(totm));
       with
       | Exit -> ()
       | exn ->
-	  Printf.fprintf !log "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn); flush stdout
+	  log_string (Printf.sprintf "Unexpected Exception in Staking Loop: %s\n" (Printexc.to_string exn));;
 	    
 let get_bestnode_cw_exception req e =
   let (best,cwl) = get_bestnode req in
@@ -438,14 +436,13 @@ let get_bestnode_cw_exception req e =
 	  cwl
       in
       print_consensus_warning !log cw;
-      Printf.fprintf !log "possibly not synced; delaying staking\n";
-      flush !log;
+      log_string (Printf.sprintf "possibly not synced; delaying staking\n");
       raise Exit
     with
     | Not_found -> ()
     | Exit -> raise e
   end;
-  best
+  best;;
 
 let pendingltctxs = ref [];;
 
@@ -454,12 +451,12 @@ let stakingthread () =
   while true do
     try
       let sleeplen = Int64.to_float (Int64.sub !sleepuntil (ltc_medtime())) in
-      Printf.fprintf !log "Staking sleeplen %f seconds\n" sleeplen;
+      log_string (Printf.sprintf "Staking sleeplen %f seconds\n" sleeplen);
       if sleeplen > 1.0 then Thread.delay sleeplen;
-      Printf.fprintf !log "Staking after sleeplen %f seconds\n" sleeplen;
-      if not (ltc_synced()) then (Printf.fprintf !log "ltc not synced yet; delaying staking\n"; flush !log; raise (StakingPause(60.0)));
+      log_string (Printf.sprintf "Staking after sleeplen %f seconds\n" sleeplen);
+      if not (ltc_synced()) then (log_string (Printf.sprintf "ltc not synced yet; delaying staking\n"); raise (StakingPause(60.0)));
       pendingltctxs := List.filter (fun h -> not (ltc_tx_confirmed h)) !pendingltctxs;
-      if not (!pendingltctxs = []) then (Printf.fprintf !log "there are pending ltc txs; delaying staking\n"; flush !log; raise (StakingPause(60.0)));
+      if not (!pendingltctxs = []) then (log_string (Printf.sprintf "there are pending ltc txs; delaying staking\n"); raise (StakingPause(60.0)));
       let best = get_bestnode_cw_exception false (StakingPause(300.0)) in
       try
 	let pbhh = node_prevblockhash best in
@@ -474,12 +471,11 @@ let stakingthread () =
 		  begin
 		    let nw = ltc_medtime() in
 		    let pbhtm = node_timestamp best in
-		    Printf.fprintf !log "NextStake tm = %Ld nw = %Ld\n" tm nw; flush !log;
+		    log_string (Printf.sprintf "NextStake tm = %Ld nw = %Ld\n" tm nw);
 		    if tm >= Int64.add nw 60L || tm <= pbhtm then
 		      begin (*** wait for a minute and then reevaluate; would be better to sleep until time to publish or until a new best block is found **)
 			let tmtopub = Int64.sub tm nw in
-			output_string !log ((Int64.to_string tmtopub) ^ " seconds until time to publish staked block\n");
-			flush !log;
+			log_string ((Int64.to_string tmtopub) ^ " seconds until time to publish staked block\n");
 			if tmtopub >= 60L then
 			  sleepuntil := Int64.add nw 60L
 			else
@@ -495,7 +491,7 @@ let stakingthread () =
 			let deltm = Int64.to_int32 (Int64.sub tm pbhtm) in
 			let tar = retarget tar0 deltm in
 			let alpha2 = p2pkhaddr_addr alpha in
-			Printf.fprintf !log "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_daliladdrstr alpha2) (hashval_hexstring aid) bday;
+			log_string (Printf.sprintf "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_daliladdrstr alpha2) (hashval_hexstring aid) bday);
 			let obl2 =
 			  match obl with
 			  | None ->  (* if the staked asset had the default obligation it can be left as the default obligation or locked for some number of blocks to commit to staking; there should be a configurable policy for the node *)
@@ -519,10 +515,10 @@ let stakingthread () =
 			let rembytesestimate = ref (maxblockdeltasize blkh - (2048 * 2)) in (*** estimate the remaining room in the block delta if the tx is added ***)
 			Hashtbl.iter
 			  (fun h ((tauin,tauout),sg) ->
-(*		    Printf.fprintf !log "Trying to include tx %s\n" (hashval_hexstring h); flush stdout; *)
+(*		    log_string (Printf.sprintf "Trying to include tx %s\n" (hashval_hexstring h)); *)
 			    try
 			      ignore (List.find (fun (_,h) -> h = aid) tauin);
-(*		      Printf.fprintf !log "tx spends the staked asset; removing tx from pool\n"; flush !log; *)
+(*		      log_string (Printf.sprintf "tx spends the staked asset; removing tx from pool\n"); *)
 			      remove_from_txpool h
 			    with Not_found ->
 			      try
@@ -530,15 +526,14 @@ let stakingthread () =
 			      with Not_found ->
 				if tx_valid (tauin,tauout) then
 				  try
-				    let unsupportederror alpha h = Printf.fprintf !log "Could not find asset %s at address %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) in
+				    let unsupportederror alpha h = log_string (Printf.sprintf "Could not find asset %s at address %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha)) in
 				    let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin !dync unsupportederror) in
 				    if tx_signatures_valid blkh al ((tauin,tauout),sg) then
 				      begin
 					let nfee = ctree_supports_tx true false !dyntht !dynsigt blkh (tauin,tauout) !dync in
 					if nfee > 0L then
 					  begin
-(*				  Printf.fprintf !log "tx %s has negative fees %Ld; removing from pool\n" (hashval_hexstring h) nfee;
-  flush !log; *)
+(*				  log_string (Printf.sprintf "tx %s has negative fees %Ld; removing from pool\n" (hashval_hexstring h) nfee); *)
 					    remove_from_txpool h;
 					  end
 					else
@@ -557,25 +552,21 @@ let stakingthread () =
 					    end
 					  else
 					    begin
-(*				    Printf.fprintf !log "tx %s not being included because estimated block size would be too big (rembytesestimate %d, bytesestimate %d)\n" (hashval_hexstring h) !rembytesestimate bytesestimate;
-  flush !log *)
+(*				    log_string (Printf.sprintf "tx %s not being included because estimated block size would be too big (rembytesestimate %d, bytesestimate %d)\n" (hashval_hexstring h) !rembytesestimate bytesestimate); *)
 					    end
 				      end
 				    else
 				      begin
-(*			      Printf.fprintf !log "tx %s has an invalid signature; removing from pool\n" (hashval_hexstring h);
-  flush !log; *)
+(*			      log_string (Printf.sprintf "tx %s has an invalid signature; removing from pool\n" (hashval_hexstring h)); *)
 					remove_from_txpool h;
 				      end
 				  with exn ->
 				    begin
-(*			    Printf.fprintf !log "Exception %s raised while trying to validate tx %s; this may mean the tx is not yet supported so leaving it in the pool\n" (Printexc.to_string exn) (hashval_hexstring h);
-  flush !log; *)
+(*			    log_string (Printf.sprintf "Exception %s raised while trying to validate tx %s; this may mean the tx is not yet supported so leaving it in the pool\n" (Printexc.to_string exn) (hashval_hexstring h)); *)
 				    end
 				else
 				  begin
-(*			  Printf.fprintf !log "tx %s is invalid; removing from pool\n" (hashval_hexstring h);
-  flush !log; *)
+(*			  log_string (Printf.sprintf "tx %s is invalid; removing from pool\n" (hashval_hexstring h)); *)
 				    remove_from_txpool h;
 				  end)
 			  stxpool;
@@ -594,8 +585,7 @@ let stakingthread () =
 			      (x0,x1,x2,x3,x4)
 			    else
 			      begin
-				Printf.fprintf !Utils.log "Apparent attempt to stake from non-p2pkh address %s\n" (addr_daliladdrstr alpha2);
-				flush !Utils.log;
+				log_string (Printf.sprintf "Apparent attempt to stake from non-p2pkh address %s\n" (addr_daliladdrstr alpha2));
 				raise StakingProblemPause
 			      end
 			  in
@@ -639,6 +629,8 @@ let stakingthread () =
 					end
 				      else
 					p2pkhaddr_payaddr alpha3
+				  | _ ->
+				      p2pkhaddr_payaddr alpha3
 				end
 			      else
 				p2pkhaddr_payaddr alpha3
@@ -666,27 +658,26 @@ let stakingthread () =
 			  in
 			  if not (ctree_hashroot prevcforblock = prevledgerroot) then
 			    begin
-			      Printf.fprintf !log "prevcforblock has the wrong hash root. This should never happen.\n";
+			      log_string (Printf.sprintf "prevcforblock has the wrong hash root. This should never happen.\n");
 			      let s = Buffer.create 10000 in
 			      seosbf (seo_option seo_ctree seosb prevc (s,None));
-			      Printf.fprintf !log "prevc: %s\n" (Hashaux.string_hexstring (Buffer.contents s));
+			      log_string (Printf.sprintf "prevc: %s\n" (Hashaux.string_hexstring (Buffer.contents s)));
 			      let s = Buffer.create 10000 in
 			      seosbf (seo_ctree seosb prevcforblock (s,None));
-			      Printf.fprintf !log "prevcforblock: %s\nprevledgerroot: %s\n" (Hashaux.string_hexstring (Buffer.contents s)) (hashval_hexstring prevledgerroot);
+			      log_string (Printf.sprintf "prevcforblock: %s\nprevledgerroot: %s\n" (Hashaux.string_hexstring (Buffer.contents s)) (hashval_hexstring prevledgerroot));
 			      let s = Buffer.create 10000 in
 			      seosbf (seo_list seo_tx seosb (coinstk::othertxs) (s,None));
-			      Printf.fprintf !log "txs: %s\n" (Hashaux.string_hexstring (Buffer.contents s));
-			      flush !log;
+			      log_string (Printf.sprintf "txs: %s\n" (Hashaux.string_hexstring (Buffer.contents s)));
 			      Hashtbl.remove nextstakechances pbhh1;
 			      raise StakingProblemPause;
 			    end;
 			  let (prevcforheader,cgr) = factor_inputs_ctree_cgraft [(alpha2,aid)] prevcforblock in
 			  let newcr = save_ctree_elements !dync in
-(*		Printf.fprintf !log "finished saving ctree elements of dync\n"; flush !log; *)
+(*		log_string (Printf.sprintf "finished saving ctree elements of dync\n"); *)
 (*		    Hashtbl.add recentledgerroots newcr (blkh,newcr); *)
 			  let newthtroot = ottree_hashroot !dyntht in
 			  let newsigtroot = ostree_hashroot !dynsigt in
-(*		Printf.fprintf !log "Including %d txs in block\n" (List.length !otherstxs); *)
+(*		log_string (Printf.sprintf "Including %d txs in block\n" (List.length !otherstxs)); *)
 			  let bdnew : blockdelta =
 			    { stakeoutput = stkoutl;
 			      prevledgergraft = cgr;
@@ -763,18 +754,17 @@ let stakingthread () =
 			    seosbf (seo_blockdelta seosb bdnew (s,None));
 			    let bds = Buffer.length s in
 			    if bds > maxblockdeltasize blkh then
-			      (Printf.fprintf !log "New block is too big (%d bytes)\n" bds; flush !log; raise Not_found); (** in this case, probably the best option would be to switch back to an empty block **)
+			      (log_string (Printf.sprintf "New block is too big (%d bytes)\n" bds); raise Not_found); (** in this case, probably the best option would be to switch back to an empty block **)
 			    let prevledgerroot = node_ledgerroot best in
 			    let csm0 = node_stakemod best in
 			    let tar0 = node_targetinfo best in
 			    if valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L) then
-			      () (* (Printf.fprintf !log "New block header is valid\n"; flush !log) *)
+			      () (* (log_string (Printf.sprintf "New block header is valid\n")) *)
 			    else
 			      begin
 				let b = Buffer.create 1000 in
 				seosbf (seo_blockheader seosb bhnew (b,None));
-				Printf.fprintf !log "New block header is not valid\nbhnew = %s\nfull header = %s\n" (hashval_hexstring newblkid) (string_hexstring (Buffer.contents b));
-				flush !log;
+				log_string (Printf.sprintf "New block header is not valid\nbhnew = %s\nfull header = %s\n" (hashval_hexstring newblkid) (string_hexstring (Buffer.contents b)));
 				verbose_blockcheck := Some(!Utils.log);
 				ignore (valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L));
 				verbose_blockcheck := None;
@@ -789,8 +779,7 @@ let stakingthread () =
 				  update_theories thyroot thytree tht2;
 				  update_signatures sigroot sigtree sigt2;
 			      | None ->
-				  Printf.fprintf !log "New block is not valid\n";
-				  flush !log;
+				  log_string (Printf.sprintf "New block is not valid\n");
 				  verbose_blockcheck := Some(!Utils.log);
 				  ignore (valid_block thytree sigtree blkh csm0 tar0 (bhnew,bdnew) tm (match toburn with Some(burn) -> burn | _ -> 0L));
 				  valid_blockheader blkh csm0 tar0 bhnew tm (match toburn with Some(burn) -> burn | _ -> 0L);
@@ -800,9 +789,9 @@ let stakingthread () =
 				  raise StakingProblemPause
 			    end;
 			    match pbhh1 with
-			    | None -> if blkh > 1L then (Printf.fprintf !log "No previous block but block height not 1\n"; flush !log; Hashtbl.remove nextstakechances None; raise StakingProblemPause)
+			    | None -> if blkh > 1L then (log_string (Printf.sprintf "No previous block but block height not 1\n"); Hashtbl.remove nextstakechances None; raise StakingProblemPause)
 			    | Some(pbhh1) ->
-				if blkh = 1L then (Printf.fprintf !log "Previous block indicated but block height is 1\n"; flush !log; Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause);
+				if blkh = 1L then (log_string (Printf.sprintf "Previous block indicated but block height is 1\n"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause);
 				let (pbhd,pbhs) = get_blockheader pbhh1 in
 				let tmpsucctest bhd1 bhs1 bhd2 =
 				  match bhd2.prevblockhash with
@@ -817,25 +806,25 @@ let stakingthread () =
 				  | None -> false
 				in
 				if tmpsucctest pbhd pbhs bhdnew then
-				  () (* (Printf.fprintf !log "Valid successor block\n"; flush !log) *)
+				  () (* (log_string (Printf.sprintf "Valid successor block\n")) *)
 				else
-				  (Printf.fprintf !log "Not a valid successor block\n"; flush !log; let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause)
+				  (log_string (Printf.sprintf "Not a valid successor block\n"); let datadir = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir in dumpstate (Filename.concat datadir "stakedinvalidsuccblockstate"); Hashtbl.remove nextstakechances (Some(pbhh1)); raise StakingProblemPause)
 			  end;
 			  begin
 			    try
 			      while true do
 				let nw = ltc_medtime() in
 				let tmtopub = Int64.sub tm nw in
-				Printf.fprintf !log "tmtopub %Ld\n" tmtopub;
+				log_string (Printf.sprintf "tmtopub %Ld\n" tmtopub);
 				if tmtopub > 0L then Thread.delay (Int64.to_float tmtopub) else raise Exit
 			      done
 			    with Exit -> ()
 			  end;
 			  let publish_new_block () =
-			    Printf.fprintf !log "called publish_new_block\n";
+			    log_string (Printf.sprintf "called publish_new_block\n");
 			    if List.length !netconns < !Config.minconnstostake then
 			      begin
-				Printf.fprintf !log "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns);
+				log_string (Printf.sprintf "Refusing to publish new block since node is insufficiently connected (only %d connections).\n" (List.length !netconns));
 				Thread.delay 600.0 (*** delay for 10 minutes before continuing trying to stake to see if more connections arrive by then ***)
 			      end
 			    else
@@ -861,17 +850,17 @@ let stakingthread () =
 						    let btxs = ltc_signrawtransaction btxhex in
 						    let h = ltc_sendrawtransaction btxs in
 						    pendingltctxs := h::!pendingltctxs;
-						    Printf.fprintf !log "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid);
+						    log_string (Printf.sprintf "Sending ltc burn %s for header %s\n" h (hashval_hexstring newblkid));
 						    publish_block blkh newblkid ((bhdnew,bhsnew),bdnew);
 						    extraburn := 0L;
 						    already := Some(newblkid,hexstring_hashval h);
-						    output_string !log ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
+						    log_string ("Burning " ^ (Int64.to_string u) ^ " litoshis in tx " ^ h ^ "\n")
 						with
 						| InsufficientLtcFunds ->
-						    output_string !log ("insufficient ltc to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
+						    log_string ("insufficient ltc to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
 						    raise (StakingPause(300.0))
 						| Not_found ->
-						    output_string !log ("problem trying to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
+						    log_string ("problem trying to burn " ^ (Int64.to_string u) ^ " litoshis" ^ "\n");
 						    raise (StakingPause(300.0))
 					      end
 					  | None -> raise (Failure("must burn, should have known"))
@@ -884,7 +873,7 @@ let stakingthread () =
 			    if pbhh = node_prevblockhash currbestnode then (*** if the bestnode has changed, don't publish it unless the cumulative stake is higher ***)
 			      publish_new_block()
 			with MaxAssetsAtAddress ->
-			  Printf.fprintf !log "Refusing to stake since the coinstake tx would put too many assets in an address.\n"
+			  log_string (Printf.sprintf "Refusing to stake since the coinstake tx would put too many assets in an address.\n")
 		      end
 		  end
 	    end
@@ -897,24 +886,21 @@ let stakingthread () =
 		    | None -> ()
 		    | Some(h) ->
 			(*** this should not have happened, since the header should not have been completely formed until the burn was complete ***)
-			Printf.fprintf !log "Refusing to stake on top of apparently unburned %s\nWaiting a few minutes to recheck for burn." (hashval_hexstring h);
-			flush !log;
+			log_string (Printf.sprintf "Refusing to stake on top of apparently unburned %s\nWaiting a few minutes to recheck for burn." (hashval_hexstring h));
 			raise (StakingPause(300.0))
 		  end
 	      | (bestctips::othctipsl) ->
 		  begin
 		    match pbhh1 with
 		    | None ->
-			Printf.fprintf !log "Refusing to stake genesis block when there are chaintips. Invalidate them by hand to force staking.\n";
-			flush !log;
+			log_string (Printf.sprintf "Refusing to stake genesis block when there are chaintips. Invalidate them by hand to force staking.\n");
 			raise (StakingPause(3600.0))
 		    | Some(h) ->
 			if List.mem h bestctips then
-			  (if List.length bestctips > 1 then (Printf.fprintf !log "Staking on top of %s, orphaning other equally good tips.\n" (hashval_hexstring h); flush !log))
+			  (if List.length bestctips > 1 then (log_string (Printf.sprintf "Staking on top of %s, orphaning other equally good tips.\n" (hashval_hexstring h))))
 			else
 			  begin
-			    Printf.fprintf !log "Refusing to stake on top of %s when there are better chaintips. Invalidate them by hand to force staking.\n" (hashval_hexstring h);
-			    flush !log;
+			    log_string (Printf.sprintf "Refusing to stake on top of %s when there are better chaintips. Invalidate them by hand to force staking.\n" (hashval_hexstring h));
 			    raise (StakingPause(3600.0))
 			  end
 		  end
@@ -928,27 +914,26 @@ let stakingthread () =
 	      Thread.delay 60.0
       with
       | Not_found ->
-	  Printf.fprintf !log "no nextstakechances\n"; flush !log;
+	  log_string (Printf.sprintf "no nextstakechances\n");
 	  Thread.delay 10.0;
-	  Printf.fprintf !log "calling compute_staking_chances nextstakechances\n"; flush !log;
+	  log_string (Printf.sprintf "calling compute_staking_chances nextstakechances\n");
 	  let ltm = ltc_medtime() in
 	  let pbhtm = node_timestamp best in
 	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best pbhtm ftm
       | StakingProblemPause -> (*** there was some serious staking bug, try to recover by stopping staking for an hour and trying again ***)
-	  Printf.fprintf !log "Pausing due to a staking bug; will retry staking in about an hour.\n";
-	  flush !log;
+	  log_string (Printf.sprintf "Pausing due to a staking bug; will retry staking in about an hour.\n");
 	  Thread.delay 3600.0;
-	  Printf.fprintf !log "Continuing staking.\n";
+	  log_string (Printf.sprintf "Continuing staking.\n");
 	  let ltm = ltc_medtime() in
 	  let stm = Int64.sub ltm 86400L in
 	  let ftm = Int64.add ltm 86400L in
 	  compute_staking_chances best stm ftm
     with
     | StakingPause(del) ->
-	Printf.fprintf !log "Staking pause of %f seconds\n" del; flush !log;
+	log_string (Printf.sprintf "Staking pause of %f seconds\n" del);
 	Thread.delay del;
-	Printf.fprintf !log "After staking pause of %f seconds\n" del; flush !log;
+	log_string (Printf.sprintf "After staking pause of %f seconds\n" del);
 	sleepuntil := ltc_medtime()
   done;;
 
@@ -2567,7 +2552,7 @@ let initialize () =
     if not !random_initialized then initialize_random_seed();
     let n = rand_int64() in
     this_nodes_nonce := n;
-    Printf.fprintf !log "Nonce: %Ld\n" n; flush !log
+    log_string (Printf.sprintf "Nonce: %Ld\n" n);
   end;;
 
 initialize();;
@@ -2694,10 +2679,10 @@ let daemon_readevalloop () =
 	closelog();
 	!exitfn 0
     | Failure(x) ->
-	Printf.fprintf !log "Ignoring Uncaught Failure: %s\n" x; flush !log;
+	log_string (Printf.sprintf "Ignoring Uncaught Failure: %s\n" x);
 	failure_delay()
     | exn -> (*** unexpected ***)
-	Printf.fprintf !log "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn); flush !log;
+	log_string (Printf.sprintf "Ignoring Uncaught Exception: %s\n" (Printexc.to_string exn));
 	failure_delay()
   done;;
 

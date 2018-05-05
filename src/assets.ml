@@ -1,5 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -431,7 +431,7 @@ Hashtbl.add msgtype_handler Asset
   	  DbAsset.dbput h a;
 	  cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested Asset]\n"; flush !Utils.log));;
+	  (Utils.log_string (Printf.sprintf "misbehaving peer? [unrequested Asset]\n")));;
 
 let json_obligation obl =
  match obl with

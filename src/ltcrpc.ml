@@ -1,4 +1,4 @@
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -160,7 +160,7 @@ let ltc_getbestblockhash () =
       match parse_jsonval l with
       | (JsonObj(al),_) -> json_assoc_string "result" al
       | _ ->
-	  Printf.fprintf !Utils.log "problem return from ltc getbestblockhash:\n%s\n" l;
+	  (Utils.log_string (Printf.sprintf "problem return from ltc getbestblockhash:\n%s\n" l));
 	  raise Not_found
   with _ ->
     raise Not_found
@@ -208,15 +208,15 @@ let ltc_getblock h =
 		      (pbh,tm,hght,!txl)
 		    end
 		| _ ->
-		    Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+		    (Utils.log_string (Printf.sprintf "problem return from ltc getblock:\n%s\n" l));
 		    raise Not_found
 	      end
 	  | _ ->
-	      Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+	      (Utils.log_string (Printf.sprintf "problem return from ltc getblock:\n%s\n" l));
 	      raise Not_found
 	end
     | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc getblock:\n%s\n" l;
+	(Utils.log_string (Printf.sprintf "problem return from ltc getblock:\n%s\n" l));
 	raise Not_found
   with _ ->
     raise Not_found
@@ -275,11 +275,11 @@ let ltc_listunspent () =
 		!utxol
 	      end
 	  | _ ->
-	      Printf.fprintf !Utils.log "problem return from ltc listunspent:\n%s\n" l;
+	      (Utils.log_string (Printf.sprintf "problem return from ltc listunspent:\n%s\n" l));
 	      raise Not_found
 	end
     | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc listunspent:\n%s\n" l;
+	(Utils.log_string (Printf.sprintf "problem return from ltc listunspent:\n%s\n" l));
 	raise Not_found
   with _ ->
     raise Not_found
@@ -332,8 +332,8 @@ let ltc_createburntx h1 h2 toburn =
     Hashtbl.find burntx h2
   with Not_found ->
     try
-      Printf.fprintf !Utils.log "Searching for an unspent litecoin tx with at least %Ld litoshis.\n" toburn_plus_fee;
-      let (txid,vout,rs,spk,amt) = List.find (fun (txid,vout,_,_,amt) -> Printf.fprintf !Utils.log "Considering %s %d %Ld\n" txid vout amt; amt >= toburn_plus_fee) utxol in (*** only consider single spends ***)
+      (Utils.log_string (Printf.sprintf "Searching for an unspent litecoin tx with at least %Ld litoshis.\n" toburn_plus_fee));
+      let (txid,vout,rs,spk,amt) = List.find (fun (txid,vout,_,_,amt) -> (Utils.log_string (Printf.sprintf "Considering %s %d %Ld\n" txid vout amt)); amt >= toburn_plus_fee) utxol in (*** only consider single spends ***)
       let txs1b = Buffer.create 100 in
       let txs2b = Buffer.create 100 in
       let txs3b = Buffer.create 100 in
@@ -396,11 +396,11 @@ let ltc_signrawtransaction txs =
 	  match List.assoc "result" al with
 	  | JsonObj(bl) -> json_assoc_string "hex" bl
 	  | _ ->
-	      Printf.fprintf !Utils.log "problem return from ltc signrawtransaction:\n%s\n" l;
+	      (Utils.log_string (Printf.sprintf "problem return from ltc signrawtransaction:\n%s\n" l));
 	      raise Not_found
 	end
     | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc signrawtransaction:\n%s\n" l;
+	(Utils.log_string (Printf.sprintf "problem return from ltc signrawtransaction:\n%s\n" l));
 	raise Not_found
   with _ -> raise Not_found
 
@@ -425,7 +425,7 @@ let ltc_sendrawtransaction txs =
     match parse_jsonval l with
     | (JsonObj(al),_) -> json_assoc_string "result" al
     | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc sendrawtransaction:\n%s\n" l;
+	(Utils.log_string (Printf.sprintf "problem return from ltc sendrawtransaction:\n%s\n" l));
 	raise Not_found
   with _ -> raise Not_found
 
@@ -486,23 +486,23 @@ let ltc_gettransactioninfo h =
 			    end
 			  else
 			    begin
-			      Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+			      (Utils.log_string (Printf.sprintf "problem return from ltc getrawtransaction:\n%s\n" l));
 			      raise Not_found
 			    end
 		      | _ ->
-			  Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+			  (Utils.log_string (Printf.sprintf "problem return from ltc getrawtransaction:\n%s\n" l));
 			  raise Not_found
 		    end
 		| _ ->
-		    Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+		    (Utils.log_string (Printf.sprintf "problem return from ltc getrawtransaction:\n%s\n" l));
 		    raise Not_found
 	      end
 	  | _ ->
-	      Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+	      (Utils.log_string (Printf.sprintf "problem return from ltc getrawtransaction:\n%s\n" l));
 	      raise Not_found
 	end
     | _ ->
-	Printf.fprintf !Utils.log "problem return from ltc getrawtransaction:\n%s\n" l;
+	(Utils.log_string (Printf.sprintf "problem return from ltc getrawtransaction:\n%s\n" l));
 	raise Not_found
   with _ -> raise Not_found
 
@@ -512,14 +512,14 @@ module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval 
 
 let possibly_request_dalilcoin_block h =
   try
-    Printf.fprintf !Utils.log "possibly request dalilcoin block %s\n" (hashval_hexstring h);
+    (Utils.log_string (Printf.sprintf "possibly request dalilcoin block %s\n" (hashval_hexstring h)));
     let req = ref false in
     if not (DbBlockHeader.dbexists h) then
       (find_and_send_requestdata GetHeader h; req := true)
     else if not (DbBlockDelta.dbexists h) then
       (find_and_send_requestdata GetBlockdelta h; req := true);
   with e ->
-    Printf.fprintf !Utils.log "Problem trying to request block %s: %s\n" (hashval_hexstring h) (Printexc.to_string e)
+    Utils.log_string (Printf.sprintf "Problem trying to request block %s: %s\n" (hashval_hexstring h) (Printexc.to_string e))
 
 let rec ltc_process_block h =
   let hh = hexstring_hashval h in
@@ -528,8 +528,8 @@ let rec ltc_process_block h =
       let (prev,tm,hght,txhs) = ltc_getblock h in
       if not (txhs = []) then
 	begin
-	  Printf.fprintf !Utils.log "getblock %s had %d candidate txs:\n" h (List.length txhs);
-	  List.iter (fun txh -> Printf.fprintf !Utils.log "candidate %s\n" txh) txhs;
+	  (Utils.log_string (Printf.sprintf "getblock %s had %d candidate txs:\n" h (List.length txhs)));
+	  List.iter (fun txh -> (Utils.log_string (Printf.sprintf "candidate %s\n" txh))) txhs;
 	end;
       ltc_process_block prev;
       let prevh = hexstring_hashval prev in
@@ -545,7 +545,7 @@ let rec ltc_process_block h =
 		  let (burned,lprevtx,dnxt,lblkh,confs) = ltc_gettransactioninfo txh in
 		  if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		    begin
-		      Printf.fprintf !Utils.log "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt);
+		      (Utils.log_string (Printf.sprintf "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt)));
 		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
 		      possibly_request_dalilcoin_block dnxt;
 		      txhhs := txhh :: !txhhs;
@@ -553,7 +553,7 @@ let rec ltc_process_block h =
 		    end
 		  else
 		    begin
-		      Printf.fprintf !Utils.log "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt);
+		      (Utils.log_string (Printf.sprintf "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt)));
 		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
 		      possibly_request_dalilcoin_block dnxt;
 		      begin
@@ -566,7 +566,7 @@ let rec ltc_process_block h =
 		      end
 		    end
 		with Not_found ->
-		  Printf.fprintf !Utils.log "Ignoring tx %s which does not appear to be a Dalilcoin burn tx\n" txh
+		  Utils.log_string (Printf.sprintf "Ignoring tx %s which does not appear to be a Dalilcoin burn tx\n" txh)
 	      end
 	    else
 	      txhhs := txhh :: !txhhs)
@@ -579,12 +579,12 @@ let rec ltc_process_block h =
 	  begin
 	    if tm > Int64.add !Config.genesistimestamp 604800L then
 	      begin
-		Printf.fprintf !Utils.log "Ignoring unexpected genesis blocks burned during what appears to be after the genesis phase:\n";
+		(Utils.log_string (Printf.sprintf "Ignoring unexpected genesis blocks burned during what appears to be after the genesis phase:\n"));
 		List.iter (fun (txhh,burned,dnxt) -> Printf.printf "%s %Ld %s\n" (hashval_hexstring txhh) burned (hashval_hexstring dnxt)) !genl
 	      end
 	    else (*** there has already been a genesis block created during the genesis phase, but a competing one (or more) was created; include it too ***)
 	      begin
-		Printf.fprintf !Utils.log "%d genesis block(s) found.\n" (List.length !genl);
+		(Utils.log_string (Printf.sprintf "%d genesis block(s) found.\n" (List.length !genl)));
 		let pbdl = List.map (fun (txhh,burned,dnxt) -> (dnxt,hh,txhh,tm,hght)) !genl in
 		change := true;
 		bds := [pbdl]
@@ -627,9 +627,9 @@ let ltc_medtime () =
 
 let ltc_synced () =
   try
-    Printf.fprintf !Utils.log "Checking if ltc synced ; bestblock %s\n" (hashval_hexstring !ltc_bestblock); flush !Utils.log;
+    Utils.log_string (Printf.sprintf "Checking if ltc synced; bestblock %s\n" (hashval_hexstring !ltc_bestblock));
     let (_,tm,_,_) = DbLtcBlock.dbget !ltc_bestblock in
-    Printf.fprintf !Utils.log "tm of ltc bestblock %Ld offset from now %f\n" tm (Unix.time() -. Int64.to_float tm); flush !Utils.log;
+    Utils.log_string (Printf.sprintf "tm of ltc bestblock %Ld offset from now %f\n" tm (Unix.time() -. Int64.to_float tm));
     if Unix.time() -. Int64.to_float tm < 3600.0 then
       true
     else

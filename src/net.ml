@@ -439,7 +439,7 @@ let peeraddr gcs =
 
 let log_msg m =
   let h = string_hexstring m in
-  Printf.fprintf !log "\nmsg: %s\n" h
+  log_string (Printf.sprintf "\nmsg: %s\n" h)
 
 let network_time () =
   let mytm = Int64.of_float (Unix.time()) in
@@ -547,7 +547,7 @@ let handle_msg replyto mt sin sout cs mh m =
 	let f = Hashtbl.find msgtype_handler mt in
 	try
 	  f(sin,sout,cs,m)
-	with e -> Printf.fprintf !log "Call to handler for message type %s raised %s\n" (string_of_msgtype mt) (Printexc.to_string e)
+	with e -> log_string (Printf.sprintf "Call to handler for message type %s raised %s\n" (string_of_msgtype mt) (Printexc.to_string e))
       with Not_found ->
 	match mt with
 	| Version -> raise (ProtocolViolation "Version message after handshake")
@@ -562,7 +562,7 @@ let connlistener (s,sin,sout,gcs) =
 	match !gcs with
 	| Some(cs) ->
 	    let tm = Unix.time() in
-	    Printf.fprintf !log "got msg %s from %s at time %f\n" (string_of_msgtype mt) cs.realaddr tm; flush !log;
+(*	    log_string (Printf.sprintf "got msg %s from %s at time %f\n" (string_of_msgtype mt) cs.realaddr tm); *)
             let f = open_out_gen [Open_wronly;Open_creat;Open_append] 0o644
                             (!Config.datadir ^ (if !Config.testnet then "/testnet/reclog_" else "/reclog_") ^ (string_hexstring cs.addrfrom)) in
             output_value f tm;
@@ -575,50 +575,44 @@ let connlistener (s,sin,sout,gcs) =
 	| None -> raise End_of_file (*** connection died; this probably shouldn't happen, as we should have left this thread when it died ***)
       with
       | Unix.Unix_error(c,x,y) -> (*** close connection ***)
-	  Printf.fprintf !log "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y;
-	  flush !log;
+	  log_string (Printf.sprintf "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y);
 	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | End_of_file -> (*** close connection ***)
-	  Printf.fprintf !log "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs);
-	  flush !log;
+	  log_string (Printf.sprintf "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs));
 	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | ProtocolViolation(x) -> (*** close connection ***)
-	  Printf.fprintf !log "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x;
-	  flush !log;
+	  log_string (Printf.sprintf "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x);
 	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | SelfConnection -> (*** detected a self-connection attempt, close ***)
-	  Printf.fprintf !log "Stopping potential self-connection\n";
-	  flush !log;
+	  log_string (Printf.sprintf "Stopping potential self-connection\n");
 	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | DupConnection -> (*** detected a duplicate connection attempt, close ***)
-	  Printf.fprintf !log "Stopping potential duplicate connection\n";
-	  flush !log;
+	  log_string (Printf.sprintf "Stopping potential duplicate connection\n");
 	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | exc -> (*** report but ignore all other exceptions ***)
-	  Printf.fprintf !log "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc);
-	  flush !log;
+	  log_string (Printf.sprintf "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc))
     done
   with _ -> gcs := None (*** indicate that the connection is dead; it will be removed from netaddr by the netlistener or netseeker ***)
 
 let connsender (s,sin,sout,gcs) =
   match !gcs with
   | None ->
-      Printf.fprintf !log "connsender was called without gcs being set to a connection state already.\nThis should never happen.\nKilling connection immediately.\n";
+      log_string (Printf.sprintf "connsender was called without gcs being set to a connection state already.\nThis should never happen.\nKilling connection immediately.\n");
       shutdown_close s
   | Some(cs) ->
       let connsender_end () =
@@ -639,24 +633,19 @@ let connsender (s,sin,sout,gcs) =
 	done
       with
       | Unix.Unix_error(c,x,y) -> (*** close connection ***)
-	  Printf.fprintf !log "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y;
-	  flush !log;
+	  log_string (Printf.sprintf "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y);
 	  connsender_end()
       | End_of_file -> (*** close connection ***)
-	  Printf.fprintf !log "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs);
-	  flush !log;
+	  log_string (Printf.sprintf "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs));
 	  connsender_end()
       | ProtocolViolation(x) -> (*** close connection ***)
-	  Printf.fprintf !log "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x;
-	  flush !log;
+	  log_string (Printf.sprintf "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x);
 	  connsender_end()
       | SelfConnection -> (*** detected a self-connection attempt, close ***)
-	  Printf.fprintf !log "Stopping potential self-connection\n";
-	  flush !log;
+	  log_string (Printf.sprintf "Stopping potential self-connection\n");
 	  connsender_end()
       | exc -> (*** report all other exceptions and close connection ***)
-	  Printf.fprintf !log "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc);
-	  flush !log;
+	  log_string (Printf.sprintf "Ignoring exception raised in connection listener for %s:\n%s\n" (peeraddr !gcs) (Printexc.to_string exc));
 	  connsender_end()
 
 let remove_dead_conns () =
@@ -769,7 +758,7 @@ let tryconnectpeer n =
 	    raise (Failure ("do not know what socks" ^ (string_of_int z) ^ " means"))
       with
       | RequestRejected ->
-	  Printf.fprintf !log "RequestRejected\n"; flush !log;
+	  log_string (Printf.sprintf "RequestRejected\n");
 	  None
       | _ ->
 	  None
@@ -783,20 +772,17 @@ let netlistener l =
 	begin
 	  match a with
 	  | Unix.ADDR_UNIX(x) ->
-	      Printf.fprintf !log "got local connection %s\n" x;
-	      flush !log;
+	      log_string (Printf.sprintf "got local connection %s\n" x);
 	      "local " ^ x
 	  | Unix.ADDR_INET(x,y) ->
-	      Printf.fprintf !log "got remote connection %s %d\n" (Unix.string_of_inet_addr x) y;
-	      flush !log;
+	      log_string (Printf.sprintf "got remote connection %s %d\n" (Unix.string_of_inet_addr x) y);
 	      (Unix.string_of_inet_addr x) ^ " " ^ (string_of_int y)
 	end
       in
-      flush !log;
       remove_dead_conns();
       initialize_conn_accept ra s
     with
-    | EnoughConnections -> Printf.fprintf !log "Rejecting connection because of maxconns.\n"; flush !log;
+    | EnoughConnections -> log_string (Printf.sprintf "Rejecting connection because of maxconns.\n");
     | _ -> ()
   done
 
@@ -911,12 +897,12 @@ let find_and_send_requestdata mt h =
             if not cs.banned && List.mem (inv_of_msgtype mt,h) cs.rinv then
 	      if recently_requested (i,h) tm cs.invreq then
 		begin
-		  Printf.fprintf !log "already recently sent request %s %s from %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom; flush !log;
+		  log_string (Printf.sprintf "already recently sent request %s %s from %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom);
 		  alrreq := true
 		end
 	      else
 		begin
-		  Printf.fprintf !log "sending request %s %s to %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom; flush !log;
+		  log_string (Printf.sprintf "sending request %s %s to %s\n" (string_of_msgtype mt) (hashval_hexstring h) cs.addrfrom);
 		  let mh = queue_msg cs mt ms in
 		  cs.invreq <- (i,h,tm)::List.filter (fun (j,k,tm0) -> tm -. tm0 < 3600.0) cs.invreq;
 		  raise Exit
@@ -978,12 +964,12 @@ let broadcast_inv tosend =
       c := seo_prod seo_int8 seo_hashval seosb (i,h) !c)
     tosend;
   let invmsgstr = Buffer.contents invmsg in
-  Printf.fprintf !log "broadcast_inv Created invmsgstr %s\n" (string_hexstring invmsgstr);
+  log_string (Printf.sprintf "broadcast_inv Created invmsgstr %s\n" (string_hexstring invmsgstr));
   List.iter
     (fun (lth,sth,(fd,sin,sout,gcs)) ->
       match !gcs with
       | Some(cs) ->
-	  Printf.fprintf !log "broadcast_inv sending to %s\n" cs.addrfrom;
+	  log_string (Printf.sprintf "broadcast_inv sending to %s\n" cs.addrfrom);
 	  ignore (queue_msg cs Inv invmsgstr)
       | None -> ())
     !netconns;;

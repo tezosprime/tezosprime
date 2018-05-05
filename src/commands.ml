@@ -1,5 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -461,7 +461,7 @@ let rec randomly_generate_newkeyandaddress ledgerroot cls =
 	try
 	  ignore (ctree_addr true false alpha (CHash(ledgerroot)) None);
 	  let a = addr_daliladdrstr alpha in
-	  Printf.fprintf !Utils.log "Importing privkey %s for address %s\n" w a;
+	  Utils.log_string (Printf.sprintf "Importing privkey %s for address %s\n" w a);
 	  importprivkey_real !Utils.log (k,b) cls false;
 	  (k,h)
 	with Not_found ->

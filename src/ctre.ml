@@ -1,5 +1,5 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
-(* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -2541,9 +2541,9 @@ Hashtbl.add msgtype_handler HConsElement
 	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed HConsElement]\n"; flush !Utils.log)
+	    Utils.log_string (Printf.sprintf "misbehaving peer? [malformed HConsElement]\n")
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested HConsElement]\n"; flush !Utils.log));;
+	  Utils.log_string (Printf.sprintf "misbehaving peer? [unrequested HConsElement]\n"));;
 	  
 Hashtbl.add msgtype_handler GetCTreeElement
     (fun (sin,sout,cs,ms) ->
@@ -2574,9 +2574,9 @@ Hashtbl.add msgtype_handler CTreeElement
 	      cs.invreq <- List.filter (fun (j,k,tm0) -> not (i = j && h = k) && tm -. tm0 < 3600.0) cs.invreq
 	    end
           else (*** otherwise, it seems to be a misbehaving peer --  ignore for now ***)
-	    (Printf.fprintf !Utils.log "misbehaving peer? [malformed CTreeElement]\n"; flush !Utils.log)
+	    Utils.log_string (Printf.sprintf "misbehaving peer? [malformed CTreeElement]\n")
 	else (*** if something unrequested was sent, then seems to be a misbehaving peer ***)
-	  (Printf.fprintf !Utils.log "misbehaving peer? [unrequested CTreeElement]\n"; flush !Utils.log));;
+	  Utils.log_string (Printf.sprintf "misbehaving peer? [unrequested CTreeElement]\n"));;
 
 let hashctree c =
   let s = Buffer.create 1000 in

@@ -1,6 +1,9 @@
 (* Copyright (c) 2016 The Qeditas developers *)
+(* Copyright (c) 2017-2018 The Dalilcoin developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
+
+let exitfn : (int -> unit) ref = ref (fun n -> exit n);;
 
 let log : out_channel ref = ref stderr
 
@@ -9,6 +12,22 @@ let openlog () =
 
 let closelog () =
   close_out !log
+
+let log_string x =
+  output_string !log x;
+  flush !log;
+  if pos_out !log > 100000000 then (*** prevent debug.log from becoming more than 100MB ***)
+    begin
+      closelog ();
+      let prevlog = (!Config.datadir ^ (if !Config.testnet then "/testnet/debug.log.1" else "/debug.log.1")) in
+      if Sys.file_exists prevlog then (*** if the previous log file has not been moved or deleted, then stop the node; this is to prevent the log files from piling up ***)
+	!exitfn 9
+      else
+	begin
+	  Sys.rename (!Config.datadir ^ (if !Config.testnet then "/testnet/debug.log" else "/debug.log")) prevlog;
+	  openlog()
+	end
+    end
 
 (***
  era ranges from 1 and 43 (roughly 1 + 41*4 = 165 years until final era when reward drops to 0

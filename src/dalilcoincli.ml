@@ -23,4 +23,4 @@ try
   while true do
     let l = input_line sin in Printf.printf "%s\n" l; flush stdout
   done 
-with End_of_file -> Unix.close s;;
+with End_of_file -> Net.shutdown_close s;;

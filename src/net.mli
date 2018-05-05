@@ -6,6 +6,8 @@
 open Big_int
 open Hash
 
+val shutdown_close : Unix.file_descr -> unit
+
 val missingheaders : hashval list ref
 
 exception GettingRemoteData

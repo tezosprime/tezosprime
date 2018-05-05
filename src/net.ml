@@ -10,6 +10,15 @@ open Hashaux
 open Sha256
 open Hash
 
+let shutdown_close s =
+  try
+    Unix.shutdown s Unix.SHUTDOWN_ALL;
+    Unix.close s
+  with _ ->
+    try
+      Unix.close s
+    with _ -> ()
+
 let missingheaders = ref [];;
 
 let netblkh : int64 ref = ref 0L
@@ -568,35 +577,35 @@ let connlistener (s,sin,sout,gcs) =
       | Unix.Unix_error(c,x,y) -> (*** close connection ***)
 	  Printf.fprintf !log "Unix error exception raised in connection listener for %s:\n%s %s %s\nClosing connection\n" (peeraddr !gcs) (Unix.error_message c) x y;
 	  flush !log;
-	  Unix.close s;
+	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | End_of_file -> (*** close connection ***)
 	  Printf.fprintf !log "Channel for connection %s raised End_of_file. Closing connection\n" (peeraddr !gcs);
 	  flush !log;
-	  Unix.close s;
+	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | ProtocolViolation(x) -> (*** close connection ***)
 	  Printf.fprintf !log "Protocol violation by connection %s: %s\nClosing connection\n" (peeraddr !gcs) x;
 	  flush !log;
-	  Unix.close s;
+	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | SelfConnection -> (*** detected a self-connection attempt, close ***)
 	  Printf.fprintf !log "Stopping potential self-connection\n";
 	  flush !log;
-	  Unix.close s;
+	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
       | DupConnection -> (*** detected a duplicate connection attempt, close ***)
 	  Printf.fprintf !log "Stopping potential duplicate connection\n";
 	  flush !log;
-	  Unix.close s;
+	  shutdown_close s;
 	  close_in sin;
 	  close_out sout;
 	  raise Exit
@@ -610,12 +619,12 @@ let connsender (s,sin,sout,gcs) =
   match !gcs with
   | None ->
       Printf.fprintf !log "connsender was called without gcs being set to a connection state already.\nThis should never happen.\nKilling connection immediately.\n";
-      Unix.close s
+      shutdown_close s
   | Some(cs) ->
       let connsender_end () =
 	Mutex.unlock cs.connmutex;
 	gcs := None;
-	Unix.close s
+	shutdown_close s
       in
       try
 	Mutex.lock cs.connmutex;
@@ -659,7 +668,7 @@ let remove_dead_conns () =
 	  if cs.handshakestep < 5 && cs.lastmsgtm < tmminus1hr then (*** if the handshake has not completed in 1 hour, then kill conn ***)
 	    begin
 	      try
-		Unix.close s;
+		shutdown_close s;
 		close_in sin;
 		close_out sout;
 		gcs := None
@@ -698,7 +707,7 @@ let initialize_conn_accept ra s =
     end
   else
     begin
-      Unix.close s;
+      shutdown_close s;
       raise EnoughConnections
     end
 

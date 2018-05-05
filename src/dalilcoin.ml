@@ -179,6 +179,8 @@ let initnetwork () =
       match !Config.ip with
       | Some(ip) ->
 	  let l = openlistener ip !Config.port 5 in
+	  let efn = !exitfn in
+	  exitfn := (fun n -> shutdown_close l; efn n);
 	  Printf.printf "Listening for incoming connections.\n";
 	  flush stdout;
 	  netlistenerth := Some(Thread.create netlistener l)
@@ -1500,7 +1502,7 @@ let do_command oc l =
         | [n;"remove"] ->
           removeknownpeer n;
           List.iter
-	      (fun (lth,sth,(fd,sin,sout,gcs)) -> if peeraddr !gcs = n then (Unix.close fd; gcs := None))
+	      (fun (lth,sth,(fd,sin,sout,gcs)) -> if peeraddr !gcs = n then (shutdown_close fd; gcs := None))
 	      !netconns
 	| [n;"onetry"] ->
 	    ignore (tryconnectpeer n)
@@ -2654,7 +2656,7 @@ let daemon_readevalloop () =
       !exitfn 1
   end;
   let efn = !exitfn in
-  exitfn := (fun n -> Unix.close lst; efn n);
+  exitfn := (fun n -> shutdown_close lst; efn n);
   Unix.listen lst 1;
   while true do
     try
@@ -2674,12 +2676,12 @@ let daemon_readevalloop () =
 	flush sout;
 	ignore (Unix.alarm 0);
 	ignore (Sys.signal Sys.sigalrm alrmh);
-	Unix.close s
+	shutdown_close s
       with
       | Timeout -> 
 	  flush sout;
 	  ignore (Sys.signal Sys.sigalrm alrmh);
-	  Unix.close s
+	  shutdown_close s
       | exn ->
 	  flush sout;
 	  ignore (Unix.alarm 0);

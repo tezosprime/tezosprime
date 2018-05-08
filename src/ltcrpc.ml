@@ -539,37 +539,41 @@ let rec ltc_process_block h =
       List.iter
 	  (fun txh ->
 	    let txhh = hexstring_hashval txh in
-	    if not (DbLtcBurnTx.dbexists txhh) then
+	    let handle burned lprevtx dnxt =
+	      if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
+		begin
+		  (Utils.log_string (Printf.sprintf "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt)));
+		  possibly_request_dalilcoin_block dnxt;
+		  txhhs := txhh :: !txhhs;
+		  genl := (txhh,burned,dnxt)::!genl
+		end
+	      else
+		begin
+		  (Utils.log_string (Printf.sprintf "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt)));
+		  DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
+		  possibly_request_dalilcoin_block dnxt;
+		  begin
+		    try
+		      let (_,_,dprev) = DbLtcBurnTx.dbget lprevtx in
+		      possibly_request_dalilcoin_block dprev;
+		      txhhs := txhh :: !txhhs;
+		      succl := (dprev,txhh,burned,dnxt)::!succl
+		    with _ -> ()
+		  end
+		end
+	    in
+	    try
+	      let (burned,lprevtx,dnxt) = DbLtcBurnTx.dbget txhh in
+	      handle burned lprevtx dnxt
+	    with Not_found ->
 	      begin
 		try
 		  let (burned,lprevtx,dnxt,lblkh,confs) = ltc_gettransactioninfo txh in
-		  if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
-		    begin
-		      (Utils.log_string (Printf.sprintf "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt)));
-		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
-		      possibly_request_dalilcoin_block dnxt;
-		      txhhs := txhh :: !txhhs;
-		      genl := (txhh,burned,dnxt)::!genl
-		    end
-		  else
-		    begin
-		      (Utils.log_string (Printf.sprintf "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt)));
-		      DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
-		      possibly_request_dalilcoin_block dnxt;
-		      begin
-			try
-			  let (_,_,dprev) = DbLtcBurnTx.dbget lprevtx in
-			  possibly_request_dalilcoin_block dprev;
-			  txhhs := txhh :: !txhhs;
-			  succl := (dprev,txhh,burned,dnxt)::!succl
-			with _ -> ()
-		      end
-		    end
+		  DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
+		  handle burned lprevtx dnxt
 		with Not_found ->
 		  Utils.log_string (Printf.sprintf "Ignoring tx %s which does not appear to be a Dalilcoin burn tx\n" txh)
-	      end
-	    else
-	      txhhs := txhh :: !txhhs)
+	      end)
 	txhs;
       begin
 	let (prevkey,pbds) = ltcdacstatus_dbget prevh in
@@ -601,11 +605,14 @@ let rec ltc_process_block h =
 	    let pbdl3 = ref [] in
 	    List.iter
 	      (fun (bh,lbh,ltx,ltm,lhght) ->
-		try
-		  let (dprev,txhh,burned,dnxt) = List.find (fun (dprev,_,_,_) -> bh = dprev) !succl in
-		  pbdl3 := (dnxt,hh,txhh,tm,hght)::!pbdl3;
-		  change := true
-		with Not_found -> ())
+		List.iter
+		  (fun (dprev,txhh,burned,dnxt) ->
+		    if bh = dprev then
+		      begin
+			pbdl3 := (dnxt,hh,txhh,tm,hght)::!pbdl3;
+			change := true
+		      end)
+		  !succl)
 	      pbdl2;
 	    if not (!pbdl3 = []) then bds := !pbdl3 :: !bds)
 	  (List.rev pbds);

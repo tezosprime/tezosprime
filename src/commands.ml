@@ -1889,6 +1889,7 @@ let requestfullledger oc h =
   let reqh = ref [] in
   let reqc = ref [] in
   let cnt = ref 0 in
+  let topcnt = ref 0 in
   let rec requestasset oc h =
     if not (DbAsset.dbexists h) then
       begin
@@ -1910,24 +1911,34 @@ let requestfullledger oc h =
       incr cnt;
       reqh := h::!reqh
   in
-  let rec requestfullctree oc h =
+  let rec requestfullctree oc h top =
     try
       let e = DbCTreeElt.dbget h in
-      requestfullctree_2 oc e
+      requestfullctree_2 oc e top
     with Not_found ->
       broadcast_requestdata GetCTreeElement h;
       incr cnt;
       reqc := h::!reqc
-  and requestfullctree_2 oc c =
+  and requestfullctree_2 oc c top =
     match c with
-    | CHash(h) -> requestfullctree oc h
+    | CHash(h) ->
+	if top then
+	  begin
+	    incr topcnt;
+	    if !topcnt mod 6 = 0 then
+	      begin
+		Printf.fprintf oc "%d%% through tree traversal.\n" (!topcnt * 100 / 512);
+		flush oc
+	      end;
+	  end;
+	requestfullctree oc h false
     | CLeaf(_,NehHash(h,_)) -> requestfullhlist oc h
     | CLeaf(_,_) -> Printf.fprintf oc "Bug: Unexpected ctree elt case of nehhlist other than hash"
-    | CLeft(c0) -> requestfullctree_2 oc c0
-    | CRight(c1) -> requestfullctree_2 oc c1
-    | CBin(c0,c1) -> requestfullctree_2 oc c0; requestfullctree_2 oc c1
+    | CLeft(c0) -> requestfullctree_2 oc c0 top
+    | CRight(c1) -> requestfullctree_2 oc c1 top
+    | CBin(c0,c1) -> requestfullctree_2 oc c0 top; requestfullctree_2 oc c1 top
   in
-  requestfullctree oc h;
+  requestfullctree oc h true;
   if !cnt = 0 then
     Printf.fprintf oc "Verified node already has full ledger.\n"
   else
@@ -1955,7 +1966,7 @@ let requestfullledger oc h =
 	  List.iter
 	    (fun h ->
 	      try
-		requestfullctree_2 oc (DbCTreeElt.dbget h)
+		requestfullctree_2 oc (DbCTreeElt.dbget h) false
 	      with Not_found ->
 		incr cnt;
 		reqc := h::!reqc)

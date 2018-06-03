@@ -2533,7 +2533,7 @@ Hashtbl.add msgtype_handler HConsElement
 	  let hkh =
 	    match hk with
 	    | (h1,None) -> hashtag h1 3l
-	    | (h1,Some(k1,l1)) -> hashtag (hashpair h1 k1) (Int32.of_int (2048+l1))
+	    | (h1,Some(k1,l1)) -> hashtag (hashpair h1 k1) (Int32.of_int (4096+l1))
 	  in
 	  if hkh = h then
 	    begin

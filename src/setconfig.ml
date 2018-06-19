@@ -174,7 +174,7 @@ let process_config_line l =
 let datadir () = if !Config.testnet then (Filename.concat !Config.datadir "testnet") else !Config.datadir
 
 let process_config_file () =
-  let fn = Filename.concat (datadir()) "dalilcoin.conf" in
+  let fn = Filename.concat (datadir()) "tezosprime.conf" in
   if Sys.file_exists fn then
     begin
       let ch = open_in fn in
@@ -185,12 +185,12 @@ let process_config_file () =
 	    if String.length l > 0 && not (l.[0] = '%') then
 	      process_config_line l
 	  with Not_found ->
-	    Printf.printf "Do not understand %s in dalilcoin.conf; skipping\n" l
+	    Printf.printf "Do not understand %s in tezosprime.conf; skipping\n" l
 	done
       with End_of_file -> ()
     end
   else
-    Printf.printf "No dalilcoin.conf file found. Using default configuration.\n";;
+    Printf.printf "No tezosprime.conf file found. Using default configuration.\n";;
 
 let datadir_from_command_line () =
   let a = Array.length Sys.argv in
@@ -248,7 +248,7 @@ let process_config_args () =
 	with Not_found -> ()
     done
   with
-  | CreateSnapshot(i) -> (*** dalilcoin is being started only to take a snapshot of the current state; this can be used to help new people easily bootstrap with partial or full databases; the snapshot requires dalilcoin to otherwise not be running so that the database remains fixed during the creation of the snapshot ***)
+  | CreateSnapshot(i) -> (*** tezosprime is being started only to take a snapshot of the current state; this can be used to help new people easily bootstrap with partial or full databases; the snapshot requires tezosprime to otherwise not be running so that the database remains fixed during the creation of the snapshot ***)
       createsnapshot := true;
       let ledgerrooteql = String.length "-ledgerroot=" in
       let headereql = String.length "-header=" in
@@ -329,7 +329,7 @@ let process_config_args () =
 	    exit 1
 	  end
       done
-  | ImportSnapshot(i) -> (*** dalilcoin is being started only to import a snapshot into the local database ***)
+  | ImportSnapshot(i) -> (*** tezosprime is being started only to import a snapshot into the local database ***)
       importsnapshot := true;
       if not (i = a-2) then
 	begin
@@ -351,7 +351,7 @@ let process_config_args () =
 	  exit 1
 	end;
       build_extraindex := Some(hexstring_hashval Sys.argv.(i+1))
-  | NetLogReport(i) -> (*** dalilcoin is being started only to generate a readable report of network activity from reclog* files and sentlog file ***)
+  | NetLogReport(i) -> (*** tezosprime is being started only to generate a readable report of network activity from reclog* files and sentlog file ***)
       let fl = ref [] in
       for j = a-1 downto i+1 do
 	fl := Sys.argv.(j) :: !fl

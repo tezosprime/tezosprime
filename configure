@@ -4,7 +4,7 @@ do
     if [ $v == "-bytecode" ]; then
 	BYTECODE="1"
     else
-	if [ ${v:0:12} == "-dalilcoindir=" ]; then
+	if [ ${v:0:12} == "-tezosprimedir=" ]; then
             INSTALLDIR=${v:12}
 	    if [ ! -d $INSTALLDIR ]; then
 		echo "$INSTALLDIR is not a directory"
@@ -25,8 +25,8 @@ do
 			    echo "Unknown command line argument $v"
 			    echo "configure can be given the following arguments:"
 			    echo "-bytecode (to only build bytecode)"
-			    echo "-dalilcoindir=<dir> (to specify the install directory)"
-			    echo "-datadir=<dir> (to specify the default directory for Dalilcoin data)"
+			    echo "-tezosprimedir=<dir> (to specify the install directory)"
+			    echo "-datadir=<dir> (to specify the default directory for Tezos' data)"
 			    echo "-genesistime=<int> (to specify the genesis time stamp; regularly updated for the testnet)"
 			    echo "-seed=<32 bytes as a hexstring> (to specify the seed that is hashed to determine the genesis stake modifiers)"
 			    echo "-randomseed=<string> (a user provided string to seed OCaml's Random module)"
@@ -39,7 +39,7 @@ do
     fi
 done
 if [ ! $DATADIR ]; then
-    DATADIR=$HOME/.dalilcoin
+    DATADIR=$HOME/.tezosprime
 fi
 if [ ! -d $DATADIR ]; then
   mkdir $DATADIR
@@ -139,7 +139,7 @@ if [ -z $INSTALLDIR ]; then
 	else
 	    echo 'No installation directory could be determined'
 	    echo 'make install cannot be run'
-	    echo 'To resolve this give -dalilcoindir=<dir> as an argument to configure.'
+	    echo 'To resolve this give -tezosprimedir=<dir> as an argument to configure.'
 	fi
     fi
 fi
@@ -147,5 +147,5 @@ if [ -n $INSTALLDIR ]; then
     echo INSTALLDIR=$INSTALLDIR >> Makefile
     echo '' >> Makefile
     echo 'install:' >> Makefile
-    echo -e '\tcp bin/dalilcoin $(INSTALLDIR)' >> Makefile
+    echo -e '\tcp bin/tezosprime $(INSTALLDIR)' >> Makefile
 fi

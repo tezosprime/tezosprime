@@ -184,7 +184,7 @@ let initnetwork () =
 	  flush stdout;
 	  netlistenerth := Some(Thread.create netlistener l)
       | None ->
-	  Printf.printf "Not listening for incoming connections.\nIf you want Tezos' to listen for incoming connections set ip to your ip address\nusing ip=... in dalilcoin.conf or -ip=... on the command line.\n";
+	  Printf.printf "Not listening for incoming connections.\nIf you want Tezos' to listen for incoming connections set ip to your ip address\nusing ip=... in tezosprime.conf or -ip=... on the command line.\n";
 	  flush stdout
     with _ -> ()
   end;

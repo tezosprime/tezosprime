@@ -2,7 +2,7 @@
 
 Tezos' is an open source implementation of the concepts described in
 the Tezos white paper. In particular, Tezos' is proof-of-stake, supports
-metaconsensus for changing the protocal and formally verifiable smart
+metaconsensus for changing the protocol and formally verifiable smart
 contracts. Tezos' further extends the Tezos concept by including
 formal verification on chain.
 
@@ -16,11 +16,13 @@ lapses of the current Tezos leadership are unacceptable in this space.
 
 * open source
 
-All code is open source. As of June 2018, the code for the original Tezos
-implementation is under the exclusive copyright of Digital Ledger Systems,
-a U.S. based company. The Tezos' code uses none of the code
-written by Digital Ledger Systems, but instead uses code forked
-from other OCaml open source projects dating back to 2015 
+All code is open source. As of June 2018, the code for the original
+Tezos implementation is under the exclusive copyright of Digital
+Ledger Systems, a U.S. based company. The Tezos' code uses none of the
+code written by Digital Ledger Systems, but instead uses code forked
+from other OCaml open source projects dating back to 2015, more than a
+year before the first public release of Tezos code by Digital Ledger
+Systems.
 
 * pseudonymously developed
 
@@ -83,3 +85,22 @@ helpful at the moment, but we are open to help in other ways.  If you
 want to help, contact tezosprime@vistomail.com.  Please send this
 email from an account not connected to your identity while logged in
 over the Tor network.
+
+## Official secure information source
+
+Tezos' is not affiliated with the Tezos Foundation and Digital Ledger
+Systems. Given that Tezos' may face significant resistance from these
+well-funded and well-connected entities, accounts on centrally
+controlled websites like github or reddit cannot be considered
+secure. The most secure (and hence "official") information source for
+Tezos' is the memo.cash account associated with the Bitcoin Cash
+address 1MW4GTkrcnTRs5TjEAyv9anoZ8qCjH9Bre
+
+https://memo.cash/profile/1MW4GTkrcnTRs5TjEAyv9anoZ8qCjH9Bre
+
+This memo.cash account should be consulted for the most important and most
+up to date information.
+
+                    "Laissez faire les proprietaires"
+
+                              Pierre-Joseph Proudhon

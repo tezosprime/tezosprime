@@ -1,19 +1,19 @@
 all: opt bytecode
 
-opt: bin/dalilcoin bin/dalilcoincli
-bytecode: bin/dalilcoinbc bin/dalilcoinbccli
+opt: bin/tezosprime bin/tezosprimecli
+bytecode: bin/tezosprimebc bin/tezosprimebccli
 
-bin/dalilcoin: bin/dalilcoin.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/ltcrpc.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/dalilcoin unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx ltcrpc.cmx blocktree.cmx setconfig.cmx commands.cmx dalilcoin.cmx
+bin/tezosprime: bin/tezosprime.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/ltcrpc.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tezosprime unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx ltcrpc.cmx blocktree.cmx setconfig.cmx commands.cmx tezosprime.cmx
 
-bin/dalilcoincli: bin/dalilcoincli.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/ltcrpc.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/dalilcoincli unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx ltcrpc.cmx blocktree.cmx setconfig.cmx commands.cmx dalilcoincli.cmx
+bin/tezosprimecli: bin/tezosprimecli.cmx bin/json.cmx bin/config.cmx bin/hashaux.cmx bin/sha256.cmx bin/ripemd160.cmx bin/version.cmx bin/utils.cmx bin/ser.cmx bin/hash.cmx bin/htree.cmx bin/db.cmx bin/logic.cmx bin/mathdata.cmx bin/checking.cmx bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/ctregraft.cmx bin/secp256k1.cmx bin/cryptocurr.cmx bin/signat.cmx bin/script.cmx bin/block.cmx bin/net.cmx bin/ltcrpc.cmx bin/blocktree.cmx bin/setconfig.cmx bin/commands.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tezosprimecli unix.cmxa threads.cmxa nums.cmxa json.cmx config.cmx version.cmx utils.cmx ser.cmx hashaux.cmx sha256.cmx ripemd160.cmx hash.cmx htree.cmx net.cmx db.cmx secp256k1.cmx cryptocurr.cmx signat.cmx script.cmx logic.cmx mathdata.cmx checking.cmx assets.cmx tx.cmx ctre.cmx ctregraft.cmx block.cmx ltcrpc.cmx blocktree.cmx setconfig.cmx commands.cmx tezosprimecli.cmx
 
-bin/dalilcoinbc: bin/dalilcoin.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/ltcrpc.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
-	$(OCAMLC) -I bin -I +threads -o bin/dalilcoinbc unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo ltcrpc.cmo blocktree.cmo setconfig.cmo commands.cmo dalilcoin.cmo
+bin/tezosprimebc: bin/tezosprime.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/ltcrpc.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/tezosprimebc unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo ltcrpc.cmo blocktree.cmo setconfig.cmo commands.cmo tezosprime.cmo
 
-bin/dalilcoinbccli: bin/dalilcoincli.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/ltcrpc.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
-	$(OCAMLC) -I bin -I +threads -o bin/dalilcoinbccli unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo ltcrpc.cmo blocktree.cmo setconfig.cmo commands.cmo dalilcoincli.cmo
+bin/tezosprimebccli: bin/tezosprimecli.cmo bin/json.cmo bin/config.cmo bin/hashaux.cmo bin/sha256.cmo bin/ripemd160.cmo bin/version.cmo bin/utils.cmo bin/ser.cmo bin/hash.cmo bin/htree.cmo bin/db.cmo bin/logic.cmo bin/mathdata.cmo bin/checking.cmo bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/ctregraft.cmo bin/secp256k1.cmo bin/cryptocurr.cmo bin/signat.cmo bin/script.cmo bin/block.cmo bin/net.cmo bin/ltcrpc.cmo bin/blocktree.cmo bin/setconfig.cmo bin/commands.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/tezosprimebccli unix.cma threads.cma nums.cma json.cmo config.cmo version.cmo utils.cmo ser.cmo hashaux.cmo sha256.cmo ripemd160.cmo hash.cmo htree.cmo net.cmo db.cmo secp256k1.cmo cryptocurr.cmo signat.cmo script.cmo logic.cmo mathdata.cmo checking.cmo assets.cmo tx.cmo ctre.cmo ctregraft.cmo block.cmo ltcrpc.cmo blocktree.cmo setconfig.cmo commands.cmo tezosprimecli.cmo
 
 bin/version.cmi: src/version.mli
 	$(OCAMLC) -I bin -o bin/version.cmi -c src/version.mli
@@ -183,11 +183,11 @@ bin/setconfig.cmx: src/setconfig.ml bin/setconfig.cmi bin/config.cmx bin/json.cm
 bin/commands.cmx: src/commands.ml bin/commands.cmi bin/config.cmx bin/ser.cmx bin/hash.cmx bin/signat.cmx bin/net.cmx bin/ctre.cmx bin/cryptocurr.cmx bin/ctre.cmx bin/blocktree.cmx bin/json.cmx
 	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/commands.cmx -c src/commands.ml
 
-bin/dalilcoin.cmx: src/dalilcoin.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx bin/ltcrpc.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/dalilcoin.cmx -c src/dalilcoin.ml
+bin/tezosprime.cmx: src/tezosprime.ml bin/assets.cmx bin/tx.cmx bin/ctre.cmx bin/block.cmx bin/version.cmx bin/utils.cmx bin/net.cmx bin/setconfig.cmx bin/commands.cmx bin/db.cmx bin/blocktree.cmx bin/ltcrpc.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tezosprime.cmx -c src/tezosprime.ml
 
-bin/dalilcoincli.cmx: src/dalilcoincli.ml bin/setconfig.cmx bin/ltcrpc.cmx
-	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/dalilcoincli.cmx -c src/dalilcoincli.ml
+bin/tezosprimecli.cmx: src/tezosprimecli.ml bin/setconfig.cmx bin/ltcrpc.cmx
+	$(OCAMLOPT) $(OCAMLOPTARGS) -I bin -I +threads -o bin/tezosprimecli.cmx -c src/tezosprimecli.ml
 
 bin/version.cmo: src/version.ml bin/version.cmi
 	$(OCAMLC) -I bin -o bin/version.cmo -c src/version.ml
@@ -273,11 +273,11 @@ bin/setconfig.cmo: src/setconfig.ml bin/setconfig.cmi bin/config.cmo bin/json.cm
 bin/commands.cmo: src/commands.ml bin/commands.cmi bin/config.cmo bin/ser.cmo bin/hash.cmo bin/signat.cmo bin/net.cmo bin/ctre.cmo bin/cryptocurr.cmo bin/ctre.cmo bin/blocktree.cmo bin/json.cmo
 	$(OCAMLC) -I bin -I +threads -o bin/commands.cmo -c src/commands.ml
 
-bin/dalilcoin.cmo: src/dalilcoin.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo bin/ltcrpc.cmo
-	$(OCAMLC) -I bin -I +threads -o bin/dalilcoin.cmo -c src/dalilcoin.ml
+bin/tezosprime.cmo: src/tezosprime.ml bin/assets.cmo bin/tx.cmo bin/ctre.cmo bin/block.cmo bin/version.cmo bin/utils.cmo bin/net.cmo bin/setconfig.cmo bin/commands.cmo bin/db.cmo bin/blocktree.cmo bin/ltcrpc.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/tezosprime.cmo -c src/tezosprime.ml
 
-bin/dalilcoincli.cmo: src/dalilcoincli.ml bin/setconfig.cmo bin/ltcrpc.cmo
-	$(OCAMLC) -I bin -I +threads -o bin/dalilcoincli.cmo -c src/dalilcoincli.ml
+bin/tezosprimecli.cmo: src/tezosprimecli.ml bin/setconfig.cmo bin/ltcrpc.cmo
+	$(OCAMLC) -I bin -I +threads -o bin/tezosprimecli.cmo -c src/tezosprimecli.ml
 
 clean:
 	rm bin/*

@@ -35,15 +35,15 @@ without power in deference of those with power.
 * can be pseudonymously used
 
 Neither the developers of Tezos' nor the "Tezos Prime Foundation" (to
-the degree such a thing can be said to exist) cannot and will not
-ask for your identity to use the network. We are not asking you to
-trust us. You do not have to trust us. All fundraising will be done
-in a way where contributions can be made on an existing cryptocurrency
-blockchain that supports pseudonymous users. Furthermore, in exchange
-for funds raised there will be published Merkle roots of intermediate
-ledger states (before the network begins) so that everyone has
-the ability to pseudonymously prove they are entitled to a certain
-amount of prime tezzies.
+the degree such a thing can be said to exist) can ask for your
+identity to use the network. We are not asking you to trust us. You do
+not have to trust us. All fundraising will be done in a way where
+contributions can be made on an existing cryptocurrency blockchain
+that supports pseudonymous users. Furthermore, in exchange for funds
+raised there will be published Merkle roots of intermediate ledger
+states (before the network begins) so that everyone has the ability to
+pseudonymously prove they are entitled to a certain amount of prime
+tezzies.
 
 ## Current Status
 

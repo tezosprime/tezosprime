@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2017 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -88,7 +89,7 @@ let print_consensus_warning s cw =
   | ConsensusWarningNoBurn(h) ->
       Printf.fprintf s "BUG: Mystery unburned block %s\n" (hashval_hexstring h)
   | ConsensusWarningTerminal ->
-      Printf.fprintf s "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
+      Printf.fprintf s "No blocks were created in the past week. Tezos' has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	
 let get_bestnode_print_warnings s req =
   let (n,cwl) = get_bestnode req in
@@ -110,7 +111,7 @@ let get_bestnode_print_warnings s req =
 		  if ph = !bh then (bh := Some(h); cwlnew := cw::!cwlnew) else cwlorph := cw::!cwlorph
 	      | ConsensusWarningNoBurn(h) -> cwlorph := cw::!cwlorph
 	      | ConsensusWarningTerminal ->
-		  Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n")
+		  Printf.printf "No blocks were created in the past week. Tezos' has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n")
 	cwl;
       if not (!cwlnew = []) then
 	begin
@@ -183,7 +184,7 @@ let initnetwork () =
 	  flush stdout;
 	  netlistenerth := Some(Thread.create netlistener l)
       | None ->
-	  Printf.printf "Not listening for incoming connections.\nIf you want Dalilcoin to listen for incoming connections set ip to your ip address\nusing ip=... in dalilcoin.conf or -ip=... on the command line.\n";
+	  Printf.printf "Not listening for incoming connections.\nIf you want Tezos' to listen for incoming connections set ip to your ip address\nusing ip=... in dalilcoin.conf or -ip=... on the command line.\n";
 	  flush stdout
     with _ -> ()
   end;
@@ -1321,9 +1322,9 @@ let do_command oc l =
 			  match li with
 			  | [] -> Printf.fprintf f "   %d. Empty tip? Should not be possible.\n" i;
 			  | ((bh,lbh,ltx,ltm,lhght)::r) ->
-			      Printf.fprintf f "   (%d) - Dalilcoin Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" i (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght;
+			      Printf.fprintf f "   (%d) - Tezos' Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" i (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght;
 			      List.iter (fun (bh,lbh,ltx,ltm,lhght) ->
-				Printf.fprintf f "       - Dalilcoin Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght)
+				Printf.fprintf f "       - Tezos' Block: %s\n        Litecoin Block: %s\n        Litecoin Burn Tx: %s\n        Litecoin Time: %Ld\n        Litecoin Height: %Ld\n" (hashval_hexstring bh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght)
 				r)
 			l
 		with Not_found ->
@@ -1362,7 +1363,7 @@ let do_command oc l =
 	let tm = ltc_medtime() in
 	if zll = [] && tm > Int64.add !Config.genesistimestamp 604800L then
 	  begin
-	    Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
+	    Printf.printf "No blocks were created in the past week. Tezos' has reached terminal status.\nThe only recovery possible for the network is a hard fork.\n"
 	  end;
 	let i = ref 0 in
 	List.iter
@@ -1533,11 +1534,11 @@ let do_command oc l =
 	  Printf.fprintf oc "Target: %s\n" (string_of_big_int tar);
 	  Printf.fprintf oc "Difficulty: %s\n" (string_of_big_int (difficulty tar));
 	  let (bal1,bal2,bal3,bal4) = Commands.get_cants_balances_in_ledger oc ledgerroot in
-	  Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants bal1);
-	  Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants bal2);
-	  Printf.fprintf oc "Total via endorsement: %s fraenks\n" (fraenks_of_cants bal3);
-	  Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants bal4);
-	  Printf.fprintf oc "Sum of all: %s fraenks\n" (fraenks_of_cants (Int64.add bal1 (Int64.add bal2 (Int64.add bal3 bal4))))
+	  Printf.fprintf oc "Total p2pkh: %s tezzies\n" (tezzies_of_cants bal1);
+	  Printf.fprintf oc "Total p2sh: %s tezzies\n" (tezzies_of_cants bal2);
+	  Printf.fprintf oc "Total via endorsement: %s tezzies\n" (tezzies_of_cants bal3);
+	  Printf.fprintf oc "Total watched: %s tezzies\n" (tezzies_of_cants bal4);
+	  Printf.fprintf oc "Sum of all: %s tezzies\n" (tezzies_of_cants (Int64.add bal1 (Int64.add bal2 (Int64.add bal3 bal4))))
 	with e ->
 	  Printf.fprintf oc "Exception: %s\n" (Printexc.to_string e)
       end
@@ -1890,7 +1891,7 @@ let do_command oc l =
 	      end
 	  | _ -> raise Exit
 	with Exit ->
-	  Printf.fprintf oc "createtx <inputs as json array> <outputs as json array>\neach input: {\"<addr>\":\"<assetid>\"}\neach output: {\"addr\":\"<addr>\",\"val\":<fraenks>,\"lock\":<height>,\"obligationaddress\":\"<addr>\"}\nwhere lock is optional (default null, unlocked output)\nand obligationaddress is optional (default null, meaning the holder address is implicitly the obligationaddress)\n"
+	  Printf.fprintf oc "createtx <inputs as json array> <outputs as json array>\neach input: {\"<addr>\":\"<assetid>\"}\neach output: {\"addr\":\"<addr>\",\"val\":<tezzies>,\"lock\":<height>,\"obligationaddress\":\"<addr>\"}\nwhere lock is optional (default null, unlocked output)\nand obligationaddress is optional (default null, meaning the holder address is implicitly the obligationaddress)\n"
       end
   | "creategeneraltx" ->
       begin
@@ -1924,7 +1925,7 @@ let do_command oc l =
 	      let n = int_of_string n in
 	      if n <= 0 then raise (Failure ("Cannot split into " ^ (string_of_int n) ^ " assets"));
 	      let lkh = Int64.of_string lkh in
-	      let fee = cants_of_fraenks fee in
+	      let fee = cants_of_tezzies fee in
 	      if fee < 0L then raise (Failure ("Cannot have a negative free"));
 	      match r with
 	      | [] ->
@@ -2145,7 +2146,7 @@ let initialize () =
       end;
     if Sys.file_exists (Filename.concat datadir "lock") then
       begin
-	Printf.printf "Cannot start Dalilcoin. Do you already have Dalilcoin running? If not, remove: %s\n" (Filename.concat datadir "lock");
+	Printf.printf "Cannot start Tezos'. Do you already have Tezos' running? If not, remove: %s\n" (Filename.concat datadir "lock");
 	flush stdout;
 	exit 1;
       end;
@@ -2346,8 +2347,8 @@ let initialize () =
 		print_ctree c
 	  in
 	  check_ledger_rec lr;
-	  Printf.printf "Total Currency Assets: %Ld cants (%s fraenks)\n" !totcants (fraenks_of_cants !totcants);
-	  Printf.printf "Total Bounties: %Ld cants (%s fraenks)\n" !totbounties (fraenks_of_cants !totbounties);
+	  Printf.printf "Total Currency Assets: %Ld cants (%s tezzies)\n" !totcants (tezzies_of_cants !totcants);
+	  Printf.printf "Total Bounties: %Ld cants (%s tezzies)\n" !totbounties (tezzies_of_cants !totbounties);
 	  !exitfn 0
     end;
     begin

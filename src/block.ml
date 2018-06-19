@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -54,10 +55,10 @@ let max_target = ref (shift_left_big_int unit_big_int 200)
 let genesistarget = ref (shift_left_big_int unit_big_int 196) (* current estimate for initial difficulty *)
 let genesisledgerroot : hashval ref = ref (hexstring_hashval "d4b10e4b72eaa8a61427b805f206e828b22bb59192373b83fe0df501e68a5bed");;
 
-(*** base reward of 50 fraenks (5 trillion cants) like bitcoin, but assume the first 350000 blocks have passed. ***)
+(*** base reward of 50 tezzies (5 trillion cants) like bitcoin, but assume the first 350000 blocks have passed. ***)
 let basereward = 5000000000000L
 
-(*** the block reward begins at 25 fraenks and halves with each era until era 43 when it is 0 ***)
+(*** the block reward begins at 25 tezzies and halves with each era until era 43 when it is 0 ***)
 let rewfn blkh = Int64.shift_right basereward (Utils.era blkh)
 
 let seo_stakemod o sm c = seo_hashval o sm c

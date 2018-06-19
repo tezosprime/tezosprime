@@ -1,5 +1,6 @@
 (* Copyright (c) 2015 The Qeditas developers *)
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -114,7 +115,7 @@ let dalilwif k compr =
   let (sh20,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   base58 (or_big_int (shift_left_big_int (or_big_int k (shift_left_big_int (big_int_of_int pre) 256)) 32) (int32_big_int_bits sh20 0))
 
-(* w : Dalilcoin wif base58 string *)
+(* w : Tezos' wif base58 string *)
 (* return private key, big_int and a bool indicating if it's for the compressed pubkey *)
 (* Note: This doesn't check the checksum. *)
 let privkey_from_wif w =
@@ -128,7 +129,7 @@ let privkey_from_wif w =
   else if pre = 542 then
     (k,false)
   else
-    raise (Failure "Invalid Dalilcoin WIF")
+    raise (Failure "Invalid Tezos' WIF")
 
 (* w : Bitcoin wif base58 string *)
 (* return private key, big_int and a bool indicating if it's for the compressed pubkey *)
@@ -205,26 +206,26 @@ let calc_checksum pre rm1 =
 
 let daliladdrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
-  if p < 0l || p > 8000l then raise (Failure "Not a valid Dalilcoin address (bad prefix)");
-  if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Dalilcoin address (checksum incorrect)");
+  if p < 0l || p > 8000l then raise (Failure "Not a valid Tezos' address (bad prefix)");
+  if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Tezos' address (checksum incorrect)");
   if p = 31l then
-    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
+    if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
   else if p = 90l then
-    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
+    if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
   else if p = 65l then
-    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
+    if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
   else if p = 55l then
-    if !Config.testnet then raise (Failure "Dalilcoin mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
+    if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
   else if p = 7382l then
-    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
+    if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
   else if p = 7442l then
-    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
+    if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
   else if p = 7417l then
-    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
+    if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
   else if p = 7407l then
-    if not !Config.testnet then raise (Failure "Dalilcoin testnet address given while using mainnet") else (3,x0,x1,x2,x3,x4)
+    if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (3,x0,x1,x2,x3,x4)
   else
-    raise (Failure "Not a Dalilcoin address")
+    raise (Failure "Not a Tezos' address")
 
 let btcaddrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
@@ -263,7 +264,7 @@ let addr_daliladdrstr alpha =
   in
   hashval_gen_addrstr pre (x0,x1,x2,x3,x4)
 
-let fraenks_of_cants v =
+let tezzies_of_cants v =
   let w = Int64.div v 100000000000L in
   let d = Int64.to_string (Int64.rem v 100000000000L) in
   let dl = String.length d in
@@ -289,7 +290,7 @@ let fraenks_of_cants v =
   done;
   Buffer.contents b
 
-let cants_of_fraenks s =
+let cants_of_tezzies s =
   let f = ref 0L in
   let w = ref true in
   let c = ref 0L in
@@ -305,7 +306,7 @@ let cants_of_fraenks s =
       else if cc >= 48 && cc < 58 then
 	f := Int64.add (Int64.mul !f 10L) (Int64.of_int (cc-48))
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
     else
       if cc >= 48 && cc < 58 then
 	begin
@@ -313,7 +314,7 @@ let cants_of_fraenks s =
 	  d := Int64.div !d 10L
 	end
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
   done;
   Int64.add (Int64.mul !f 100000000000L) !c
 
@@ -359,7 +360,7 @@ let litoshis_of_ltc s =
       else if cc >= 48 && cc < 58 then
 	f := Int64.add (Int64.mul !f 10L) (Int64.of_int (cc-48))
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
     else
       if cc >= 48 && cc < 58 then
 	begin
@@ -367,7 +368,7 @@ let litoshis_of_ltc s =
 	  d := Int64.div !d 10L
 	end
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of fraenks"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
   done;
   Int64.add (Int64.mul !f 100000000L) !c
 
@@ -390,7 +391,7 @@ let payaddr_from_json j =
 let cants_from_json j =
   match j with
   | JsonNum(x) -> Int64.of_string x
-  | JsonStr(x) -> cants_of_fraenks x
+  | JsonStr(x) -> cants_of_tezzies x
   | JsonObj(jl) ->
       begin
 	try
@@ -399,18 +400,18 @@ let cants_from_json j =
 	  | JsonStr(x) -> Int64.of_string x
 	  | _ -> raise Not_found
 	with Not_found ->
-	  match List.assoc "fraenks" jl with
-	  | JsonNum(x) -> cants_of_fraenks x
-	  | JsonStr(x) -> cants_of_fraenks x
+	  match List.assoc "tezzies" jl with
+	  | JsonNum(x) -> cants_of_tezzies x
+	  | JsonStr(x) -> cants_of_tezzies x
 	  | _ -> raise Not_found
       end
   | _ -> raise Not_found
 
-let fraenks_from_json j =
-  fraenks_of_cants (cants_from_json j)
+let tezzies_from_json j =
+  tezzies_of_cants (cants_from_json j)
 
 let json_cants x =
-  JsonObj([("cants",JsonNum(Int64.to_string x));("fraenks",JsonStr(fraenks_of_cants x))])
+  JsonObj([("cants",JsonNum(Int64.to_string x));("tezzies",JsonStr(tezzies_of_cants x))])
 
-let json_fraenks x =
-  json_cants (cants_of_fraenks x)
+let json_tezzies x =
+  json_cants (cants_of_tezzies x)

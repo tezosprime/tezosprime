@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2017 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 

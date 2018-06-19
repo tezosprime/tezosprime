@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -412,7 +413,7 @@ let rec get_bestnode req =
       let tm = ltc_medtime() in
       if ctips0l = [] && tm > Int64.add !Config.genesistimestamp 604800L then
 	begin
-	  Printf.printf "No blocks were created in the past week. Dalilcoin has reached terminal status.\n"
+	  Printf.printf "No blocks were created in the past week. Tezos' has reached terminal status.\n"
 	end;
       let rec get_bestnode_r2 ctips ctipsr cwl =
 	match ctips with
@@ -1406,7 +1407,7 @@ Hashtbl.add msgtype_handler STx
 			  savetxtopool_real h stau
 			end
 		      else
-			(log_string (Printf.sprintf "ignoring tx %s with low fee of %s fraenks (%Ld cants)\n" (hashval_hexstring h) (Cryptocurr.fraenks_of_cants fee) fee))
+			(log_string (Printf.sprintf "ignoring tx %s with low fee of %s tezzies (%Ld cants)\n" (hashval_hexstring h) (Cryptocurr.tezzies_of_cants fee) fee))
 		    end
 		  else
 		    (log_string (Printf.sprintf "ignoring tx %s since signatures are not valid at the current block height of %Ld\n" (hashval_hexstring h) blkh))

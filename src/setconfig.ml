@@ -1,5 +1,6 @@
 (* Copyright (c) 2015 The Qeditas developers *)
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -48,7 +49,7 @@ let int64configvars = [
 ("reward_lock_relative",fun x -> Config.reward_lock_relative := Some(x));
 ("reward_lock_absolute",fun x -> Config.reward_lock_absolute := Some(x))
 ];;
-let cantsoffraenksconfigvars = [
+let cantsoftezziesconfigvars = [
 ("minrelayfee",fun x -> Config.minrelayfee := x)
 ];;
 let stringoptionconfigvars = [
@@ -128,11 +129,11 @@ let process_config_line l =
 	  if ll > 1 + vl && String.sub l 0 (vl) = v && l.[vl] = '=' then
 	    begin
 	      setl := v::!setl;
-	      r (cants_of_fraenks (String.sub l (vl+1) (ll-(vl+1))));
+	      r (cants_of_tezzies (String.sub l (vl+1) (ll-(vl+1))));
 	      raise Done
 	    end
 	  )
-	cantsoffraenksconfigvars;
+	cantsoftezziesconfigvars;
       List.iter
 	(fun (v,r) ->
 	  let vl = String.length v in

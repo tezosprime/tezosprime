@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -39,12 +40,12 @@ let obligation_string o =
 
 let preasset_string u =
   match u with
-  | Currency(v) -> fraenks_of_cants v ^ " fraenks"
-  | Bounty(v) -> "bounty of " ^ fraenks_of_cants v ^ " fraenks"
+  | Currency(v) -> tezzies_of_cants v ^ " tezzies"
+  | Bounty(v) -> "bounty of " ^ tezzies_of_cants v ^ " tezzies"
   | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
   | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ fraenks_of_cants r ^ " fraenks"
+  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
   | OwnsNegProp -> "neg prop ownership"
   | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
   | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"

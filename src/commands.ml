@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -322,7 +323,7 @@ let bytelist_of_hexstring h =
 let btctodaliladdr a =
   let alpha = btcaddrstr_addr a in
   let a2 = addr_daliladdrstr alpha in
-  Printf.printf "Dalilcoin address %s corresponds to Bitcoin address %s\n" a2 a
+  Printf.printf "Tezos' address %s corresponds to Bitcoin address %s\n" a2 a
 
 let importprivkey_real oc (k,b) cls report =
   match Secp256k1.smulp k Secp256k1._g with
@@ -368,7 +369,7 @@ let importprivkey_real oc (k,b) cls report =
 let importprivkey oc w cls =
   let (k,b) = privkey_from_wif w in
   let w2 = dalilwif k b in
-  if not (w2 = w) then raise (Failure (w ^ " is not a valid Dalilcoin wif"));
+  if not (w2 = w) then raise (Failure (w ^ " is not a valid Tezos' wif"));
   importprivkey_real oc (k,b) cls true
 
 let importbtcprivkey oc w cls =
@@ -413,12 +414,12 @@ let importendorsement a b s =
       raise (Failure "Code for importing endorsements by a p2sh addresses has not yet been written.")
     end
   else
-    raise (Failure (a ^ " expected to be a p2pkh or p2sh Dalilcoin address."))
+    raise (Failure (a ^ " expected to be a p2pkh or p2sh Tezos' address."))
 
 let importwatchaddr oc a cls =
   let alpha = daliladdrstr_addr a in
   let a2 = addr_daliladdrstr alpha in
-  if not (a2 = a) then raise (Failure (a ^ " is not a valid Dalilcoin address"));
+  if not (a2 = a) then raise (Failure (a ^ " is not a valid Tezos' address"));
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
@@ -433,7 +434,7 @@ let importwatchaddr oc a cls =
 let importwatchbtcaddr oc a cls =
   let alpha = btcaddrstr_addr a in
   let a2 = addr_daliladdrstr alpha in
-  Printf.printf "Importing as Dalilcoin address %s\n" a2;
+  Printf.printf "Importing as Tezos' address %s\n" a2;
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
   if watchaddr_in_wallet_p alpha then raise (Failure "Watch address is already in wallet.");
@@ -588,7 +589,7 @@ let assets_at_address_in_ledger_json raiseempty alpha par ledgerroot blkh =
 	let jhl = hlist_report_assets_json (Ctre.nehlist_hlist hl) in
 	let s = Buffer.create 100 in
 	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) sumcurr;
-	jal := [("address",JsonStr(alphas));("total",JsonNum(fraenks_of_cants !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
+	jal := [("address",JsonStr(alphas));("total",JsonNum(tezzies_of_cants !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
     | (None,z) ->
 	if raiseempty then
 	  raise EmptyAddress
@@ -752,10 +753,10 @@ let printassets_in_ledger oc ledgerroot =
 	  Printf.fprintf oc "%s: no information\n" (addr_daliladdrstr alpha);
     )
     !al4;
-  Printf.fprintf oc "Total p2pkh: %s fraenks\n" (fraenks_of_cants !tot1);
-  Printf.fprintf oc "Total p2sh: %s fraenks\n" (fraenks_of_cants !tot2);
-  Printf.fprintf oc "Total via endorsement: %s fraenks\n" (fraenks_of_cants !tot3);
-  Printf.fprintf oc "Total watched: %s fraenks\n" (fraenks_of_cants !tot4);
+  Printf.fprintf oc "Total p2pkh: %s tezzies\n" (tezzies_of_cants !tot1);
+  Printf.fprintf oc "Total p2sh: %s tezzies\n" (tezzies_of_cants !tot2);
+  Printf.fprintf oc "Total via endorsement: %s tezzies\n" (tezzies_of_cants !tot3);
+  Printf.fprintf oc "Total watched: %s tezzies\n" (tezzies_of_cants !tot4);
   Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
@@ -1038,7 +1039,7 @@ let createtx inpj outpj =
 			| (JsonStr(beta),JsonNum(x)) ->
 			    begin
 			      let beta2 = daliladdrstr_addr beta in
-			      let v = cants_of_fraenks x in
+			      let v = cants_of_tezzies x in
 			      try
 				let lockj = List.assoc "lock" al in
 				match lockj with
@@ -1105,12 +1106,12 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
 	    end
 	  else
 	    begin
-	      Printf.printf "Asset %s is %s fraenks, which is smaller than %d cants after subtracting the fee of %s\n" (hashval_hexstring aid) (fraenks_of_cants v) i (fraenks_of_cants v); flush stdout
+	      Printf.printf "Asset %s is %s tezzies, which is smaller than %d cants after subtracting the fee of %s\n" (hashval_hexstring aid) (tezzies_of_cants v) i (tezzies_of_cants v); flush stdout
 	    end	  
 	end
       else
 	begin
-	  Printf.printf "Asset %s is %s fraenks, which is not greater the fee of %s\n" (hashval_hexstring aid) (fraenks_of_cants v) (fraenks_of_cants v); flush stdout
+	  Printf.printf "Asset %s is %s tezzies, which is not greater the fee of %s\n" (hashval_hexstring aid) (tezzies_of_cants v) (tezzies_of_cants v); flush stdout
 	end
   | _ -> Printf.printf "Asset %s is not currency.\n" (hashval_hexstring aid); flush stdout
 
@@ -1398,11 +1399,11 @@ let validatetx oc blkh tr sr lr staustr =
 	    verbose_supportedcheck := None;
 	    let fee = Int64.sub 0L nfee in
 	    if fee < 0L then
-              Printf.fprintf oc "Tx is supported by the current ledger and but requires %s fraenks more input.\n" (Cryptocurr.fraenks_of_cants (Int64.neg fee))
+              Printf.fprintf oc "Tx is supported by the current ledger and but requires %s tezzies more input.\n" (Cryptocurr.tezzies_of_cants (Int64.neg fee))
 	    else if fee >= !Config.minrelayfee then
-	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (above minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee)
+	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s tezzies (above minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee)
             else
-	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
+	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s tezzies (below minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee);
 	    flush oc
 	  with
 	  | NotSupported ->
@@ -1471,7 +1472,7 @@ let sendtx oc blkh tr sr lr staustr =
 		      Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
 		    end
 		  else
-		    Printf.fprintf oc "Tx is supported by the current ledger, but has too low fee of %s fraenks (below minrelayfee %s fraenks)\n" (Cryptocurr.fraenks_of_cants fee) (Cryptocurr.fraenks_of_cants !Config.minrelayfee);
+		    Printf.fprintf oc "Tx is supported by the current ledger, but has too low fee of %s tezzies (below minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee);
 		  flush oc
 		with
 		| NotSupported ->
@@ -1750,9 +1751,9 @@ let query_blockheight findblkh =
 let preassetinfo_report oc u =
   match u with
   | Currency(v) ->
-      Printf.fprintf oc "Currency: %s fraenks (%Ld cants)\n" (fraenks_of_cants v) v
+      Printf.fprintf oc "Currency: %s tezzies (%Ld cants)\n" (tezzies_of_cants v) v
   | Bounty(v) ->
-      Printf.fprintf oc "Bounty: %s fraenks (%Ld cants)\n" (fraenks_of_cants v) v
+      Printf.fprintf oc "Bounty: %s tezzies (%Ld cants)\n" (tezzies_of_cants v) v
   | OwnsObj(h,alpha,None) ->
       Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the object cannot be purchased. It must be redefined in new documents.\n";
@@ -1761,7 +1762,7 @@ let preassetinfo_report oc u =
       if r = 0L then
 	Printf.fprintf oc "The object can be freely imported into documents and signatures.\n"
       else
-	Printf.fprintf oc "Each right to import the object into a document costs %s fraenks (%Ld cants), payable to %s.\n" (fraenks_of_cants r) r (addr_daliladdrstr (payaddr_addr alpha))
+	Printf.fprintf oc "Each right to import the object into a document costs %s tezzies (%Ld cants), payable to %s.\n" (tezzies_of_cants r) r (addr_daliladdrstr (payaddr_addr alpha))
   | OwnsProp(h,alpha,r) ->
       Printf.fprintf oc "Ownership deed for proposition with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the proposition cannot be purchased. It must be reproven in new documents.\n";
@@ -1782,7 +1783,7 @@ let preassetinfo_report oc u =
 	    let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce thyh)) in
 	    Printf.fprintf oc "Theory must be published to address %s\n" (addr_daliladdrstr (hashval_pub_addr thyh));
 	    Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_daliladdrstr beta);
-	    Printf.fprintf oc "Publishing theory requires burning %s fraenks.\n" (fraenks_of_cants (Mathdata.theory_burncost th))
+	    Printf.fprintf oc "Publishing theory requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.theory_burncost th))
 	| None ->
 	    Printf.fprintf oc "Theory seems to be empty and cannot be published.\n"
       end
@@ -1796,7 +1797,7 @@ let preassetinfo_report oc u =
       let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce tslh)) in
       Printf.fprintf oc "Signature must be published to address %s\n" (addr_daliladdrstr (hashval_pub_addr tslh));
       Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_daliladdrstr beta);
-      Printf.fprintf oc "Publishing signature requires burning %s fraenks.\n" (fraenks_of_cants (Mathdata.signa_burncost s));
+      Printf.fprintf oc "Publishing signature requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.signa_burncost s));
       let usesobjs = Mathdata.signaspec_uses_objs ss in
       let usesprops = Mathdata.signaspec_uses_props ss in
       if not (usesobjs = []) then

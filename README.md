@@ -53,7 +53,7 @@ A number of changes need to be made to the code before launching the network.
 
 The current consensus system is mostly a form of proof-of-stake, but
 needs to be changed to be closer to the proof-of-stake algorithm
-described in the Tezos white paper. There needs to be notions of
+described in the Tezos white paper. There need to be notions of
 rolls, delegation and a 1 minute block time target by giving a unique
 roll a chance to bake each minute.  There also need to be security
 deposits that can be forfeited in case of a fraud proof
@@ -68,13 +68,13 @@ have a Turing complete language for smart contracts. The plan is to
 extend the type theory in the current code to encode such a Turing complete
 language along with its operational semantics. Instead of executing a contract,
 certain transactions will be justified by giving a proof that a contract
-would have certain result if it were to be executed. One advantage of this
-is that the proof could take advantage of lemmas corresponding to optimizations
+would have a certain result if it were to be executed. One advantage of this
+approach is that the proof could take advantage of lemmas corresponding to optimizations
 that have been formally proven correct.
 
 * meta-consensus (on chain governance)
 
-As described in the Tezos white paper, meta-consensus can be acheived by commiting to the
+As described in the Tezos white paper, meta-consensus can be acheived by committing to the
 a hash of the code for the new protocol in block headers and having bakers essentially
 vote on whether to promote the code to the level of the testnet and eventually mainnet.
 
@@ -82,7 +82,7 @@ vote on whether to promote the code to the level of the testnet and eventually m
 
 Code reviewers (and people who can write documentation) would be most
 helpful at the moment, but we are open to help in other ways.  If you
-want to help, contact tezosprime@vistomail.com.  Please send this
+want to help, contact tezosprime@vistomail.com.  Please send the
 email from an account not connected to your identity while logged in
 over the Tor network.
 
@@ -94,7 +94,7 @@ well-funded and well-connected entities, accounts on centrally
 controlled websites like github or reddit cannot be considered
 secure. The most secure (and hence "official") information source for
 Tezos' is the memo.cash account associated with the Bitcoin Cash
-address 1MW4GTkrcnTRs5TjEAyv9anoZ8qCjH9Bre
+address 1MW4GTkrcnTRs5TjEAyv9anoZ8qCjH9Bre.
 
 https://memo.cash/profile/1MW4GTkrcnTRs5TjEAyv9anoZ8qCjH9Bre
 

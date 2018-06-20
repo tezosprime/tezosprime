@@ -1,5 +1,6 @@
 (* Copyright (c) 2015-2016 The Qeditas developers *)
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -89,7 +90,7 @@ let rec tx_outputs_valid_one_owner_oc oc outpl ool pol nol =
 	tx_outputs_valid_one_owner_oc oc outpr ool (h::pol) nol
   | (alpha,(_,OwnsNegProp))::outpr ->
       if List.mem alpha nol then
-	(Printf.fprintf oc "tx invalid since two owners for OwnsNegProp given: %s\n" (Cryptocurr.addr_daliladdrstr alpha);
+	(Printf.fprintf oc "tx invalid since two owners for OwnsNegProp given: %s\n" (Cryptocurr.addr_tzpaddrstr alpha);
 	 false)
       else
 	tx_outputs_valid_one_owner_oc oc outpr ool pol (alpha::nol)
@@ -125,12 +126,12 @@ let rec tx_outputs_valid_addr_cats_oc oc outpl =
       if hashval_term_addr h = alpha then
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
-	(Printf.fprintf oc "tx invalid since OwnsObj %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha); false)
+	(Printf.fprintf oc "tx invalid since OwnsObj %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr alpha); false)
   | (alpha,(_,OwnsProp(h,beta,u)))::outpr ->
       if hashval_term_addr h = alpha then
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
-	(Printf.fprintf oc "tx invalid since OwnsProp %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr alpha); false)
+	(Printf.fprintf oc "tx invalid since OwnsProp %s should be sent to %s\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr alpha); false)
   | (alpha,(_,OwnsNegProp))::outpr ->
       if termaddr_p alpha then 
 	tx_outputs_valid_addr_cats_oc oc outpr
@@ -143,19 +144,19 @@ let rec tx_outputs_valid_addr_cats_oc oc outpl =
 	    if alpha = hashval_pub_addr dlh then
 	      tx_outputs_valid_addr_cats_oc oc outpr
 	    else
-	      (Printf.fprintf oc "tx invalid since Theory should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr dlh)); false)
+	      (Printf.fprintf oc "tx invalid since Theory should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr dlh)); false)
 	| None -> false
       end
   | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr ->
       if alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) then
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
-	(Printf.fprintf oc "tx invalid since Signature should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))))); false)
+	(Printf.fprintf oc "tx invalid since Signature should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))))); false)
   | (alpha,(_,DocPublication(beta,h,th,dl)))::outpr ->
       if alpha = hashval_pub_addr (hashopair2 th (hashdoc dl)) then
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
-	(Printf.fprintf oc "tx invalid since Document should be sent to %s\n" (Cryptocurr.addr_daliladdrstr (hashval_pub_addr (hashopair2 th (hashdoc dl)))); false)
+	(Printf.fprintf oc "tx invalid since Document should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr (hashopair2 th (hashdoc dl)))); false)
   | (alpha,(_,Marker))::outpr ->
       if pubaddr_p alpha then
 	tx_outputs_valid_addr_cats outpr (*** markers should only be published to publication addresses, since they're used to prepublish an intention to publish ***)
@@ -406,7 +407,7 @@ let hashstx (tau,tausigs) = hashpair (hashtx tau) (hashtxsigs tausigs)
 module DbSTx = Dbbasic (struct type t = stx let basedir = "stx" let seival = sei_stx seic let seoval = seo_stx seoc end)
 
 let json_addr_assetid (alpha,h) =
-  JsonObj([("address",JsonStr(addr_daliladdrstr alpha));("assetid",JsonStr(hashval_hexstring h))])
+  JsonObj([("address",JsonStr(addr_tzpaddrstr alpha));("assetid",JsonStr(hashval_hexstring h))])
 
 let addr_assetid_from_json j =
   match j with
@@ -419,11 +420,11 @@ let addr_assetid_from_json j =
 let json_addr_preasset (alpha,(obl,u)) =
   match obl with
   | None ->
-      JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+      JsonObj([("address",JsonStr(addr_tzpaddrstr alpha));
 	       ("preasset",json_preasset u)])
   | Some(gamma,lh,r) ->
-      JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
-	       ("obligation",JsonObj([("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+      JsonObj([("address",JsonStr(addr_tzpaddrstr alpha));
+	       ("obligation",JsonObj([("lockaddress",JsonStr(addr_tzpaddrstr (payaddr_addr gamma)));
 				      ("lockheight",JsonNum(Int64.to_string lh));
 				      ("reward",JsonBool(r))]));
 	       ("preasset",json_preasset u)])
@@ -436,11 +437,11 @@ let rec json_txouts txh txouts i =
       let j =
 	match json_obligation obl with
 	| None ->
-	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+	    JsonObj([("address",JsonStr(addr_tzpaddrstr alpha));
 		     ("assetid",JsonStr(hashval_hexstring aid));
 		     ("preasset",json_preasset u)])
 	| Some(jobl) ->
-	    JsonObj([("address",JsonStr(addr_daliladdrstr alpha));
+	    JsonObj([("address",JsonStr(addr_tzpaddrstr alpha));
 		     ("assetid",JsonStr(hashval_hexstring aid));
 		     ("obligation",jobl);
 		     ("preasset",json_preasset u)])

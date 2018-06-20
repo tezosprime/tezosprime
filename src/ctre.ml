@@ -182,25 +182,25 @@ let rec print_hlist_gen f hl g =
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,None)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma));
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s None\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma));
 	g a;
 	print_hlist_gen f hr g
       end
@@ -274,7 +274,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency (Reward) ";
 	Buffer.add_string sb (tezzies_of_cants v);
 	Buffer.add_string sb " tezzies spendable by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
@@ -303,7 +303,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb " tez spendable by "
 	else
 	  Buffer.add_string sb " tezzies spendable by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
 	    Buffer.add_string sb " unlocks at height ";
@@ -340,7 +340,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb "] owned object ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (tezzies_of_cants r);
 	if r = 100000000000L then
@@ -358,7 +358,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb "] owned object ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
@@ -371,7 +371,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb "] owned prop ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (tezzies_of_cants r);
 	if r = 100000000000L then
@@ -389,7 +389,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb "] owned prop ";
 	Buffer.add_string sb (hashval_hexstring k);
 	Buffer.add_string sb " by ";
-	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr gamma));
+	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " rights cannot be purchased\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
@@ -477,7 +477,7 @@ let print_hlist_to_buffer sb blkh hl = print_hlist_to_buffer_gen sb blkh hl (fun
 let rec print_ctree_all_r f c n br =
   for i = 1 to n do Printf.fprintf f " " done;
   match c with
-  | CLeaf(bl,hl) -> Printf.fprintf f "Leaf %s\n" (addr_daliladdrstr (bitseq_addr ((List.rev br) @ bl))); print_hlist f (nehlist_hlist hl)
+  | CLeaf(bl,hl) -> Printf.fprintf f "Leaf %s\n" (addr_tzpaddrstr (bitseq_addr ((List.rev br) @ bl))); print_hlist f (nehlist_hlist hl)
   | CHash(h) -> Printf.fprintf f "H %s\n" (hashval_hexstring h)
   | CLeft(c0) -> Printf.fprintf f "L\n"; print_ctree_all_r f c0 (n+1) (false::br)
   | CRight(c1) -> Printf.fprintf f "R\n"; print_ctree_all_r f c1 (n+1) (true::br)
@@ -1659,7 +1659,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
       ()
     else
       begin
-	vmsg (fun oc -> Printf.fprintf oc "Rights for object %s are not balanced.\n" (Cryptocurr.addr_daliladdrstr (termaddr_addr alpha)));
+	vmsg (fun oc -> Printf.fprintf oc "Rights for object %s are not balanced.\n" (Cryptocurr.addr_tzpaddrstr (termaddr_addr alpha)));
 	raise NotSupported
       end)
     objids;
@@ -1676,7 +1676,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
       ()
     else
       begin
-	vmsg (fun oc -> Printf.fprintf oc "Rights for proposition %s are not balanced.\n" (Cryptocurr.addr_daliladdrstr (termaddr_addr alpha)));
+	vmsg (fun oc -> Printf.fprintf oc "Rights for proposition %s are not balanced.\n" (Cryptocurr.addr_tzpaddrstr (termaddr_addr alpha)));
 	raise NotSupported
       end)
     propids;
@@ -1685,7 +1685,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
     match ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) with
     | HNil -> ()
     | _ ->
-	vmsg (fun oc -> Printf.fprintf oc "Document has already been published at %s.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	vmsg (fun oc -> Printf.fprintf oc "Document has already been published at %s.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 	raise NotSupported
   in
   let spentmarkersjustified = ref [] in
@@ -1719,11 +1719,11 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  spentmarkersjustified := h::!spentmarkersjustified
 			else
 			  begin
-			    vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			    vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr beta) (Int64.add bday intention_minage));
 			    raise NotSupported
 			  end
 		    with Not_found ->
-		      vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Theory\n" (Cryptocurr.addr_daliladdrstr beta));
+		      vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Theory\n" (Cryptocurr.addr_tzpaddrstr beta));
 		      raise NotSupported
 		  end
 	      | None -> raise NotSupported
@@ -1775,11 +1775,11 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		      spentmarkersjustified := h::!spentmarkersjustified
 		    else
 		      begin
-			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr beta) (Int64.add bday intention_minage));
 			raise NotSupported
 		      end
 		with Not_found ->
-		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Signature\n" (Cryptocurr.addr_daliladdrstr beta));
+		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Signature\n" (Cryptocurr.addr_tzpaddrstr beta));
 		  raise NotSupported
 	      end
 	    with
@@ -1828,11 +1828,11 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		      spentmarkersjustified := h::!spentmarkersjustified
 		    else
 		      begin
-			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_daliladdrstr beta) (Int64.add bday intention_minage));
+			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr beta) (Int64.add bday intention_minage));
 			raise NotSupported
 		      end		      
 		with Not_found ->
-		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Document\n" (Cryptocurr.addr_daliladdrstr beta));
+		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Document\n" (Cryptocurr.addr_tzpaddrstr beta));
 		  raise NotSupported
 	      end
 	    with
@@ -1870,7 +1870,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | _ -> false)
 			outpl)
 	    with Not_found ->
-	      vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s not in output and so would be destroyed.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 	      raise NotSupported
 	  end
       | OwnsProp(pid,beta,r) ->
@@ -1884,7 +1884,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | _ -> false)
 			outpl)
 	    with Not_found ->
-	      vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 	      raise NotSupported
 	  end
       | OwnsNegProp ->
@@ -1898,7 +1898,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 			  | _ -> false)
 			outpl)
 	    with Not_found ->
-	      vmsg (fun oc -> Printf.fprintf oc "OwnsNegProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_daliladdrstr alpha));
+	      vmsg (fun oc -> Printf.fprintf oc "OwnsNegProp %s not in output and so would be destroyed.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 	      raise NotSupported
 	  end
       | _ -> ()
@@ -1927,7 +1927,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	  begin
 	    if not (termaddr_addr (hashval_md160 oid) = alpha) then
 	      begin
-		vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s should be sent to address %s not %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 oid))) (Cryptocurr.addr_daliladdrstr alpha));
+		vmsg (fun oc -> Printf.fprintf oc "OwnsObj %s should be sent to address %s not %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 oid))) (Cryptocurr.addr_tzpaddrstr alpha));
 		raise NotSupported (*** the term address holding the ownership asset must be the 160-bit digest of the object's (256 bit) id ***)
 	      end;
 	    checkoblnonrew obl;
@@ -1949,13 +1949,13 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		  ownobjclaims := oid::!ownobjclaims;
 		  match hlist_lookup_obj_owner exp req oid hl with
 		  | Some(beta2,r2) ->
-		      vmsg (fun oc -> Printf.fprintf oc "Object %s already has owner %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr (payaddr_addr beta2)));
+		      vmsg (fun oc -> Printf.fprintf oc "Object %s already has owner %s.\n" (hashval_hexstring oid) (Cryptocurr.addr_tzpaddrstr (payaddr_addr beta2)));
 		      raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
 	      else
 		begin
-		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsObj %s at %s not justified by publications in tx.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr alpha));
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsObj %s at %s not justified by publications in tx.\n" (hashval_hexstring oid) (Cryptocurr.addr_tzpaddrstr alpha));
 		  raise NotSupported
 		end
 	  end
@@ -1963,7 +1963,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	  begin
 	    if not (termaddr_addr (hashval_md160 pid) = alpha) then
 	      begin
-		vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s should be sent to address %s not %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 pid))) (Cryptocurr.addr_daliladdrstr alpha));
+		vmsg (fun oc -> Printf.fprintf oc "OwnsProp %s should be sent to address %s not %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 pid))) (Cryptocurr.addr_tzpaddrstr alpha));
 		raise NotSupported (*** the term address holding the ownership asset must be the 160-bit digest of the proposition's (256 bit) id ***)
 	      end;
 	    checkoblnonrew obl;
@@ -1985,13 +1985,13 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		  ownpropclaims := pid::!ownpropclaims;
 		  match hlist_lookup_prop_owner exp req pid hl with
 		  | Some(beta2,r2) ->
-		      vmsg (fun oc -> Printf.fprintf oc "Proposition %s already has owner %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr (payaddr_addr beta2)));
+		      vmsg (fun oc -> Printf.fprintf oc "Proposition %s already has owner %s.\n" (hashval_hexstring pid) (Cryptocurr.addr_tzpaddrstr (payaddr_addr beta2)));
 		      raise NotSupported (*** already owned ***)
 		  | None -> ()
 		end
 	      else
 		begin
-		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsProp %s at %s not justified by publications in tx.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr alpha));
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsProp %s at %s not justified by publications in tx.\n" (hashval_hexstring pid) (Cryptocurr.addr_tzpaddrstr alpha));
 		  raise NotSupported
 		end
 	  end
@@ -2009,13 +2009,13 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 		  ownnegpropclaims := alpha::!ownnegpropclaims;
 		  if hlist_lookup_neg_prop_owner exp req hl then
 		    begin
-		      vmsg (fun oc -> Printf.fprintf oc "NegProp at %s already has owner.\n" (Cryptocurr.addr_daliladdrstr alpha));
+		      vmsg (fun oc -> Printf.fprintf oc "NegProp at %s already has owner.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 		      raise NotSupported (*** already owned ***)
 		    end
 		end
 	      else
 		begin
-		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsNegProp at %s not justified by publications in tx.\n" (Cryptocurr.addr_daliladdrstr alpha));
+		  vmsg (fun oc -> Printf.fprintf oc "Creation of OwnsNegProp at %s not justified by publications in tx.\n" (Cryptocurr.addr_tzpaddrstr alpha));
 		  raise NotSupported
 		end;
 	  end
@@ -2036,7 +2036,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	    (*** ensure that it will be owned after the tx ***)
 	    if not (List.mem oid !ownobjclaims) then
 	      begin
-		vmsg (fun oc -> Printf.fprintf oc "Obj %s at %s newly defined in publication in tx must be given an owner.\n" (hashval_hexstring oid) (Cryptocurr.addr_daliladdrstr alpha));
+		vmsg (fun oc -> Printf.fprintf oc "Obj %s at %s newly defined in publication in tx must be given an owner.\n" (hashval_hexstring oid) (Cryptocurr.addr_tzpaddrstr alpha));
 		raise Not_found
 	      end
       in
@@ -2058,7 +2058,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	    (*** ensure that it will be owned after the tx ***)
 	    if not (List.mem pid !ownpropclaims) then
 	      begin
-		vmsg (fun oc -> Printf.fprintf oc "Prop %s at %s newly proven in publication in tx must be given an owner.\n" (hashval_hexstring pid) (Cryptocurr.addr_daliladdrstr alpha));
+		vmsg (fun oc -> Printf.fprintf oc "Prop %s at %s newly proven in publication in tx must be given an owner.\n" (hashval_hexstring pid) (Cryptocurr.addr_tzpaddrstr alpha));
 		raise Not_found
 	      end
       in

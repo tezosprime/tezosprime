@@ -1,5 +1,6 @@
 (* Copyright (c) 2015 The Qeditas developers *)
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -42,7 +43,7 @@ val printhconselt : hashval -> unit
 val printasset : hashval -> unit
 val printtx : hashval -> unit
 
-val btctodaliladdr : string -> unit
+val btctotzpaddr : string -> unit
 val importprivkey : out_channel -> string -> string -> unit
 val importbtcprivkey : out_channel -> string -> string -> unit
 val importendorsement : string -> string -> string -> unit

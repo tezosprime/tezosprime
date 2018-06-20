@@ -36,23 +36,23 @@ let obligation_string o =
   match o with
   | None -> "default obligation"
   | Some(beta,lkh,r) ->
-      "obligation: controlled by " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ ";locked until height " ^ (Int64.to_string lkh) ^ ";" ^ (if r then "reward" else "not a reward")
+      "obligation: controlled by " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ ";locked until height " ^ (Int64.to_string lkh) ^ ";" ^ (if r then "reward" else "not a reward")
 
 let preasset_string u =
   match u with
   | Currency(v) -> tezzies_of_cants v ^ " tezzies"
   | Bounty(v) -> "bounty of " ^ tezzies_of_cants v ^ " tezzies"
-  | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
-  | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_daliladdrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
+  | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
+  | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ " with no rights available"
+  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
   | OwnsNegProp -> "neg prop ownership"
   | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
   | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
   | Marker -> "marker"
-  | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_daliladdrstr (payaddr_addr beta)
-  | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_daliladdrstr (payaddr_addr beta)
-  | DocPublication(beta,_,_,_) -> "document published by " ^ addr_daliladdrstr (payaddr_addr beta)
+  | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_tzpaddrstr (payaddr_addr beta)
+  | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_tzpaddrstr (payaddr_addr beta)
+  | DocPublication(beta,_,_,_) -> "document published by " ^ addr_tzpaddrstr (payaddr_addr beta)
 
 
 (*** asset is (assetid,birthday,obligation,preasset) ***)
@@ -439,7 +439,7 @@ let json_obligation obl =
  | None -> None
  | Some(gamma,lh,r) ->
      Some(JsonObj([("type",JsonStr("obligation"));
-		   ("lockaddress",JsonStr(addr_daliladdrstr (payaddr_addr gamma)));
+		   ("lockaddress",JsonStr(addr_tzpaddrstr (payaddr_addr gamma)));
 		   ("lockheight",JsonNum(Int64.to_string lh));
 		   ("reward",JsonBool(r))]))
 
@@ -447,19 +447,19 @@ let json_preasset u =
   match u with
   | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("val",json_cants v)])
   | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("val",json_cants v)])
-  | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
-  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",json_cants r)])
-  | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)))])
-  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("royalty",json_cants r)])
+  | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)))])
+  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_cants r)])
+  | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)))])
+  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_cants r)])
   | OwnsNegProp -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsnegprop"))])
-  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
-  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_daliladdrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
+  | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
+  | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
   | Marker -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("marker"))])
-  | TheoryPublication(beta,nonce,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryspec",json_theoryspec ts)])
-  | SignaPublication(beta,nonce,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("signaspec",json_signaspec None ss)])
-  | SignaPublication(beta,nonce,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec (Some(th)) ss)])
-  | DocPublication(beta,nonce,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("doc",json_doc None d)])
-  | DocPublication(beta,nonce,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_daliladdrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc (Some(th)) d)])
+  | TheoryPublication(beta,nonce,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryspec",json_theoryspec ts)])
+  | SignaPublication(beta,nonce,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("signaspec",json_signaspec None ss)])
+  | SignaPublication(beta,nonce,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec (Some(th)) ss)])
+  | DocPublication(beta,nonce,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("doc",json_doc None d)])
+  | DocPublication(beta,nonce,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc (Some(th)) d)])
 
 let json_asset a =
   let ah = hashval_hexstring (hashasset a) in

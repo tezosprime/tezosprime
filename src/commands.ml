@@ -85,8 +85,8 @@ let load_wallet () =
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
 		  let alpha1 = hashval_md160 h in
-		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
-		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+		  let alpha = addr_tzpaddrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),tzpwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys_staking
@@ -97,8 +97,8 @@ let load_wallet () =
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
 		  let alpha1 = hashval_md160 h in
-		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
-		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+		  let alpha = addr_tzpaddrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),tzpwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys_nonstaking
@@ -109,8 +109,8 @@ let load_wallet () =
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
 		  let alpha1 = hashval_md160 h in
-		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
-		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+		  let alpha = addr_tzpaddrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),tzpwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys_staking_fresh
@@ -121,8 +121,8 @@ let load_wallet () =
 	      | Some(x,y) ->
 		  let h = pubkey_hashval (x,y) b in
 		  let alpha1 = hashval_md160 h in
-		  let alpha = addr_daliladdrstr (p2pkhaddr_addr alpha1) in
-		  (k,b,(x,y),dalilwif k b,alpha1,alpha)
+		  let alpha = addr_tzpaddrstr (p2pkhaddr_addr alpha1) in
+		  (k,b,(x,y),tzpwif k b,alpha1,alpha)
 	      | None ->
 		  raise (Failure "A private key in the wallet did not give a public key.")
 	      )::!walletkeys_nonstaking_fresh
@@ -130,7 +130,7 @@ let load_wallet () =
 	    let (scr,_) = sei_list sei_int8 seic (s,None) in
 	    walletp2shs :=
 	      (let h = hash160_bytelist scr in
-	      let a = addr_daliladdrstr (p2shaddr_addr h) in
+	      let a = addr_tzpaddrstr (p2shaddr_addr h) in
 	      (h,a,scr))::!walletp2shs
 	| 2 ->
 	    let (endors,_) = sei_prod6 sei_payaddr sei_payaddr (sei_prod sei_big_int_256 sei_big_int_256) sei_varintb sei_bool sei_signat seic (s,None) in (*** For each (alpha,beta,esg) beta can use esg to justify signing for alpha; endorsements can be used for spending/moving, but not for staking. ***)
@@ -320,9 +320,9 @@ let bytelist_of_hexstring h =
   done;
   !bl
 
-let btctodaliladdr a =
+let btctotzpaddr a =
   let alpha = btcaddrstr_addr a in
-  let a2 = addr_daliladdrstr alpha in
+  let a2 = addr_tzpaddrstr alpha in
   Printf.printf "Tezos' address %s corresponds to Bitcoin address %s\n" a2 a
 
 let importprivkey_real oc (k,b) cls report =
@@ -330,14 +330,14 @@ let importprivkey_real oc (k,b) cls report =
   | Some(x,y) ->
       let h = hashval_md160 (pubkey_hashval (x,y) b) in
       let alpha = p2pkhaddr_addr h in
-      let a = addr_daliladdrstr alpha in
+      let a = addr_tzpaddrstr alpha in
       let replwall = ref false in
       if privkey_in_wallet_p alpha then raise (Failure "Private key already in wallet.");
       let clsn =
 	if cls = "nonstaking" then 4 else if cls = "staking_fresh" then 5 else if cls = "nonstaking_fresh" then 6 else 0
       in
       let wr = if clsn = 4 then walletkeys_nonstaking else if clsn = 5 then walletkeys_staking_fresh else if clsn = 6 then walletkeys_nonstaking_fresh else walletkeys_staking in
-      wr := (k,b,(x,y),dalilwif k b,h,a)::!wr;
+      wr := (k,b,(x,y),tzpwif k b,h,a)::!wr;
       walletendorsements := (*** remove endorsements if the wallet has the private key for the address, since it can now sign directly ***)
 	List.filter
 	  (fun (alpha2,beta,(x,y),recid,fcomp,esg) -> if alpha = payaddr_addr alpha2 then (replwall := true; false) else true)
@@ -368,7 +368,7 @@ let importprivkey_real oc (k,b) cls report =
 
 let importprivkey oc w cls =
   let (k,b) = privkey_from_wif w in
-  let w2 = dalilwif k b in
+  let w2 = tzpwif k b in
   if not (w2 = w) then raise (Failure (w ^ " is not a valid Tezos' wif"));
   importprivkey_real oc (k,b) cls true
 
@@ -377,8 +377,8 @@ let importbtcprivkey oc w cls =
   importprivkey_real oc (k,b) cls true
 
 let importendorsement a b s =
-  let alpha = daliladdrstr_addr a in
-  let beta = daliladdrstr_addr b in
+  let alpha = tzpaddrstr_addr a in
+  let beta = tzpaddrstr_addr b in
   if endorsement_in_wallet_2_p alpha beta then raise (Failure ("An endorsement from " ^ a ^ " to " ^ b ^ " is already in the wallet."));
   let (q,y4,y3,y2,y1,y0) = beta in
   if q = 0 && not (privkey_in_wallet_p beta) then raise (Failure ("The private key for " ^ b ^ " must be in the wallet before an endorsement to it can be added."));
@@ -393,7 +393,7 @@ let importendorsement a b s =
       | None ->
 	  if !Config.testnet then
 	    begin
-	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_daliladdrstr alpha) ^ ")") with
+	      match verifybitcoinmessage_recover (-916116462l, -1122756662l, 602820575l, 669938289l, 1956032577l) recid fcomp esg ("fakeendorsement " ^ b ^ " (" ^ (addr_tzpaddrstr alpha) ^ ")") with
 	      | None ->
 		  raise (Failure "endorsement signature verification failed; not adding endorsement to wallet")
 	      | Some(x,y) ->
@@ -417,8 +417,8 @@ let importendorsement a b s =
     raise (Failure (a ^ " expected to be a p2pkh or p2sh Tezos' address."))
 
 let importwatchaddr oc a cls =
-  let alpha = daliladdrstr_addr a in
-  let a2 = addr_daliladdrstr alpha in
+  let alpha = tzpaddrstr_addr a in
+  let a2 = addr_tzpaddrstr alpha in
   if not (a2 = a) then raise (Failure (a ^ " is not a valid Tezos' address"));
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
@@ -433,7 +433,7 @@ let importwatchaddr oc a cls =
 
 let importwatchbtcaddr oc a cls =
   let alpha = btcaddrstr_addr a in
-  let a2 = addr_daliladdrstr alpha in
+  let a2 = addr_tzpaddrstr alpha in
   Printf.printf "Importing as Tezos' address %s\n" a2;
   if privkey_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has the private key for this address.");
   if endorsement_in_wallet_p alpha then raise (Failure "Not adding as a watch address since the wallet already has an endorsement for this address.");
@@ -456,12 +456,12 @@ let rec randomly_generate_newkeyandaddress ledgerroot cls =
     | None -> (*** try again, in the very unlikely event this happened ***)
 	randomly_generate_newkeyandaddress ledgerroot cls
     | Some(x,y) ->
-	let w = dalilwif k true in
+	let w = tzpwif k true in
 	let h = hashval_md160 (pubkey_hashval (x,y) b) in
 	let alpha = p2pkhaddr_addr h in
 	try
 	  ignore (ctree_addr true false alpha (CHash(ledgerroot)) None);
-	  let a = addr_daliladdrstr alpha in
+	  let a = addr_tzpaddrstr alpha in
 	  Utils.log_string (Printf.sprintf "Importing privkey %s for address %s\n" w a);
 	  importprivkey_real !Utils.log (k,b) cls false;
 	  (k,h)
@@ -512,7 +512,7 @@ let get_fresh_offline_address oc =
       raise (Failure("out of fresh offline addresses"))
 
 let reclassify_staking oc alpha b =
-  let (p,x4,x3,x2,x1,x0) = daliladdrstr_addr alpha in
+  let (p,x4,x3,x2,x1,x0) = tzpaddrstr_addr alpha in
   if not (p = 0) then
     Printf.fprintf oc "%s is not p2pkh\n" alpha
   else if b then
@@ -543,7 +543,7 @@ exception EmptyAddress
 let assets_at_address_in_ledger_json raiseempty alpha par ledgerroot blkh =
   let cache : (hashval,nehlist option * int) Hashtbl.t = Hashtbl.create 100 in
   let reported : (hashval,unit) Hashtbl.t = Hashtbl.create 100 in
-  let alphas = addr_daliladdrstr alpha in
+  let alphas = addr_tzpaddrstr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   let warned = ref false in
   let jwl = ref [] in
@@ -732,12 +732,12 @@ let printassets_in_ledger oc ledgerroot =
     (fun (alpha2,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.fprintf oc "%s:\n" (addr_daliladdrstr alpha2);
+	  Printf.fprintf oc "%s:\n" (addr_tzpaddrstr alpha2);
 	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot3)
       | (None,_) ->
-	  Printf.fprintf oc "%s: empty\n" (addr_daliladdrstr alpha2);
+	  Printf.fprintf oc "%s: empty\n" (addr_tzpaddrstr alpha2);
       | _ ->
-	  Printf.fprintf oc "%s: no information\n" (addr_daliladdrstr alpha2);
+	  Printf.fprintf oc "%s: no information\n" (addr_tzpaddrstr alpha2);
     )
     !al3;
   Printf.fprintf oc "Watched assets:\n";
@@ -745,12 +745,12 @@ let printassets_in_ledger oc ledgerroot =
     (fun (alpha,x) ->
       match x with
       | (Some(hl),_) ->
-	  Printf.fprintf oc "%s:\n" (addr_daliladdrstr alpha);
+	  Printf.fprintf oc "%s:\n" (addr_tzpaddrstr alpha);
 	  Ctre.print_hlist_gen oc (Ctre.nehlist_hlist hl) (sumcurr tot4)
       | (None,_) ->
-	  Printf.fprintf oc "%s: empty\n" (addr_daliladdrstr alpha);
+	  Printf.fprintf oc "%s: empty\n" (addr_tzpaddrstr alpha);
       | _ ->
-	  Printf.fprintf oc "%s: no information\n" (addr_daliladdrstr alpha);
+	  Printf.fprintf oc "%s: no information\n" (addr_tzpaddrstr alpha);
     )
     !al4;
   Printf.fprintf oc "Total p2pkh: %s tezzies\n" (tezzies_of_cants !tot1);
@@ -989,14 +989,14 @@ let printtx_a (tauin,tauout) =
   Printf.printf "Inputs (%d):\n" (List.length tauin);
   List.iter
     (fun (alpha,aid) ->
-      Printf.printf "Input %d:%s %s\n" !i (addr_daliladdrstr alpha) (hashval_hexstring aid);
+      Printf.printf "Input %d:%s %s\n" !i (addr_tzpaddrstr alpha) (hashval_hexstring aid);
       incr i)
     tauin;      
   i := 0;
   Printf.printf "Outputs (%d):\n" (List.length tauout);
   List.iter
     (fun (alpha,(obl,u)) ->
-      Printf.printf "Output %d:%s %s %s\n" !i (addr_daliladdrstr alpha) (preasset_string u) (obligation_string obl);
+      Printf.printf "Output %d:%s %s %s\n" !i (addr_tzpaddrstr alpha) (preasset_string u) (obligation_string obl);
       incr i)
     tauout
 
@@ -1022,7 +1022,7 @@ let createtx inpj outpj =
 	    (fun inp ->
 	      match inp with
 	      | JsonObj([(alpha,JsonStr(aidhex))]) ->
-		  (daliladdrstr_addr alpha,hexstring_hashval aidhex)
+		  (tzpaddrstr_addr alpha,hexstring_hashval aidhex)
 	      | _ -> raise Exit)
 	    inpl
 	in
@@ -1038,7 +1038,7 @@ let createtx inpj outpj =
 			match (betaj,valj) with
 			| (JsonStr(beta),JsonNum(x)) ->
 			    begin
-			      let beta2 = daliladdrstr_addr beta in
+			      let beta2 = tzpaddrstr_addr beta in
 			      let v = cants_of_tezzies x in
 			      try
 				let lockj = List.assoc "lock" al in
@@ -1050,7 +1050,7 @@ let createtx inpj outpj =
 					let obladdrj = List.assoc "obligationaddr" al in
 					match obladdrj with
 					| JsonStr(obladdr) ->
-					    let gamma2 = daliladdrstr_addr obladdr in
+					    let gamma2 = tzpaddrstr_addr obladdr in
 					    if not (payaddr_p gamma2) then raise (Failure (Printf.sprintf "obligation address %s must be a payaddr (p2pkh or p2sh)" obladdr));
 					    let (i,c4,c3,c2,c1,c0) = gamma2 in
 					    let gamma_as_payaddr = (i=1,c4,c3,c2,c1,c0) in
@@ -1083,7 +1083,7 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
   let alpha2 = payaddr_addr alpha in
   let ctr = Ctre.CHash(ledgerroot) in
   match ctree_lookup_asset true false aid ctr (addr_bitseq alpha2) with
-  | None -> Printf.printf "Could not find asset %s at %s in ledger %s\n" (hashval_hexstring aid) (addr_daliladdrstr alpha2) (hashval_hexstring ledgerroot); flush stdout
+  | None -> Printf.printf "Could not find asset %s at %s in ledger %s\n" (hashval_hexstring aid) (addr_tzpaddrstr alpha2) (hashval_hexstring ledgerroot); flush stdout
   | Some(_,bday,obl,Currency(v)) ->
       if v > fee then
 	begin
@@ -1344,7 +1344,7 @@ let rec signtx_outs taue outpl sl rl rsl co =
 let signtx oc lr taustr =
   let s = hexstring_string taustr in
   let (((tauin,tauout) as tau,(tausgin,tausgout) as tausg),_) = sei_stx seis (s,String.length s,None,0,0) in (*** may be partially signed ***)
-  let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+  let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_tzpaddrstr alpha) (hashval_hexstring lr) in
   let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
   let rec get_propowns tauin al =
     match tauin,al with
@@ -1373,7 +1373,7 @@ let savetxtopool blkh lr staustr =
   let s = hexstring_string staustr in
   let (((tauin,tauout) as tau,tausg),_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
-    let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+    let unsupportederror alpha h = Printf.printf "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_tzpaddrstr alpha) (hashval_hexstring lr) in
     let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
     if tx_signatures_valid blkh al (tau,tausg) then
       let txid = hashstx (tau,tausg) in
@@ -1388,7 +1388,7 @@ let validatetx oc blkh tr sr lr staustr =
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid_oc oc tau then
     begin
-      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_tzpaddrstr alpha) (hashval_hexstring lr) in
       let validatetx_report() =
 	let stxh = hashstx stau in
 	Printf.fprintf oc "Tx is valid and has id %s\n" (hashval_hexstring stxh);
@@ -1442,7 +1442,7 @@ let sendtx oc blkh tr sr lr staustr =
   let (((tauin,tauout) as tau,tausg) as stau,_) = sei_stx seis (s,String.length s,None,0,0) in
   if tx_valid tau then
     begin
-      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha) (hashval_hexstring lr) in
+      let unsupportederror alpha h = Printf.fprintf oc "Could not find asset %s at address %s in ledger %s\n" (hashval_hexstring h) (addr_tzpaddrstr alpha) (hashval_hexstring lr) in
       let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
       try
 	let b = tx_signatures_valid_asof_blkh al (tau,tausg) in
@@ -1489,7 +1489,7 @@ let sendtx oc blkh tr sr lr staustr =
     Printf.fprintf oc "Invalid tx\n"
 
 (*** should gather historic information as well ***)
-let dalilcoin_addr_jsoninfo raiseempty alpha pbh ledgerroot blkh =
+let tzp_addr_jsoninfo raiseempty alpha pbh ledgerroot blkh =
   let blkh = Int64.sub blkh 1L in
   let (jpbh,par) =
     match pbh with
@@ -1536,7 +1536,7 @@ let query_at_block q pbh ledgerroot blkh =
 	begin
 	  try
 	    let alpha = Assets.DbAssetIdAt.dbget h in
-	    let j = dalilcoin_addr_jsoninfo true alpha pbh ledgerroot blkh in
+	    let j = tzp_addr_jsoninfo true alpha pbh ledgerroot blkh in
 	    dbentries := j::!dbentries
 	  with
 	  | EmptyAddress -> ()
@@ -1614,7 +1614,7 @@ let query_at_block q pbh ledgerroot blkh =
 	    in
 	    let jr =
 	      jpb @
-	      [("stakeaddress",JsonStr(addr_daliladdrstr (p2pkhaddr_addr alpha)));
+	      [("stakeaddress",JsonStr(addr_tzpaddrstr (p2pkhaddr_addr alpha)));
 	       ("stakeassetid",JsonStr(hashval_hexstring aid));
 	       ("timestamp",JsonNum(Int64.to_string timestamp));
 	       ("deltatime",JsonNum(Int32.to_string deltatime));
@@ -1671,7 +1671,7 @@ let query_at_block q pbh ledgerroot blkh =
 	    let j = JsonObj([("type",JsonStr("ltcburntx"));
 			     ("burned",JsonNum(Int64.to_string burned));
 			     ("previousltcburntx",JsonStr(hashval_hexstring lprevtx));
-			     ("dalilblock",JsonStr(hashval_hexstring dnxt))]) in
+			     ("tzpblock",JsonStr(hashval_hexstring dnxt))]) in
 	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
@@ -1685,8 +1685,8 @@ let query_at_block q pbh ledgerroot blkh =
 	begin
 	  try
             let d = termaddr_addr (hashval_md160 h) in
-            let j = dalilcoin_addr_jsoninfo true d pbh ledgerroot blkh in
-	    dbentries := JsonObj([("type",JsonStr("termid"));("termaddress",JsonStr(addr_daliladdrstr d));("termaddressinfo",j)])::!dbentries
+            let j = tzp_addr_jsoninfo true d pbh ledgerroot blkh in
+	    dbentries := JsonObj([("type",JsonStr("termid"));("termaddress",JsonStr(addr_tzpaddrstr d));("termaddressinfo",j)])::!dbentries
 	  with _ -> ()
 	end;
 	if !dbentries = [] then
@@ -1699,17 +1699,17 @@ let query_at_block q pbh ledgerroot blkh =
   else
     begin
       try
-	let d = daliladdrstr_addr q in
-	let j = dalilcoin_addr_jsoninfo false d pbh ledgerroot blkh in
-	JsonObj([("response",JsonStr("daliladdress"));("info",j)])
+	let d = tzpaddrstr_addr q in
+	let j = tzp_addr_jsoninfo false d pbh ledgerroot blkh in
+	JsonObj([("response",JsonStr("tzpaddress"));("info",j)])
       with _ ->
 	try
 	  let b = btcaddrstr_addr q in
-	  let j = dalilcoin_addr_jsoninfo false b pbh ledgerroot blkh in
-	  let d = addr_daliladdrstr b in
-	  JsonObj([("response",JsonStr("bitcoin address"));("daliladdress",JsonStr(d));("info",j)])
+	  let j = tzp_addr_jsoninfo false b pbh ledgerroot blkh in
+	  let d = addr_tzpaddrstr b in
+	  JsonObj([("response",JsonStr("bitcoin address"));("tzpaddress",JsonStr(d));("info",j)])
 	with _ ->
-	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as dalilcoin value"))])
+	  JsonObj([("response",JsonStr("unknown"));("msg",JsonStr("Cannot interpret as tzp value"))])
     end
 
 let query q =
@@ -1755,16 +1755,16 @@ let preassetinfo_report oc u =
   | Bounty(v) ->
       Printf.fprintf oc "Bounty: %s tezzies (%Ld cants)\n" (tezzies_of_cants v) v
   | OwnsObj(h,alpha,None) ->
-      Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+      Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the object cannot be purchased. It must be redefined in new documents.\n";
   | OwnsObj(h,alpha,Some(r)) ->
-      Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+      Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
       if r = 0L then
 	Printf.fprintf oc "The object can be freely imported into documents and signatures.\n"
       else
-	Printf.fprintf oc "Each right to import the object into a document costs %s tezzies (%Ld cants), payable to %s.\n" (tezzies_of_cants r) r (addr_daliladdrstr (payaddr_addr alpha))
+	Printf.fprintf oc "Each right to import the object into a document costs %s tezzies (%Ld cants), payable to %s.\n" (tezzies_of_cants r) r (addr_tzpaddrstr (payaddr_addr alpha))
   | OwnsProp(h,alpha,r) ->
-      Printf.fprintf oc "Ownership deed for proposition with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+      Printf.fprintf oc "Ownership deed for proposition with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the proposition cannot be purchased. It must be reproven in new documents.\n";
   | OwnsNegProp ->
       Printf.fprintf oc "Ownership deed for negation of proposition, controlled by whomever proved negation of proposition.\n"
@@ -1775,14 +1775,14 @@ let preassetinfo_report oc u =
   | Marker ->
       Printf.fprintf oc "Marker committing to publish a document, theory or signature with fixed contents.\n"
   | TheoryPublication(alpha,nonce,ts) ->
-      Printf.fprintf oc "Theory specification with publisher %s\n" (addr_daliladdrstr (payaddr_addr alpha));
+      Printf.fprintf oc "Theory specification with publisher %s\n" (addr_tzpaddrstr (payaddr_addr alpha));
       begin
 	let th = Mathdata.theoryspec_theory ts in
 	match Mathdata.hashtheory th with
 	| Some(thyh) ->
 	    let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce thyh)) in
-	    Printf.fprintf oc "Theory must be published to address %s\n" (addr_daliladdrstr (hashval_pub_addr thyh));
-	    Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_daliladdrstr beta);
+	    Printf.fprintf oc "Theory must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr thyh));
+	    Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
 	    Printf.fprintf oc "Publishing theory requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.theory_burncost th))
 	| None ->
 	    Printf.fprintf oc "Theory seems to be empty and cannot be published.\n"
@@ -1790,13 +1790,13 @@ let preassetinfo_report oc u =
   | SignaPublication(alpha,nonce,thyid,ss) ->
       Printf.fprintf oc "Signature specification in %s with publisher %s\n"
 	(match thyid with None -> "the empty theory" | Some(h) -> "theory " ^ (hashval_hexstring h))
-	(addr_daliladdrstr (payaddr_addr alpha));
+	(addr_tzpaddrstr (payaddr_addr alpha));
       let s = Mathdata.signaspec_signa ss in
       let slh = Mathdata.hashsigna s in
       let tslh = hashopair2 thyid slh in
       let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce tslh)) in
-      Printf.fprintf oc "Signature must be published to address %s\n" (addr_daliladdrstr (hashval_pub_addr tslh));
-      Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_daliladdrstr beta);
+      Printf.fprintf oc "Signature must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr tslh));
+      Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
       Printf.fprintf oc "Publishing signature requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.signa_burncost s));
       let usesobjs = Mathdata.signaspec_uses_objs ss in
       let usesprops = Mathdata.signaspec_uses_props ss in
@@ -1805,9 +1805,9 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "2*%d rights required to use objects must be consumed:\n" (List.length usesprops);
 	  List.iter
 	    (fun (h,k) ->
-	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
-	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesobjs
 	end;
       if not (usesprops = []) then
@@ -1815,20 +1815,20 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "2*%d rights required to use propositions must be consumed:\n" (List.length usesprops);
 	  List.iter
 	    (fun h ->
-	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid h) 33l in
-	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesprops
 	end
   | DocPublication(alpha,nonce,thyid,dl) ->
       Printf.fprintf oc "Document in %s with publisher %s\n"
 	(match thyid with None -> "the empty theory" | Some(h) -> "theory " ^ (hashval_hexstring h))
-	(addr_daliladdrstr (payaddr_addr alpha));
+	(addr_tzpaddrstr (payaddr_addr alpha));
       let dlh = Mathdata.hashdoc dl in
       let tdlh = hashopair2 thyid dlh in
       let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce tdlh)) in
-      Printf.fprintf oc "Document must be published to address %s\n" (addr_daliladdrstr (hashval_pub_addr tdlh));
-      Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_daliladdrstr beta);
+      Printf.fprintf oc "Document must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr tdlh));
+      Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
       let usesobjs = Mathdata.doc_uses_objs dl in
       let usesprops = Mathdata.doc_uses_props dl in
       let createsobjs = Mathdata.doc_creates_objs dl in
@@ -1839,9 +1839,9 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "2*%d rights required to use objects must be consumed:\n" (List.length usesprops);
 	  List.iter
 	    (fun (h,k) ->
-	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
-	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesobjs
 	end;
       if not (usesprops = []) then
@@ -1849,9 +1849,9 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "2*%d rights required to use propositions must be consumed:\n" (List.length usesprops);
 	  List.iter
 	    (fun h ->
-	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid h) 33l in
-	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesprops
 	end;
       if not (createsobjs = []) then
@@ -1859,9 +1859,9 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "%d objects possibly created:\n" (List.length createsobjs);
 	  List.iter
 	    (fun (h,k) ->
-	      Printf.fprintf oc "If there is no owner of (pure) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "If there is no owner of (pure) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
-	      Printf.fprintf oc "If there is no owner of (theory) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "If there is no owner of (theory) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    createsobjs
 	end;
       if not (createsprops = []) then
@@ -1869,9 +1869,9 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "%d propositions possibly created:\n" (List.length createsprops);
 	  List.iter
 	    (fun h ->
-	      Printf.fprintf oc "If there is no owner of (pure) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h) (addr_daliladdrstr (hashval_term_addr h));
+	      Printf.fprintf oc "If there is no owner of (pure) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
 	      let h2 = hashtag (hashopair2 thyid h) 33l in
-	      Printf.fprintf oc "If there is no owner of (theory) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h2) (addr_daliladdrstr (hashval_term_addr h2)))
+	      Printf.fprintf oc "If there is no owner of (theory) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    createsprops
 	end;
       if not (createsnegprops = []) then
@@ -1880,7 +1880,7 @@ let preassetinfo_report oc u =
 	  List.iter
 	    (fun h ->
 	      let h2 = hashtag (hashopair2 thyid h) 33l in
-	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_daliladdrstr (hashval_term_addr h2)) (hashval_hexstring h2))
+	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_tzpaddrstr (hashval_term_addr h2)) (hashval_hexstring h2))
 	    createsnegprops
 	end
 

@@ -492,7 +492,7 @@ let stakingthread () =
 			let deltm = Int64.to_int32 (Int64.sub tm pbhtm) in
 			let tar = retarget tar0 deltm in
 			let alpha2 = p2pkhaddr_addr alpha in
-			log_string (Printf.sprintf "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_daliladdrstr alpha2) (hashval_hexstring aid) bday);
+			log_string (Printf.sprintf "Forming new block at height %Ld with prevledgerroot %s, prev block %s and new stake addr %s stake aid %s (bday %Ld).\n" blkh (hashval_hexstring prevledgerroot) (match pbhh1 with Some(h) -> hashval_hexstring h | None -> "[none]") (addr_tzpaddrstr alpha2) (hashval_hexstring aid) bday);
 			let obl2 =
 			  match obl with
 			  | None ->  (* if the staked asset had the default obligation it can be left as the default obligation or locked for some number of blocks to commit to staking; there should be a configurable policy for the node *)
@@ -527,7 +527,7 @@ let stakingthread () =
 			      with Not_found ->
 				if tx_valid (tauin,tauout) then
 				  try
-				    let unsupportederror alpha h = log_string (Printf.sprintf "Could not find asset %s at address %s\n" (hashval_hexstring h) (addr_daliladdrstr alpha)) in
+				    let unsupportederror alpha h = log_string (Printf.sprintf "Could not find asset %s at address %s\n" (hashval_hexstring h) (addr_tzpaddrstr alpha)) in
 				    let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin !dync unsupportederror) in
 				    if tx_signatures_valid blkh al ((tauin,tauout),sg) then
 				      begin
@@ -586,7 +586,7 @@ let stakingthread () =
 			      (x0,x1,x2,x3,x4)
 			    else
 			      begin
-				log_string (Printf.sprintf "Apparent attempt to stake from non-p2pkh address %s\n" (addr_daliladdrstr alpha2));
+				log_string (Printf.sprintf "Apparent attempt to stake from non-p2pkh address %s\n" (addr_tzpaddrstr alpha2));
 				raise StakingProblemPause
 			      end
 			  in
@@ -637,7 +637,7 @@ let stakingthread () =
 				p2pkhaddr_payaddr alpha3
 			  | Some(x) ->
 			      try
-				let (i,x0,x1,x2,x3,x4) = daliladdrstr_addr x in
+				let (i,x0,x1,x2,x3,x4) = tzpaddrstr_addr x in
 				if i = 0 then
 				  (false,x0,x1,x2,x3,x4) (*** p2pkh ***)
 				else if i = 1 then
@@ -741,7 +741,7 @@ let stakingthread () =
 				  blocksignatendorsement = Some(betah,recid,fcomp,esg)
 				}
 			      with Not_found ->
-				raise (Failure("Was staking for " ^ Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
+				raise (Failure("Was staking for " ^ Cryptocurr.addr_tzpaddrstr (p2pkhaddr_addr alpha) ^ " but have neither the private key nor an appropriate endorsement for it."))
 			  in
 			  let bhnew = (bhdnew,bhsnew) in
 			  let newblkid = blockheader_id bhnew in
@@ -1381,12 +1381,12 @@ let do_command oc l =
 		    Printf.fprintf oc "+ %s %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		  else
 		    begin
-		      possibly_request_dalilcoin_block dbh;
+		      possibly_request_tzp_block dbh;
 		      Printf.fprintf oc "* %s (missing delta) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		    end
 		else
 		  begin
-		    possibly_request_dalilcoin_block dbh;
+		    possibly_request_tzp_block dbh;
 		    Printf.fprintf oc "* %s (missing header) %s %s %Ld %Ld\n" (hashval_hexstring dbh) (hashval_hexstring lbh) (hashval_hexstring ltx) ltm lhght
 		  end)
 	      zl)
@@ -1423,7 +1423,7 @@ let do_command oc l =
 	    begin
 	      try
 		let (pbh,tm,hght,txl) = Ltcrpc.ltc_getblock h in
-		Printf.fprintf oc "ltc block %s time %Ld height %Ld prev %s; %d dalilcoin candidate txs:\n" h tm hght pbh (List.length txl);
+		Printf.fprintf oc "ltc block %s time %Ld height %Ld prev %s; %d Tezos Prime candidate txs:\n" h tm hght pbh (List.length txl);
 		List.iter (fun tx -> Printf.fprintf oc "%s\n" tx) txl
 	      with Not_found ->
 		Printf.fprintf oc "could not find ltc block %s\n" h
@@ -1705,7 +1705,7 @@ let do_command oc l =
 	  try
 	    match Hashtbl.find nextstakechances prevblkh with
 	    | NextStake(i,stkaddr,h,bday,obl,v,Some(toburn),_,_,_,_,_) ->
-		Printf.fprintf oc "Can stake at time %Ld (%s) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
+		Printf.fprintf oc "Can stake at time %Ld (%s) with asset %s at address %s burning %Ld litoshis (%s ltc).\n" i (fromnow_string i nw) (hashval_hexstring h) (addr_tzpaddrstr (p2pkhaddr_addr stkaddr)) toburn (ltc_of_litoshis toburn);
 	    | NextStake(i,stkaddr,h,bday,obl,v,None,_,_,_,_,_) -> () (*** should not happen; ignore ***)
 	    | NoStakeUpTo(_) -> Printf.fprintf oc "Found no chance to stake with current wallet and ltc burn limits.\n"
 	  with Not_found -> ()
@@ -1718,7 +1718,7 @@ let do_command oc l =
 		if not (List.mem i !il) then
 		  begin
 		    il := i::!il; (** while the info should not be on the hash table more than once, sometimes it is, so only report it once **)
-		    Printf.fprintf oc "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_daliladdrstr (p2pkhaddr_addr stkaddr))
+		    Printf.fprintf oc "With extraburn %Ld litoshis (%s ltc), could stake at time %Ld (%s) with asset %s at address %s.\n" toburn (ltc_of_litoshis toburn) i (fromnow_string i nw) (hashval_hexstring h) (addr_tzpaddrstr (p2pkhaddr_addr stkaddr))
 		  end
 	    | _ -> ())
 	  (List.sort
@@ -1785,7 +1785,7 @@ let do_command oc l =
 	| [a;b;s] -> Commands.importendorsement a b s
 	| _ -> raise (Failure "importendorsement should be given three arguments: a b s where s is a signature made with the private key for address a endorsing to address b")
       end
-  | "btctodaliladdr" -> List.iter Commands.btctodaliladdr al
+  | "btctotzpaddr" -> List.iter Commands.btctotzpaddr al
   | "printasset" ->
       begin
 	match al with
@@ -1817,7 +1817,7 @@ let do_command oc l =
   | "newofflineaddress" ->
       begin
 	let alpha = Commands.get_fresh_offline_address oc in
-	Printf.fprintf oc "%s\n" (addr_daliladdrstr alpha)
+	Printf.fprintf oc "%s\n" (addr_tzpaddrstr alpha)
       end
   | "newaddress" ->
       begin
@@ -1827,12 +1827,12 @@ let do_command oc l =
 	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
 	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot "nonstaking" in
 	    let alpha = p2pkhaddr_addr h in
-	    let a = addr_daliladdrstr alpha in
+	    let a = addr_tzpaddrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| [clr] ->
 	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) "nonstaking" in
 	    let alpha = p2pkhaddr_addr h in
-	    let a = addr_daliladdrstr alpha in
+	    let a = addr_tzpaddrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| _ -> raise (Failure "newaddress [ledgerroot]")
       end
@@ -1844,12 +1844,12 @@ let do_command oc l =
 	    let BlocktreeNode(_,_,_,_,_,currledgerroot,_,_,_,_,_,_,_,_) = best in
 	    let (k,h) = Commands.generate_newkeyandaddress currledgerroot "staking" in
 	    let alpha = p2pkhaddr_addr h in
-	    let a = addr_daliladdrstr alpha in
+	    let a = addr_tzpaddrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| [clr] ->
 	    let (k,h) = Commands.generate_newkeyandaddress (hexstring_hashval clr) "staking" in
 	    let alpha = p2pkhaddr_addr h in
-	    let a = addr_daliladdrstr alpha in
+	    let a = addr_tzpaddrstr alpha in
 	    Printf.fprintf oc "%s\n" a
 	| _ -> raise (Failure "newstakingaddress [ledgerroot]")
       end
@@ -1917,7 +1917,7 @@ let do_command oc l =
 	match al with
 	| (alp::aid::n::lkh::fee::r) ->
 	    begin
-	      let alpha2 = daliladdrstr_addr alp in
+	      let alpha2 = tzpaddrstr_addr alp in
 	      if not (payaddr_p alpha2) then raise (Failure (alp ^ " is not a pay address"));
 	      let (p,a4,a3,a2,a1,a0) = alpha2 in
 	      let alpha = (p=1,a4,a3,a2,a1,a0) in
@@ -1934,7 +1934,7 @@ let do_command oc l =
 		  let lr = node_ledgerroot (get_bestnode_print_warnings oc true) in
 		  Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 	      | (gam::r) ->
-		  let gamma = daliladdrstr_addr gam in
+		  let gamma = tzpaddrstr_addr gam in
 		  if not (payaddr_p gamma) then raise (Failure (gam ^ " is not a pay address"));
 		  match r with
 		  | [] ->
@@ -1942,7 +1942,7 @@ let do_command oc l =
 		      let lr = node_ledgerroot (get_bestnode_print_warnings oc true) in
 		      Commands.createsplitlocktx lr alpha beta gamma aid n lkh fee
 		  | (bet::r) ->
-		      let beta2 = daliladdrstr_addr bet in
+		      let beta2 = tzpaddrstr_addr bet in
 		      if not (payaddr_p beta2) then raise (Failure (bet ^ " is not a pay address"));
 		      let (p,b4,b3,b2,b1,b0) = beta2 in
 		      let beta = (p=1,b4,b3,b2,b1,b0) in
@@ -2042,18 +2042,18 @@ let do_command oc l =
 	      let h = tm_hashroot m in
 	      let tph = hashtp a in
 	      Printf.fprintf oc "term root: %s\n" (hashval_hexstring h);
-	      Printf.fprintf oc "pure term address: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 h)));
+	      Printf.fprintf oc "pure term address: %s\n" (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
 	      if thyid = None then
 		begin
 		  let k = hashtag (hashopair2 None (hashpair h tph)) 32l in
 		  Printf.fprintf oc "obj id in empty theory: %s\n" (hashval_hexstring k);
-		  Printf.fprintf oc "obj address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		  Printf.fprintf oc "obj address in empty theory: %s\n" (addr_tzpaddrstr (termaddr_addr (hashval_md160 k)))
 		end
 	      else
 		begin
 		  let k = hashtag (hashopair2 thyid (hashpair h tph)) 32l in
 		  Printf.fprintf oc "obj id in given theory: %s\n" (hashval_hexstring k);
-		  Printf.fprintf oc "obj address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		  Printf.fprintf oc "obj address in given theory: %s\n" (addr_tzpaddrstr (termaddr_addr (hashval_md160 k)))
 		end;
 	      if a = Logic.Prop then
 		begin
@@ -2061,13 +2061,13 @@ let do_command oc l =
 		    begin
 		      let k = hashtag (hashopair2 None h) 33l in
 		      Printf.fprintf oc "prop id in empty theory: %s\n" (hashval_hexstring k);
-		      Printf.fprintf oc "prop address in empty theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		      Printf.fprintf oc "prop address in empty theory: %s\n" (addr_tzpaddrstr (termaddr_addr (hashval_md160 k)))
 		    end
 		  else
 		    begin
 		      let k = hashtag (hashopair2 thyid h) 33l in
 		      Printf.fprintf oc "prop id in given theory: %s\n" (hashval_hexstring k);
-		      Printf.fprintf oc "prop address in given theory: %s\n" (addr_daliladdrstr (termaddr_addr (hashval_md160 k)))
+		      Printf.fprintf oc "prop address in given theory: %s\n" (addr_tzpaddrstr (termaddr_addr (hashval_md160 k)))
 		    end
 		end
 	    with

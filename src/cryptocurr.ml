@@ -102,10 +102,10 @@ let frombase58 s = frombase58_rec s 0 (String.length s) zero_big_int
 
 (* Computation of Wallet Import Formats for Private Keys *)
 
-(* wifs for dalilcoin private keys use two prefix bytes 1288 (for compressed, start with k) or 542 (for uncompressed, start with K) *)
+(* wifs for tzp private keys use two prefix bytes 1288 (for compressed, start with k) or 542 (for uncompressed, start with K) *)
 (* k : private key, big_int *)
 (* return string, base58 btc wif *)
-let dalilwif k compr =
+let tzpwif k compr =
   let (pc1,pc2,pre) = if compr then ('\005','\008',1288) else ('\002','\030',542) in
   let s = Buffer.create 34 in
   Buffer.add_char s pc1;
@@ -204,21 +204,21 @@ let calc_checksum pre rm1 =
   let (sh30,_,_,_,_,_,_,_) = sha256dstr (Buffer.contents s) in
   sh30
 
-let daliladdrstr_addr b =
+let tzpaddrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
   if p < 0l || p > 8000l then raise (Failure "Not a valid Tezos' address (bad prefix)");
   if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Tezos' address (checksum incorrect)");
-  if p = 3890l then
+  if p = 7493l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 3828l then
+  else if p = 7431l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
   else if p = 1586l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
   else if p = 56l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
-  else if p = 7493l then
+  else if p = 3890l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 7431l then
+  else if p = 3828l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
   else if p = 7379l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
@@ -233,7 +233,7 @@ let btcaddrstr_addr b =
   if p = 0l then
     (0,x0,x1,x2,x3,x4)
   else if p = 5l then
-    (1,x0,x1,x2,x3,x4)
+    raise (Failure "Only p2pkh Bitcoin addresses correspond to Tezos' addresses, not p2sh Bitcoin addresses")
   else
     raise (Failure "Not a Bitcoin address")
 
@@ -254,13 +254,13 @@ let hashval_gen_addrstr pre rm1 =
   let a = md256_big_int (0l,Int32.of_int pre,rm10,rm11,rm12,rm13,rm14,sh30) in
   base58 a
 
-let addr_daliladdrstr alpha =
+let addr_tzpaddrstr alpha =
   let (p,x0,x1,x2,x3,x4) = alpha in
   let pre =
     if !Config.testnet then
-      if p = 0 then 7493 else if p = 1 then 7431 else if p = 2 then 7379 else 7406
+      if p = 0 then 3890 else if p = 1 then 3828 else if p = 2 then 7379 else 7406
     else
-      if p = 0 then 3890 else if p = 1 then 3828 else if p = 2 then 1586 else 56
+      if p = 0 then 7493 else if p = 1 then 7431 else if p = 2 then 1586 else 56
   in
   hashval_gen_addrstr pre (x0,x1,x2,x3,x4)
 
@@ -378,7 +378,7 @@ let addr_from_json j =
       if String.length a > 0 && (a.[0] = '1' || a.[0] = '3') then
 	btcaddrstr_addr a
       else
-	daliladdrstr_addr a
+	tzpaddrstr_addr a
   | _ -> raise (Failure("not an address"))
 
 let payaddr_from_json j =

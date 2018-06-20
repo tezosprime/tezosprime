@@ -1,4 +1,5 @@
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -57,7 +58,7 @@ val ltc_medtime : unit -> int64
 
 val ltc_synced : unit -> bool
 
-val possibly_request_dalilcoin_block : hashval -> unit
+val possibly_request_tzp_block : hashval -> unit
 
 val ltc_tx_confirmed : string -> bool
 

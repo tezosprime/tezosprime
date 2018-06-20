@@ -1393,7 +1393,7 @@ Hashtbl.add msgtype_handler STx
 		try
 		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
 		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
-		  let unsupportederror alpha k = log_string (Printf.sprintf "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring lr) (hashval_hexstring h)) in
+		  let unsupportederror alpha k = log_string (Printf.sprintf "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_tzpaddrstr alpha) (hashval_hexstring lr) (hashval_hexstring h)) in
 		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
 		  if tx_signatures_valid blkh al stau then
 		    begin
@@ -1430,13 +1430,13 @@ let dumpblocktreestate sa =
       let c = ref 0 in
       List.iter
 	(fun (alpha,aid) ->
-	  Printf.fprintf sa "%d. %s %s\n" !c (Cryptocurr.addr_daliladdrstr alpha) (hashval_hexstring aid);
+	  Printf.fprintf sa "%d. %s %s\n" !c (Cryptocurr.addr_tzpaddrstr alpha) (hashval_hexstring aid);
 	  incr c)
 	tauin;
       Printf.fprintf sa "outputs %d\n" (List.length tauin);
       c := 0;
       List.iter (fun (alpha,(obl,u)) ->
-	Printf.fprintf sa "%d. %s %s %s\n" !c (Cryptocurr.addr_daliladdrstr alpha) (obligation_string obl) (preasset_string u);
+	Printf.fprintf sa "%d. %s %s %s\n" !c (Cryptocurr.addr_tzpaddrstr alpha) (obligation_string obl) (preasset_string u);
 	incr c)
 	tauout;
       let sb = Buffer.create 100 in
@@ -1466,7 +1466,7 @@ let dumpblocktreestate sa =
     (fun h (BlocktreeNode(_,rs,pbh,tr,sr,lr,csm,tar,tm,cs,blkh,vs,bl,chr)) ->
       Printf.fprintf sa "- blk %s node:\n" (match h with Some(h) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "recentstakers:\n";
-      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_daliladdrstr (p2pkhaddr_addr k))) !rs;
+      List.iter (fun k -> Printf.fprintf sa "%s\n" (Cryptocurr.addr_tzpaddrstr (p2pkhaddr_addr k))) !rs;
       Printf.fprintf sa "prevblockhash: %s\n" (match pbh with Some(h,_) -> hashval_hexstring h | None -> "[genesis]");
       Printf.fprintf sa "theory tree root: %s\n" (match tr with Some(h) -> hashval_hexstring h | None -> "[empty]");
       Printf.fprintf sa "sig tree root: %s\n" (match sr with Some(h) -> hashval_hexstring h | None -> "[empty]");

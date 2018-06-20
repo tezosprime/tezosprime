@@ -303,7 +303,7 @@ let process_config_args () =
 		if String.length a > 0 && (a.[0] = '1' || a.[0] = '3') then
 		  btcaddrstr_addr a
 		else
-		  daliladdrstr_addr a
+		  tzpaddrstr_addr a
 	      in
 	      snapshot_addresses := alpha::!snapshot_addresses
 	    with _ ->

@@ -13,15 +13,15 @@ open Hash
 
 val base58 : big_int -> string
 val frombase58 : string -> big_int
-val dalilwif : big_int -> bool -> string
+val tzpwif : big_int -> bool -> string
 val privkey_from_wif : string -> big_int * bool
 val privkey_from_btcwif : string -> big_int * bool
 val pubkey_hashval : big_int * big_int -> bool -> hashval
 val pubkey_md160 : big_int * big_int -> bool -> md160
 val md160_from_addrstr : string -> md160
 val md160_btcaddrstr : md160 -> string
-val addr_daliladdrstr : addr -> string
-val daliladdrstr_addr : string -> addr
+val addr_tzpaddrstr : addr -> string
+val tzpaddrstr_addr : string -> addr
 val btcaddrstr_addr : string -> addr
 val tezzies_of_cants : int64 -> string
 val cants_of_tezzies : string -> int64

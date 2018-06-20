@@ -1,4 +1,5 @@
 (* Copyright (c) 2017-2018 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -510,9 +511,9 @@ module DbLtcBurnTx = Dbbasic2 (struct type t = int64 * hashval * hashval let bas
 
 module DbLtcBlock = Dbbasic2 (struct type t = hashval * int64 * int64 * hashval list let basedir = "ltcblock" let seival = sei_prod4 sei_hashval sei_int64 sei_int64 (sei_list sei_hashval) seic let seoval = seo_prod4 seo_hashval seo_int64 seo_int64 (seo_list seo_hashval) seoc end)
 
-let possibly_request_dalilcoin_block h =
+let possibly_request_tzp_block h =
   try
-    (Utils.log_string (Printf.sprintf "possibly request dalilcoin block %s\n" (hashval_hexstring h)));
+    (Utils.log_string (Printf.sprintf "possibly request tzp block %s\n" (hashval_hexstring h)));
     let req = ref false in
     if not (DbBlockHeader.dbexists h) then
       (find_and_send_requestdata GetHeader h; req := true)
@@ -543,7 +544,7 @@ let rec ltc_process_block h =
 	      if lprevtx = (0l,0l,0l,0l,0l,0l,0l,0l) then
 		begin
 		  (Utils.log_string (Printf.sprintf "Adding burn %s for genesis header %s\n" txh (hashval_hexstring dnxt)));
-		  possibly_request_dalilcoin_block dnxt;
+		  possibly_request_tzp_block dnxt;
 		  txhhs := txhh :: !txhhs;
 		  genl := (txhh,burned,dnxt)::!genl
 		end
@@ -551,11 +552,11 @@ let rec ltc_process_block h =
 		begin
 		  (Utils.log_string (Printf.sprintf "Adding burn %s for header %s\n" txh (hashval_hexstring dnxt)));
 		  DbLtcBurnTx.dbput txhh (burned,lprevtx,dnxt);
-		  possibly_request_dalilcoin_block dnxt;
+		  possibly_request_tzp_block dnxt;
 		  begin
 		    try
 		      let (_,_,dprev) = DbLtcBurnTx.dbget lprevtx in
-		      possibly_request_dalilcoin_block dprev;
+		      possibly_request_tzp_block dprev;
 		      txhhs := txhh :: !txhhs;
 		      succl := (dprev,txhh,burned,dnxt)::!succl
 		    with _ -> ()
@@ -621,7 +622,7 @@ let rec ltc_process_block h =
 	    DbLtcDacStatus.dbput hh (LtcDacStatusNew(!bds))
 	  end
 	else if not (prevkey = !ltc_oldest_to_consider) then
-	  DbLtcDacStatus.dbput hh (LtcDacStatusPrev(prevkey)) (*** pointer to last ltc block where dalilcoin status changed ***)
+	  DbLtcDacStatus.dbput hh (LtcDacStatusPrev(prevkey)) (*** pointer to last ltc block where tzp status changed ***)
       end;
       DbLtcBlock.dbput hh (prevh,tm,hght,!txhhs)
     end

@@ -208,21 +208,21 @@ let daliladdrstr_addr b =
   let (_,p,x0,x1,x2,x3,x4,cksm) = big_int_md256 (frombase58 b) in
   if p < 0l || p > 8000l then raise (Failure "Not a valid Tezos' address (bad prefix)");
   if not (cksm = calc_checksum (Int32.to_int p) (x0,x1,x2,x3,x4)) then raise (Failure "Not a valid Tezos' address (checksum incorrect)");
-  if p = 31l then
+  if p = 3890l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 90l then
+  else if p = 3828l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (1,x0,x1,x2,x3,x4)
-  else if p = 65l then
+  else if p = 1586l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (2,x0,x1,x2,x3,x4)
-  else if p = 55l then
+  else if p = 56l then
     if !Config.testnet then raise (Failure "Tezos' mainnet address given while using testnet") else (3,x0,x1,x2,x3,x4)
-  else if p = 7382l then
+  else if p = 7493l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (0,x0,x1,x2,x3,x4)
-  else if p = 7442l then
+  else if p = 7431l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (1,x0,x1,x2,x3,x4)
-  else if p = 7417l then
+  else if p = 7379l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (2,x0,x1,x2,x3,x4)
-  else if p = 7407l then
+  else if p = 7406l then
     if not !Config.testnet then raise (Failure "Tezos' testnet address given while using mainnet") else (3,x0,x1,x2,x3,x4)
   else
     raise (Failure "Not a Tezos' address")
@@ -258,15 +258,15 @@ let addr_daliladdrstr alpha =
   let (p,x0,x1,x2,x3,x4) = alpha in
   let pre =
     if !Config.testnet then
-      if p = 0 then 7382 else if p = 1 then 7442 else if p = 2 then 7417 else 7407
+      if p = 0 then 7493 else if p = 1 then 7431 else if p = 2 then 7379 else 7406
     else
-      if p = 0 then 31 else if p = 1 then 90 else if p = 2 then 65 else 55
+      if p = 0 then 3890 else if p = 1 then 3828 else if p = 2 then 1586 else 56
   in
   hashval_gen_addrstr pre (x0,x1,x2,x3,x4)
 
 let tezzies_of_cants v =
-  let w = Int64.div v 100000000000L in
-  let d = Int64.to_string (Int64.rem v 100000000000L) in
+  let w = Int64.div v 1000000000L in
+  let d = Int64.to_string (Int64.rem v 1000000000L) in
   let dl = String.length d in
   let ez = ref 0 in
   begin
@@ -282,7 +282,7 @@ let tezzies_of_cants v =
   let b = Buffer.create 20 in
   Buffer.add_string b (Int64.to_string w);
   Buffer.add_char b '.';
-  for i = 1 to 11 - dl do
+  for i = 1 to 9 - dl do
     Buffer.add_char b '0'
   done;
   for i = 0 to dl - (1 + !ez) do
@@ -294,7 +294,7 @@ let cants_of_tezzies s =
   let f = ref 0L in
   let w = ref true in
   let c = ref 0L in
-  let d = ref 10000000000L in
+  let d = ref 100000000L in
   let n = String.length s in
   let i = ref 0 in
   while !i < n do
@@ -316,7 +316,7 @@ let cants_of_tezzies s =
       else
 	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
   done;
-  Int64.add (Int64.mul !f 100000000000L) !c
+  Int64.add (Int64.mul !f 1000000000L) !c
 
 let ltc_of_litoshis v =
   let w = Int64.div v 100000000L in

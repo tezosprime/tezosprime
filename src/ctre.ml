@@ -170,19 +170,19 @@ let rec print_hlist_gen f hl g =
   | HNil -> ()
   | HCons((aid,bday,obl,Currency(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] Currency %s tezzie%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Currency %s tez%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,Bounty(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] Bounty %s tezzie%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "s") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Bounty %s tez%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s tezzie%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
@@ -194,7 +194,7 @@ let rec print_hlist_gen f hl g =
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s tezzie%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_daliladdrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
@@ -300,7 +300,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency ";
 	Buffer.add_string sb (tezzies_of_cants v);
 	if v = 100000000000L then
-	  Buffer.add_string sb " tezzie spendable by "
+	  Buffer.add_string sb " tez spendable by "
 	else
 	  Buffer.add_string sb " tezzies spendable by ";
 	Buffer.add_string sb (addr_daliladdrstr (payaddr_addr delta));
@@ -326,7 +326,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb "] Bounty ";
 	Buffer.add_string sb (tezzies_of_cants v);
 	if v = 100000000000L then
-	  Buffer.add_string sb " tezzie\n"
+	  Buffer.add_string sb " tez\n"
 	else
 	  Buffer.add_string sb " tezzies\n";
 	g a;
@@ -344,7 +344,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (tezzies_of_cants r);
 	if r = 100000000000L then
-	  Buffer.add_string sb " tezzie\n"
+	  Buffer.add_string sb " tez\n"
 	else
 	  Buffer.add_string sb " tezzies\n";
 	g a;
@@ -375,7 +375,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " each right costs ";
 	Buffer.add_string sb (tezzies_of_cants r);
 	if r = 100000000000L then
-	  Buffer.add_string sb " tezzie\n"
+	  Buffer.add_string sb " tez\n"
 	else
 	  Buffer.add_string sb " tezzies\n";
 	g a;

@@ -35,9 +35,6 @@ val check_move_obligation : addr -> big_int -> gensignat -> obligation -> preass
 val tx_signatures_valid : int64 -> asset list -> stx -> bool
 val tx_signatures_valid_asof_blkh : asset list -> stx -> int64 option
 
-val txout_update_ottree : addr_preasset list -> ttree option -> ttree option
-val txout_update_ostree : addr_preasset list -> stree option -> stree option
-
 val seo_tx : (int -> int -> 'a -> 'a) -> tx -> 'a -> 'a
 val sei_tx : (int -> 'a -> int * 'a) -> 'a -> tx * 'a
 val seo_txsigs : (int -> int -> 'a -> 'a) -> gensignat_or_ref option list * gensignat_or_ref option list -> 'a -> 'a

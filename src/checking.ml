@@ -336,51 +336,54 @@ let rec beta_eta_delta_norm t sg =
   in
   if res then Some s else None
 
-(** val correct_stp : int -> stp -> int -> bool **)
+(** val correct_stp : int -> stp -> bool **)
 
-let rec correct_stp v t base_types =
+let rec correct_stp v t =
   match t with
   | TpVar n -> (<) n v
-  | Base i -> (<) i base_types
+  | Base i -> true
   | TpAll _ -> false
   | TpArr (t1, t2) ->
-    (&&) (correct_stp v t1 base_types) (correct_stp v t2 base_types)
+    (&&) (correct_stp v t1) (correct_stp v t2)
   | Prop -> true
 
-(** val correct_tp : int -> stp -> int -> bool **)
+(** val correct_tp : int -> stp -> bool **)
 
-let rec correct_tp v t base_types =
+let rec correct_tp v t =
   match t with
-  | TpAll t1 -> correct_tp ((+) v 1) t1 base_types
-  | _ -> correct_stp v t base_types
+  | TpAll t1 -> correct_tp ((+) v 1) t1
+  | _ -> correct_stp v t
+
+let get_stp_prim i =
+  None
 
 (** val get_stp_trm :
-    int -> stp list -> gsign -> trm -> stp list -> stp option **)
+    int -> stp list -> gsign -> trm -> stp option **)
 
-let rec get_stp_trm v ctx sgn t thy =
+let rec get_stp_trm v ctx sgn t =
   match t with
   | DB i -> nth_error ctx ( i)
   | TmH h -> findsnd3 (fst sgn) h
-  | Prim i -> nth_error thy ( i)
+  | Prim i -> get_stp_prim i
   | Ap (t1, t2) ->
-    (match get_stp_trm v ctx sgn t1 thy with
+    (match get_stp_trm v ctx sgn t1 with
      | Some s ->
        (match s with
         | TpArr (b, alpha) ->
-          (match get_stp_trm v ctx sgn t2 thy with
+          (match get_stp_trm v ctx sgn t2 with
            | Some b2 -> if (=) b2 b then Some alpha else None
            | None -> None)
         | _ -> None)
      | None -> None)
   | Lam (a1, t1) ->
-    if not (correct_stp v a1 ( (List.length thy)))
+    if not (correct_stp v a1)
     then None
-    else (match get_stp_trm v (a1 :: ctx) sgn t1 thy with
+    else (match get_stp_trm v (a1 :: ctx) sgn t1 with
           | Some b -> Some (TpArr (a1, b))
           | None -> None)
   | Imp (t1, t2) ->
-    let a = get_stp_trm v ctx sgn t1 thy in
-    let b = get_stp_trm v ctx sgn t2 thy in
+    let a = get_stp_trm v ctx sgn t1 in
+    let b = get_stp_trm v ctx sgn t2 in
     (match a with
      | Some s ->
        (match s with
@@ -394,18 +397,18 @@ let rec get_stp_trm v ctx sgn t thy =
         | _ -> None)
      | None -> None)
   | All (b, t1) ->
-    if not (correct_stp v b ( (List.length thy)))
+    if not (correct_stp v b)
     then None
-    else (match get_stp_trm v (b :: ctx) sgn t1 thy with
+    else (match get_stp_trm v (b :: ctx) sgn t1 with
           | Some s ->
             (match s with
              | Prop -> Some Prop
              | _ -> None)
           | None -> None)
   | TTpAp (t1, b) ->
-    if not (correct_stp v b ( (List.length thy)))
+    if not (correct_stp v b)
     then None
-    else (match get_stp_trm v ctx sgn t1 thy with
+    else (match get_stp_trm v ctx sgn t1 with
           | Some s ->
             (match s with
              | TpAll a -> Some (subst_stpstp a 0 b)
@@ -413,30 +416,30 @@ let rec get_stp_trm v ctx sgn t thy =
           | None -> None)
   | TTpLam t1 ->
     (match get_stp_trm ((+) v 1) (List.map (fun x -> upstp x 0 1) ctx) sgn t1
-             thy with
+             with
      | Some m -> Some (TpAll m)
      | None -> None)
   | TTpAll _ -> None
 
 (** val correct_trm :
-    int -> stp list -> gsign -> trm -> stp -> stp list -> bool **)
+    int -> stp list -> gsign -> trm -> stp -> bool **)
 
-let correct_trm v ctx sgn t alpha thy =
-  match get_stp_trm v ctx sgn t thy with
+let correct_trm v ctx sgn t alpha =
+  match get_stp_trm v ctx sgn t with
   | Some b -> if (=) b alpha then true else false
   | None -> false
 
-(** val correct_ptrm : int -> gsign -> trm -> stp list -> bool **)
+(** val correct_ptrm : int -> gsign -> trm -> bool **)
 
-let rec correct_ptrm v sgn t thy =
+let rec correct_ptrm v sgn t =
   match t with
-  | TTpAll t1 -> correct_ptrm ((+) v 1) sgn t1 thy
-  | _ -> correct_trm v [] sgn t Prop thy
+  | TTpAll t1 -> correct_ptrm ((+) v 1) sgn t1
+  | _ -> correct_trm v [] sgn t Prop
 
 (** val get_prop_pf :
-    int -> stp list -> trm list -> gsign -> pf -> stp list -> trm option **)
+    int -> stp list -> trm list -> gsign -> pf -> trm option **)
 
-let rec get_prop_pf v ctx phi sg p thy =
+let rec get_prop_pf v ctx phi sg p =
   match p with
   | Known h ->
     (match findsnd2 (snd sg) h with
@@ -444,21 +447,21 @@ let rec get_prop_pf v ctx phi sg p thy =
      | None -> None)
   | Hyp i -> nth_error phi ( i)
   | PrAp (p1, p2) ->
-    (match get_prop_pf v ctx phi sg p1 thy with
+    (match get_prop_pf v ctx phi sg p1 with
      | Some t ->
        (match t with
         | Imp (t1, t2) ->
-          (match get_prop_pf v ctx phi sg p2 thy with
+          (match get_prop_pf v ctx phi sg p2 with
            | Some m -> if (=) t1 m then Some t2 else None
            | None -> None)
         | _ -> None)
      | None -> None)
   | TmAp (p1, t1) ->
-    (match get_prop_pf v ctx phi sg p1 thy with
+    (match get_prop_pf v ctx phi sg p1 with
      | Some t ->
        (match t with
         | All (a, m) ->
-          (match get_stp_trm v ctx sg t1 thy with
+          (match get_stp_trm v ctx sg t1 with
            | Some b ->
              if (=) a b
              then beta_eta_delta_norm
@@ -469,29 +472,29 @@ let rec get_prop_pf v ctx phi sg p thy =
         | _ -> None)
      | None -> None)
   | TpAp (p1, a1) ->
-    (match get_prop_pf v ctx phi sg p1 thy with
+    (match get_prop_pf v ctx phi sg p1 with
      | Some t ->
        (match t with
         | TTpAll p0 ->
-          if correct_stp v a1 ( (List.length thy))
+          if correct_stp v a1
           then Some (subst_trmstp p0 0 a1)
           else None
         | _ -> None)
      | None -> None)
   | PrLa (s, p1) ->
-    if not (correct_trm v ctx sg s Prop thy)
+    if not (correct_trm v ctx sg s Prop)
     then None
     else (match beta_eta_delta_norm s sg with
           | Some q ->
-            (match get_prop_pf v ctx (q :: phi) sg p1 thy with
+            (match get_prop_pf v ctx (q :: phi) sg p1 with
              | Some q2 -> Some (Imp (q, q2))
              | None -> None)
           | None -> None)
   | TmLa (a1, p1) ->
-    if not (correct_stp v a1 ( (List.length thy)))
+    if not (correct_stp v a1)
     then None
     else (match get_prop_pf v (a1 :: ctx)
-                  (List.map (fun x -> uptrm x 0 1) phi) sg p1 thy with
+                  (List.map (fun x -> uptrm x 0 1) phi) sg p1 with
           | Some m -> Some (All (a1, m))
           | None -> None)
   | TpLa p1 ->
@@ -499,7 +502,7 @@ let rec get_prop_pf v ctx phi sg p thy =
      | [] ->
        (match phi with
         | [] ->
-          (match get_prop_pf ((+) v 1) ctx phi sg p1 thy with
+          (match get_prop_pf ((+) v 1) ctx phi sg p1 with
            | Some q -> Some (TTpAll q)
            | None -> None)
         | _ :: _ -> None)
@@ -508,56 +511,10 @@ let rec get_prop_pf v ctx phi sg p thy =
 (** val correct_pf :
     int -> stp list -> trm list -> gsign -> pf -> trm -> stp list -> bool **)
 
-let correct_pf v ctx phi sg p t thy =
-  match get_prop_pf v ctx phi sg p thy with
+let correct_pf v ctx phi sg p t =
+  match get_prop_pf v ctx phi sg p with
   | Some l -> if (=) l t then true else false
   | None -> false
-
-(** val check_theoryspec : theoryspec -> (theory * gsign) option **)
-
-let rec check_theoryspec = function
-| [] -> Some (([], []), ([], []))
-| t0 :: tr ->
-  (match t0 with
-   | Thyprim tp ->
-     (match check_theoryspec tr with
-      | Some p ->
-        let (t1, c) = p in
-        let (a, b) = t1 in
-        if correct_tp 0 tp ( (List.length a))
-        then Some ((((@) a (tp :: [])), b), c)
-        else None
-      | None -> None)
-   | Thyaxiom m ->
-     (match check_theoryspec tr with
-      | Some p ->
-        let (t1, g) = p in
-        let (a, b) = t1 in
-        let (c, d) = g in
-        if is_norm m
-        then if correct_ptrm 0 (c, d) m a
-             then let h = tm_hashroot m in
-                  Some ((a, (h :: b)), (c, ((h, m) :: d)))
-             else None
-        else None
-      | None -> None)
-   | Thydef (tp, m) ->
-     (match check_theoryspec tr with
-      | Some p ->
-        let (t1, g) = p in
-        let (a, b) = t1 in
-        let (c, d) = g in
-        if is_norm m
-        then let l =  (List.length a) in
-             if (&&) (correct_tp 0 tp l) (correct_trm 0 [] (c, d) m tp a)
-             then let h = tm_hashroot m in
-                  Some ((a, b), ((((h, tp), (Some m)) :: c), d))
-             else None
-        else None
-      | None -> None))
-
-(** val tp_of_tmh :
-    ((hashval * stp) * trm option) list -> hashval -> stp option **)
 
 let rec tp_of_tmh tpl h =
   match tpl with
@@ -567,14 +524,14 @@ let rec tp_of_tmh tpl h =
     let (k, a) = p0 in if (=) h k then Some a else tp_of_tmh tpr h
 
 (** val tm_tp :
-    (hashval option -> hashval -> stp -> bool) -> gsign -> hashval option ->
+    (hashval -> stp -> bool) -> gsign -> hashval option ->
     hashval -> stp -> bool **)
 
-let rec tm_tp gvtp sg th h a =
+let rec tm_tp gvtp sg h a =
   let (tpl, _) = sg in
   (match tp_of_tmh tpl h with
    | Some b -> if (=) a b then true else false
-   | None -> gvtp th h a)
+   | None -> gvtp h a)
 
 (** val prop_of_known : (hashval * trm) list -> hashval -> trm option **)
 
@@ -588,155 +545,79 @@ let rec prop_of_known kl h =
     (hashval option -> hashval -> bool) -> gsign -> hashval option -> hashval
     -> bool **)
 
-let rec known gvkn sg th k =
+let rec known gvkn sg k =
   match prop_of_known (snd sg) k with
   | Some _ -> true
-  | None -> gvkn th k
-
-(** val check_signaspec :
-    (hashval option -> hashval -> stp -> bool) -> (hashval option -> hashval
-    -> bool) -> hashval option -> theory -> stree option -> signaspec ->
-    (gsign * hashval list) option **)
-
-let rec check_signaspec gvtp gvkn th t tr = function
-| [] -> Some (([], []), [])
-| s0 :: dr ->
-  (match s0 with
-   | Signasigna h ->
-     (match check_signaspec gvtp gvkn th t tr dr with
-      | Some p ->
-        let (sg, imported) = p in
-        (match tr with
-         | Some str -> import_signatures th str (h :: []) sg imported
-         | None -> None)
-      | None -> None)
-   | Signaparam (h, a) ->
-     (match check_signaspec gvtp gvkn th t tr dr with
-      | Some p ->
-        let (g, imported) = p in
-        let (tmtpl, kl) = g in
-        let l =  (List.length (fst t)) in
-        if (&&) (correct_tp 0 a l) (tm_tp gvtp (tmtpl, kl) th h a)
-        then Some (((((h, a), None) :: tmtpl), kl), imported)
-        else None
-      | None -> None)
-   | Signadef (a, m) ->
-     (match check_signaspec gvtp gvkn th t tr dr with
-      | Some p ->
-        let (g, imported) = p in
-        let (tmtpl, kl) = g in
-        if is_norm m
-        then let l =  (List.length (fst t)) in
-             if (&&) (correct_tp 0 a l)
-                  (correct_trm 0 [] (tmtpl, kl) m a (fst t))
-             then let h = tm_hashroot m in
-                  (match m with
-                   | TmH _ -> Some ((tmtpl, kl), imported)
-                   | _ ->
-                     Some (((((h, a), (Some m)) :: tmtpl), kl), imported))
-             else None
-        else None
-      | None -> None)
-   | Signaknown p ->
-     (match check_signaspec gvtp gvkn th t tr dr with
-      | Some p0 ->
-        let (g, imported) = p0 in
-        let (tmtpl, kl) = g in
-        if is_norm p
-        then if correct_ptrm 0 (tmtpl, kl) p (fst t)
-             then let k = tm_hashroot p in
-                  let (_, akl) = t in
-                  if (||) (List.exists (fun x -> (=) x k) akl)
-                       (known gvkn (tmtpl, kl) th k)
-                  then Some ((tmtpl, ((k, p) :: kl)), imported)
-                  else None
-             else None
-        else None
-      | None -> None))
+  | None -> gvkn k
 
 (** val check_doc :
     (hashval option -> hashval -> stp -> bool) -> (hashval option -> hashval
-    -> bool) -> hashval option -> theory -> stree option -> doc ->
+    -> bool) -> hashval option -> doc ->
     (gsign * hashval list) option **)
 
-let rec check_doc gvtp gvkn th thy str = function
-| [] -> Some (([], []), [])
+let rec check_doc gvtp gvkn = function
+| [] -> Some ([],[])
 | d0 :: dr ->
   (match d0 with
-   | Docsigna h ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p ->
-        let (sg, imported) = p in
-        (match str with
-         | Some tr -> import_signatures th tr (h :: []) sg imported
-         | None -> None)
-      | None -> None)
    | Docparam (h, a) ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p ->
-        let (g, imported) = p in
+     (match check_doc gvtp gvkn dr with
+      | Some g ->
         let (tmtpl, kl) = g in
-        if (&&) (correct_tp 0 a ( (List.length (fst thy))))
-             (tm_tp gvtp (tmtpl, kl) th h a)
-        then Some (((((h, a), None) :: tmtpl), kl), imported)
+        if (&&) (correct_tp 0 a)
+            (tm_tp gvtp (tmtpl, kl) h a)
+        then Some ((((h, a), None) :: tmtpl), kl)
         else None
       | None -> None)
    | Docdef (a, m) ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p ->
-        let (g, imported) = p in
+     (match check_doc gvtp gvkn dr with
+      | Some g ->
         let (tmtpl, kl) = g in
         if is_norm m
-        then let l =  (List.length (fst thy)) in
-             if (&&) (correct_tp 0 a l)
-                  (correct_trm 0 [] (tmtpl, kl) m a (fst thy))
+        then if (&&) (correct_tp 0 a)
+                  (correct_trm 0 [] (tmtpl, kl) m a)
              then let h = tm_hashroot m in
                   (match m with
-                   | TmH _ -> Some ((tmtpl, kl), imported)
+                   | TmH _ -> Some (tmtpl, kl)
                    | _ ->
-                     Some (((((h, a), (Some m)) :: tmtpl), kl), imported))
+                     Some ((((h, a), (Some m)) :: tmtpl), kl))
              else None
         else None
       | None -> None)
    | Docknown p ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p0 ->
-        let (g, imported) = p0 in
+     (match check_doc gvtp gvkn dr with
+      | Some g ->
         let (tmtpl, kl) = g in
         if is_norm p
-        then if correct_ptrm 0 (tmtpl, kl) p (fst thy)
+        then if correct_ptrm 0 (tmtpl, kl) p
              then let k = tm_hashroot p in
-                  if (||) (List.exists (fun x -> (=) x k) (snd thy))
-                       (known gvkn (tmtpl, kl) th k)
-                  then Some ((tmtpl, ((k, p) :: kl)), imported)
+             if known gvkn (tmtpl, kl) k
+                  then Some (tmtpl, ((k, p) :: kl))
                   else None
              else None
         else None
       | None -> None)
    | Docpfof (p, d) ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p0 ->
-        let (g, imported) = p0 in
+     (match check_doc gvtp gvkn dr with
+      | Some g ->
         let (tmtpl, kl) = g in
         if is_norm p
         then let k = tm_hashroot p in
-             if correct_ptrm 0 (tmtpl, kl) p (fst thy)
+             if correct_ptrm 0 (tmtpl, kl) p
              then (match beta_eta_delta_norm p (tmtpl, kl) with
                    | Some p2 ->
-                     if correct_pf 0 [] [] (tmtpl, kl) d p2 (fst thy)
-                     then Some ((tmtpl, ((k, p) :: kl)), imported)
+                     if correct_pf 0 [] [] (tmtpl, kl) d p2
+                     then Some (tmtpl, ((k, p) :: kl))
                      else None
                    | None -> None)
              else None
         else None
       | None -> None)
    | Docconj p ->
-     (match check_doc gvtp gvkn th thy str dr with
-      | Some p0 ->
-        let (sgn, imported) = p0 in
+     (match check_doc gvtp gvkn dr with
+      | Some sgn ->
         if is_norm p
-        then if correct_ptrm 0 sgn p (fst thy)
-             then Some (sgn, imported)
+        then if correct_ptrm 0 sgn p
+             then Some sgn
              else None
         else None
       | None -> None))

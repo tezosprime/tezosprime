@@ -1332,11 +1332,7 @@ let rec signtx_outs taue outpl sl rl rsl co =
       end
   in
   match outpl with
-  | (_,(_,TheoryPublication(alpha,n,thy)))::outpr ->
-      publication_signtx_out alpha outpr
-  | (_,(_,SignaPublication(alpha,n,th,si)))::outpr ->
-      publication_signtx_out alpha outpr
-  | (_,(_,DocPublication(alpha,n,th,si)))::outpr ->
+  | (_,(_,DocPublication(alpha,n,si)))::outpr ->
       publication_signtx_out alpha outpr
   | _::outpr -> signtx_outs taue outpr sl rl rsl co
   | [] -> (List.rev rsl,co)
@@ -1395,7 +1391,7 @@ let validatetx oc blkh tr sr lr staustr =
 	begin
 	  try
 	    verbose_supportedcheck := Some(oc);
-	    let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+	    let nfee = ctree_supports_tx true false blkh tau (CHash(lr)) in
 	    verbose_supportedcheck := None;
 	    let fee = Int64.sub 0L nfee in
 	    if fee < 0L then
@@ -1463,7 +1459,7 @@ let sendtx oc blkh tr sr lr staustr =
 	      let stxh = hashstx stau in
 	      begin
 		try
-		  let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		  let nfee = ctree_supports_tx true false blkh tau (CHash(lr)) in
 		  let fee = Int64.sub 0L nfee in
 		  if fee >= !Config.minrelayfee then
 		    begin
@@ -1624,16 +1620,6 @@ let query_at_block q pbh ledgerroot blkh =
 	       ("difficulty",JsonStr(string_of_big_int (difficulty tinfo)))]
 	    in
 	    let jr =
-	      match bhd.newtheoryroot with
-	      | Some(r) -> ("newtheoryroot",JsonStr(hashval_hexstring r))::jr
-	      | None -> jr
-	    in
-	    let jr =
-	      match bhd.newsignaroot with
-	      | Some(r) -> ("newsignaroot",JsonStr(hashval_hexstring r))::jr
-	      | None -> jr
-	    in
-	    let jr =
 	      if invalid then
 		(("invalid",JsonBool(true))::jr)
 	      else
@@ -1774,60 +1760,12 @@ let preassetinfo_report oc u =
       Printf.fprintf oc "%Ld rights to import proposition with id %s into documents.\n" v (hashval_hexstring h)
   | Marker ->
       Printf.fprintf oc "Marker committing to publish a document, theory or signature with fixed contents.\n"
-  | TheoryPublication(alpha,nonce,ts) ->
-      Printf.fprintf oc "Theory specification with publisher %s\n" (addr_tzpaddrstr (payaddr_addr alpha));
-      begin
-	let th = Mathdata.theoryspec_theory ts in
-	match Mathdata.hashtheory th with
-	| Some(thyh) ->
-	    let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce thyh)) in
-	    Printf.fprintf oc "Theory must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr thyh));
-	    Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
-	    Printf.fprintf oc "Publishing theory requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.theory_burncost th))
-	| None ->
-	    Printf.fprintf oc "Theory seems to be empty and cannot be published.\n"
-      end
-  | SignaPublication(alpha,nonce,thyid,ss) ->
-      Printf.fprintf oc "Signature specification in %s with publisher %s\n"
-	(match thyid with None -> "the empty theory" | Some(h) -> "theory " ^ (hashval_hexstring h))
-	(addr_tzpaddrstr (payaddr_addr alpha));
-      let s = Mathdata.signaspec_signa ss in
-      let slh = Mathdata.hashsigna s in
-      let tslh = hashopair2 thyid slh in
-      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce tslh)) in
-      Printf.fprintf oc "Signature must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr tslh));
-      Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
-      Printf.fprintf oc "Publishing signature requires burning %s tezzies.\n" (tezzies_of_cants (Mathdata.signa_burncost s));
-      let usesobjs = Mathdata.signaspec_uses_objs ss in
-      let usesprops = Mathdata.signaspec_uses_props ss in
-      if not (usesobjs = []) then
-	begin
-	  Printf.fprintf oc "2*%d rights required to use objects must be consumed:\n" (List.length usesprops);
-	  List.iter
-	    (fun (h,k) ->
-	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
-	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
-	    usesobjs
-	end;
-      if not (usesprops = []) then
-	begin
-	  Printf.fprintf oc "2*%d rights required to use propositions must be consumed:\n" (List.length usesprops);
-	  List.iter
-	    (fun h ->
-	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid h) 33l in
-	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
-	    usesprops
-	end
-  | DocPublication(alpha,nonce,thyid,dl) ->
-      Printf.fprintf oc "Document in %s with publisher %s\n"
-	(match thyid with None -> "the empty theory" | Some(h) -> "theory " ^ (hashval_hexstring h))
+  | DocPublication(alpha,nonce,dl) ->
+      Printf.fprintf oc "Document with publisher %s\n"
 	(addr_tzpaddrstr (payaddr_addr alpha));
       let dlh = Mathdata.hashdoc dl in
-      let tdlh = hashopair2 thyid dlh in
-      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce tdlh)) in
-      Printf.fprintf oc "Document must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr tdlh));
+      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr alpha)) (hashpair nonce dlh)) in
+      Printf.fprintf oc "Document must be published to address %s\n" (addr_tzpaddrstr (hashval_pub_addr dlh));
       Printf.fprintf oc "and can only be published by spending a Marker at least 4 blocks old held at %s.\n" (addr_tzpaddrstr beta);
       let usesobjs = Mathdata.doc_uses_objs dl in
       let usesprops = Mathdata.doc_uses_props dl in
@@ -1840,7 +1778,7 @@ let preassetinfo_report oc u =
 	  List.iter
 	    (fun (h,k) ->
 	      Printf.fprintf oc "Right to use (pure) object %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
+	      let h2 = hashtag (hashpair h k) 32l in
 	      Printf.fprintf oc "Right to use (theory) object %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesobjs
 	end;
@@ -1850,7 +1788,7 @@ let preassetinfo_report oc u =
 	  List.iter
 	    (fun h ->
 	      Printf.fprintf oc "Right to use (pure) proposition %s (%s)\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid h) 33l in
+	      let h2 = hashtag h 33l in
 	      Printf.fprintf oc "Right to use (theory) proposition %s (%s)\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    usesprops
 	end;
@@ -1860,7 +1798,7 @@ let preassetinfo_report oc u =
 	  List.iter
 	    (fun (h,k) ->
 	      Printf.fprintf oc "If there is no owner of (pure) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid (hashpair h k)) 32l in
+	      let h2 = hashtag (hashpair h k) 32l in
 	      Printf.fprintf oc "If there is no owner of (theory) object %s (%s), OwnsObj must be declared.\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    createsobjs
 	end;
@@ -1870,7 +1808,7 @@ let preassetinfo_report oc u =
 	  List.iter
 	    (fun h ->
 	      Printf.fprintf oc "If there is no owner of (pure) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h) (addr_tzpaddrstr (hashval_term_addr h));
-	      let h2 = hashtag (hashopair2 thyid h) 33l in
+	      let h2 = hashtag h 33l in
 	      Printf.fprintf oc "If there is no owner of (theory) proposition %s (%s), OwnsProp must be declared.\n" (hashval_hexstring h2) (addr_tzpaddrstr (hashval_term_addr h2)))
 	    createsprops
 	end;
@@ -1879,7 +1817,7 @@ let preassetinfo_report oc u =
 	  Printf.fprintf oc "%d negated propositions possibly created:\n" (List.length createsnegprops);
 	  List.iter
 	    (fun h ->
-	      let h2 = hashtag (hashopair2 thyid h) 33l in
+	      let h2 = hashtag h 33l in
 	      Printf.fprintf oc "If there is no OwnsNegProp at %s (for id %s), one must be declared.\n" (addr_tzpaddrstr (hashval_term_addr h2)) (hashval_hexstring h2))
 	    createsnegprops
 	end

@@ -104,18 +104,7 @@ let rec tx_outputs_valid_addr_cats outpl =
   | (alpha,(_,OwnsObj(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsProp(h,beta,u)))::outpr -> hashval_term_addr h = alpha && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,OwnsNegProp))::outpr -> termaddr_p alpha && tx_outputs_valid_addr_cats outpr
-  | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr -> false (*** disable theories and signatures for now; can be hard forked in later upon demand ***)
-(***
-      begin
-	match hashtheory (theoryspec_theory dl) with
-	| Some(dlh) ->
-	    alpha = hashval_pub_addr dlh && tx_outputs_valid_addr_cats outpr
-	| None -> false
-      end
-***)
-  | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr -> false (*** disable theories and signatures for now; can be hard forked in later upon demand ***)
-(***      alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) && tx_outputs_valid_addr_cats outpr ***)
-  | (alpha,(_,DocPublication(beta,h,th,dl)))::outpr -> alpha = hashval_pub_addr (hashopair2 th (hashdoc dl)) && tx_outputs_valid_addr_cats outpr
+  | (alpha,(_,DocPublication(beta,h,dl)))::outpr -> alpha = hashval_pub_addr (hashdoc dl) && tx_outputs_valid_addr_cats outpr
   | (alpha,(_,Marker))::outpr -> pubaddr_p alpha && tx_outputs_valid_addr_cats outpr (*** markers should only be published to publication addresses, since they're used to prepublish an intention to publish ***)
   | _::outpr -> tx_outputs_valid_addr_cats outpr
   | [] -> true
@@ -137,26 +126,11 @@ let rec tx_outputs_valid_addr_cats_oc oc outpl =
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
 	(Printf.fprintf oc "tx invalid since OwnsNegProp should be sent to a term address\n"; false)
-  | (alpha,(_,TheoryPublication(beta,h,dl)))::outpr ->
-      begin
-	match hashtheory (theoryspec_theory dl) with
-	| Some(dlh) ->
-	    if alpha = hashval_pub_addr dlh then
-	      tx_outputs_valid_addr_cats_oc oc outpr
-	    else
-	      (Printf.fprintf oc "tx invalid since Theory should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr dlh)); false)
-	| None -> false
-      end
-  | (alpha,(_,SignaPublication(beta,h,th,dl)))::outpr ->
-      if alpha = hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))) then
+  | (alpha,(_,DocPublication(beta,h,dl)))::outpr ->
+      if alpha = hashval_pub_addr (hashdoc dl) then
 	tx_outputs_valid_addr_cats_oc oc outpr
       else
-	(Printf.fprintf oc "tx invalid since Signature should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr (hashopair2 th (hashsigna (signaspec_signa dl))))); false)
-  | (alpha,(_,DocPublication(beta,h,th,dl)))::outpr ->
-      if alpha = hashval_pub_addr (hashopair2 th (hashdoc dl)) then
-	tx_outputs_valid_addr_cats_oc oc outpr
-      else
-	(Printf.fprintf oc "tx invalid since Document should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr (hashopair2 th (hashdoc dl)))); false)
+	(Printf.fprintf oc "tx invalid since Document should be sent to %s\n" (Cryptocurr.addr_tzpaddrstr (hashval_pub_addr (hashdoc dl))); false)
   | (alpha,(_,Marker))::outpr ->
       if pubaddr_p alpha then
 	tx_outputs_valid_addr_cats outpr (*** markers should only be published to publication addresses, since they're used to prepublish an intention to publish ***)
@@ -284,25 +258,7 @@ let rec check_tx_out_signatures txhe outpl sl rl =
   match outpl,sl with
   | [],[] -> true
   | [],(_::_) -> false
-  | (_,(_,TheoryPublication(alpha,n,thy)))::outpr,s::sr ->
-      begin
-	try
-	  let (s1,rl1) = getsig s rl in
-	  check_tx_out_signatures txhe outpr sr rl1
-	    &&
-	  verify_gensignat txhe s1 (payaddr_addr alpha)
-	with Not_found -> false
-      end
-  | (_,(_,SignaPublication(alpha,n,th,si)))::outpr,s::sr ->
-      begin
-	try
-	  let (s1,rl1) = getsig s rl in
-	  check_tx_out_signatures txhe outpr sr rl1
-	    &&
-	  verify_gensignat txhe s1 (payaddr_addr alpha)
-	with Not_found -> false
-      end
-  | (_,(_,DocPublication(alpha,n,th,d)))::outpr,s::sr ->
+  | (_,(_,DocPublication(alpha,n,d)))::outpr,s::sr ->
       begin
 	try
 	  let (s1,rl1) = getsig s rl in
@@ -338,32 +294,6 @@ let tx_signatures_valid blkh al stau =
     | Some(b) -> b <= blkh
     | None -> true
   with BadOrMissingSignature -> false
-
-let rec txout_update_ottree outpl tht =
-  match outpl with
-  | [] -> tht
-  | (alpha,(obl,TheoryPublication(gamma,nonce,d)))::outpr ->
-      let thy = theoryspec_theory d in
-      begin
-	match hashtheory thy with
-	| Some(thyh) ->
-	    txout_update_ottree outpr (Some(ottree_insert tht (hashval_bitseq thyh) thy))
-	| _ -> txout_update_ottree outpr tht
-      end
-  | _::outpr -> txout_update_ottree outpr tht
-
-let tx_update_ottree tau tht = txout_update_ottree (tx_outputs tau) tht
-
-let rec txout_update_ostree outpl sigt =
-  match outpl with
-  | [] -> sigt
-  | (alpha,(obl,SignaPublication(gamma,nonce,th,d)))::outpr ->
-      let sg = signaspec_signa d in
-      let thsgh = hashopair2 th (hashsigna sg) in
-      txout_update_ostree outpr (Some(ostree_insert sigt (hashval_bitseq thsgh) sg))
-  | _::outpr -> txout_update_ostree outpr sigt
-
-let tx_update_ostree tau sigt = txout_update_ostree (tx_outputs tau) sigt
 
 let seo_tx o g c = seo_prod (seo_list seo_addr_assetid) (seo_list seo_addr_preasset) o g c
 let sei_tx i c = sei_prod (sei_list sei_addr_assetid) (sei_list sei_addr_preasset) i c

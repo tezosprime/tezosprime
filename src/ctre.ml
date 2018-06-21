@@ -438,25 +438,7 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end
-  | HCons((aid,bday,obl,TheoryPublication(gamma,nonce,d)) as a,hr) ->
-      begin
-	Buffer.add_string sb (hashval_hexstring aid);
-	Buffer.add_string sb " [";
-	Buffer.add_string sb (Int64.to_string bday);
-	Buffer.add_string sb "] Theory\n";
-	g a;
-	print_hlist_to_buffer_gen sb blkh hr g
-      end
-  | HCons((aid,bday,obl,SignaPublication(gamma,nonce,th,d)) as a,hr) ->
-      begin
-	Buffer.add_string sb (hashval_hexstring aid);
-	Buffer.add_string sb " [";
-	Buffer.add_string sb (Int64.to_string bday);
-	Buffer.add_string sb "] Signature\n";
-	g a;
-	print_hlist_to_buffer_gen sb blkh hr g
-      end
-  | HCons((aid,bday,obl,DocPublication(gamma,nonce,th,d)) as a,hr) ->
+  | HCons((aid,bday,obl,DocPublication(gamma,nonce,d)) as a,hr) ->
       begin
 	Buffer.add_string sb (hashval_hexstring aid);
 	Buffer.add_string sb " [";
@@ -1589,50 +1571,19 @@ let rec ctree_supports_output_addrs exp req outpl tr =
 
 (*** return the fee (negative) or reward (positive) if supports tx, otherwise raise NotSupported ***)
 (*** this does not request remote data and does not allow local expansions of hash abbrevs ***)
-let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
+let ctree_supports_tx_2 exp req blkh tx aal al tr =
   let (inpl,outpl) = tx in
   (*** Each output address must be supported. ***)
   ctree_supports_output_addrs exp req outpl tr;
   let objids = obj_rights_mentioned outpl in
   let propids = prop_rights_mentioned outpl in
-  let susesobjs = output_signaspec_uses_objs outpl in
-  let susesprops = output_signaspec_uses_props outpl in
   let usesobjs = output_doc_uses_objs outpl in
   let usesprops = output_doc_uses_props outpl in
   let createsobjs = output_creates_objs outpl in
   let createsprops = output_creates_props outpl in
-  let createsobjsids1 = List.map (fun (th,h,k) -> h) createsobjs in
-  let createspropsids1 = List.map (fun (th,h) -> h) createsprops in
-  let createsobjsids2 = List.map (fun (th,h,k) -> hashtag (hashopair2 th (hashpair h k)) 32l) createsobjs in
-  let createspropsids2 = List.map (fun (th,h) -> hashtag (hashopair2 th h) 33l) createsprops in
-  let createsnegpropsaddrs2 = List.map (fun (th,h) -> hashval_term_addr (hashtag (hashopair2 th h) 33l)) (output_creates_neg_props outpl) in
-  (*** If an object or prop is included in a signaspec, then it must be royalty-free to use. ***)
-  List.iter (fun (alphapure,alphathy) ->
-    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphapure))) in
-    match hlist_lookup_obj_owner exp req alphapure hl with
-    | Some(_,Some(r)) when r = 0L ->
-	begin
-	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphathy))) in
-	  match hlist_lookup_obj_owner exp req alphathy hl with
-	  | Some(_,Some(r)) when r = 0L -> ()
-	  | _ -> raise NotSupported
-	end
-    | _ -> raise NotSupported
-    )
-    susesobjs;
-  List.iter (fun (alphapure,alphathy) ->
-    let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphapure))) in
-    match hlist_lookup_prop_owner exp req alphapure hl with
-    | Some(_,Some(r)) when r = 0L ->
-	begin
-	  let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq (termaddr_addr (hashval_md160 alphathy))) in
-	  match hlist_lookup_prop_owner exp req alphathy hl with
-	  | Some(_,Some(r)) when r = 0L -> ()
-	  | _ -> raise NotSupported
-	end
-    | _ -> raise NotSupported
-    )
-    susesprops;
+  let createsobjsids2 = List.map (fun (h,k) -> hashtag (hashpair h k) 32l) createsobjs in
+  let createspropsids2 = List.map (fun h -> hashtag h 33l) createsprops in
+  let createsnegpropsaddrs2 = List.map (fun h -> hashval_term_addr (hashtag h 33l)) (output_creates_neg_props outpl) in
   (*** If rights are consumed in the input, then they must be mentioned in the output. ***)
   List.iter (fun a ->
     match a with
@@ -1692,127 +1643,32 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   List.iter
     (fun (alpha,(obl,u)) ->
       match u with
-      | TheoryPublication(gamma,nonce,thy) ->
+      | DocPublication(gamma,nonce,dl) ->
 	  begin
 	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
 	    try
-	      ignore (match check_theoryspec thy with
-              | None ->
-		  vmsg (fun oc -> Printf.fprintf oc "Theory does not check as correct\n");
-		  raise CheckingFailure
-              | _ -> ());
-	      match hashtheory (theoryspec_theory thy) with
-	      | Some(thyh) ->
-		  let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce thyh)) in
-		  begin
-		    try
-		      match
-			List.find
-			  (fun a ->
-			    match a with
-			    | (h,bday,obl,Marker) -> List.mem (beta,h) inpl 
-			    | _ -> false
-			  )
-			  al
-		      with (h,bday,_,_) ->
-			if Int64.add bday intention_minage <= blkh then
-			  spentmarkersjustified := h::!spentmarkersjustified
-			else
-			  begin
-			    vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr beta) (Int64.add bday intention_minage));
-			    raise NotSupported
-			  end
-		    with Not_found ->
-		      vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Theory\n" (Cryptocurr.addr_tzpaddrstr beta));
-		      raise NotSupported
-		  end
-	      | None -> raise NotSupported
-	    with
-	    | CheckingFailure -> raise NotSupported
-	    | NonNormalTerm -> raise NotSupported
-	    | Not_found -> raise NotSupported
-	  end
-      | SignaPublication(gamma,nonce,th,sl) ->
-	  begin
-	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
-	    try
-	      let gvtp th h a =
-		let oid = hashtag (hashopair2 th (hashpair h (hashtp a))) 32l in
+	      let gvtp h a =
+		let oid = hashtag (hashpair h (hashtp a)) 32l in
 		let alpha = hashval_term_addr oid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		match hlist_lookup_obj_owner exp req oid hl with
 		| Some(beta,r) -> true
 		| None -> false
 	      in
-	      let gvkn th k =
-		let pid = hashtag (hashopair2 th k) 33l in
+	      let gvkn k =
+		let pid = hashtag k 33l in
 		let alpha = hashval_term_addr pid in
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		match hlist_lookup_prop_owner exp req pid hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
 		| Some(beta,r) -> true
 		| None -> false
 	      in
-	      let thy = ottree_lookup tht th in
-              ignore (match check_signaspec gvtp gvkn th thy sigt sl with
-              | None ->
-		  vmsg (fun oc -> Printf.fprintf oc "Signature does not check as correct\n");
-		  raise CheckingFailure
-              | _ -> ());
-	      let slh = hashsigna (signaspec_signa sl) in
-	      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th slh))) in
-	      begin
-		try
-		  match
-		    List.find
-		      (fun a ->
-			match a with
-			| (h,bday,obl,Marker) -> List.mem (beta,h) inpl
-			| _ -> false
-		      )
-		      al
-		  with (h,bday,_,_) ->
-		    if Int64.add bday intention_minage <= blkh then
-		      spentmarkersjustified := h::!spentmarkersjustified
-		    else
-		      begin
-			vmsg (fun oc -> Printf.fprintf oc "Marker %s at %s cannot be spent until block %Ld\n" (hashval_hexstring h) (Cryptocurr.addr_tzpaddrstr beta) (Int64.add bday intention_minage));
-			raise NotSupported
-		      end
-		with Not_found ->
-		  vmsg (fun oc -> Printf.fprintf oc "No Spent Marker at %s to Publish Signature\n" (Cryptocurr.addr_tzpaddrstr beta));
-		  raise NotSupported
-	      end
-	    with
-	    | CheckingFailure -> raise NotSupported
-	    | NonNormalTerm -> raise NotSupported
-	  end
-      | DocPublication(gamma,nonce,th,dl) ->
-	  begin
-	    ensure_addr_empty alpha; (*** make sure the publication is new because otherwise publishing it is pointless ***)
-	    try
-	      let gvtp th h a =
-		let oid = hashtag (hashopair2 th (hashpair h (hashtp a))) 32l in
-		let alpha = hashval_term_addr oid in
-		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_obj_owner exp req oid hl with
-		| Some(beta,r) -> true
-		| None -> false
-	      in
-	      let gvkn th k =
-		let pid = hashtag (hashopair2 th k) 33l in
-		let alpha = hashval_term_addr pid in
-		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
-		match hlist_lookup_prop_owner exp req pid hl with (*** A proposition has been proven in a theory iff it has an owner. ***)
-		| Some(beta,r) -> true
-		| None -> false
-	      in
-	      let thy = ottree_lookup tht th in
-              ignore (match check_doc gvtp gvkn th thy sigt dl with
+              ignore (match check_doc gvtp gvkn dl with
               | None ->
 		  vmsg (fun oc -> Printf.fprintf oc "Document does not check as correct\n");
 		  raise CheckingFailure
               | _ -> ());
-	      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (hashdoc dl)))) in
+	      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashdoc dl))) in
 	      begin
 		try
 		  match
@@ -1943,7 +1799,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	      ownobjclaims := oid::!ownobjclaims;
 	    with Not_found ->
 	      (*** if the ownership is being created ***)
-	      if (List.mem oid createsobjsids1 || List.mem oid createsobjsids2) && not (List.mem oid !ownobjclaims) then
+	      if (List.mem oid createsobjsids2) && not (List.mem oid !ownobjclaims) then
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		begin
 		  ownobjclaims := oid::!ownobjclaims;
@@ -1979,7 +1835,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	      ownpropclaims := pid::!ownpropclaims;
 	    with Not_found ->
 	      (*** if the ownership is being created ***)
-	      if (List.mem pid createspropsids1 || List.mem pid createspropsids2) && not (List.mem pid !ownpropclaims) then
+	      if (List.mem pid createspropsids2) && not (List.mem pid !ownpropclaims) then
 		let hl = ctree_lookup_addr_assets exp req tr (addr_bitseq alpha) in
 		begin
 		  ownpropclaims := pid::!ownpropclaims;
@@ -2025,7 +1881,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
   (***
       new objects and props must be given ownership by the tx publishing the document.
    ***)
-  List.iter (fun (th,tmh,tph) ->
+  List.iter (fun (tmh,tph) ->
     try
       let ensureowned oid =
 	let alpha = hashval_term_addr oid in
@@ -2041,13 +1897,12 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	      end
       in
       let alphapure = tmh in
-      let alphathy = hashtag (hashopair2 th (hashpair tmh tph)) 32l in
-      ensureowned alphapure;
+      let alphathy = hashtag (hashpair tmh tph) 32l in
       ensureowned alphathy
     with Not_found -> raise NotSupported
     )
     createsobjs;
-  List.iter (fun (th,tmh) ->
+  List.iter (fun tmh ->
     try
       let ensureowned pid =
 	let alpha = hashval_term_addr pid in
@@ -2063,8 +1918,7 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
 	      end
       in
       let alphapure = tmh in
-      let alphathy = hashtag (hashopair2 th tmh) 33l in
-      ensureowned alphapure;
+      let alphathy = hashtag tmh 33l in
       ensureowned alphathy
     with Not_found -> raise NotSupported
     )
@@ -2082,38 +1936,14 @@ let ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr =
        by its creator after a certain lockheight (expiration). Since this is being checked in check_tx_in_signatures,
        there is no longer a check here.
    ***)
-(***
-  List.iter
-    (fun (alpha,(h,bday,obl,u)) -> 
-      match u with
-      | Bounty(v) -> (*** Note: The bounty could be collected due to a hash collision, but this does not seem to be subject to the birthday paradox so it should be safe. Otherwise we should save the propositions id (preimage of alpha) explicitly here. ***)
-	  begin
-	    try
-	      (*** ensure that an owner of the prop or negprop signed the tx because the ownership asset was an input value ***)
-	      ignore
-		(List.find
-		   (fun (alpha2,(h2,bday2,obl2,u2)) -> (*** remember: it's the obligation that determines who signs these; so the obligations tells who the "owners" are for the purpose of collecting bounties ***)
-		     alpha = alpha2 &&
-		     match u2 with
-		     | OwnsProp(pid2,beta2,r2) -> true
-		     | OwnsNegProp -> true
-		     | _ -> false
-		   )
-		   aal)
-	    with Not_found -> raise NotSupported
-	  end
-      | _ -> ()
-    )
-    aal;
-***)
   (*** finally, return the number of currency units created or destroyed ***)
   Int64.sub (out_cost outpl) (asset_value_sum blkh al)
 
-let ctree_supports_tx exp req tht sigt blkh tx tr =
+let ctree_supports_tx exp req blkh tx tr =
   let (inpl,outpl) = tx in
   let aal = ctree_lookup_input_assets exp req inpl tr (fun _ _ -> ()) in
   let al = List.map (fun (_,a) -> a) aal in
-  ctree_supports_tx_2 exp req tht sigt blkh tx aal al tr
+  ctree_supports_tx_2 exp req blkh tx aal al tr
 
 let rec hlist_lub hl1 hl2 =
   match hl1 with
@@ -2394,27 +2224,13 @@ let rec full_needed_1 outpl =
   | (_,(o,(RightsProp(h,_))))::outpr -> addr_bitseq (termaddr_addr (hashval_md160 h))::full_needed_1 outpr
   | (alpha,(o,(OwnsObj(_,_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
   | (alpha,(o,(OwnsProp(_,_,_))))::outpr -> addr_bitseq alpha::full_needed_1 outpr
-  | (_,(o,TheoryPublication(gamma,nonce,thy)))::outpr ->
-      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashopair1 nonce (hashtheory (theoryspec_theory thy)))) in
-      addr_bitseq beta::full_needed_1 outpr
-  | (_,(o,SignaPublication(gamma,nonce,th,sl)))::outpr ->
-      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (hashsigna (signaspec_signa sl))))) in
-      addr_bitseq beta::full_needed_1 outpr
-  | (_,(o,DocPublication(gamma,nonce,th,dl)))::outpr ->
-      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashopair2 th (hashdoc dl)))) in
+  | (_,(o,DocPublication(gamma,nonce,dl)))::outpr ->
+      let beta = hashval_pub_addr (hashpair (hashaddr (payaddr_addr gamma)) (hashpair nonce (hashdoc dl))) in
       addr_bitseq beta::full_needed_1 outpr
   | _::outpr -> full_needed_1 outpr
 
 let full_needed outpl =
   let r = ref (full_needed_1 outpl) in
-  List.iter
-    (fun (alphapure,alphathy) ->
-	r := addr_bitseq (hashval_term_addr alphapure)::addr_bitseq (hashval_term_addr alphathy)::!r)
-    (output_signaspec_uses_objs outpl);
-  List.iter
-    (fun (alphapure,alphathy) ->
-	r := addr_bitseq (hashval_term_addr alphapure)::addr_bitseq (hashval_term_addr alphathy)::!r)
-    (output_signaspec_uses_props outpl);
   List.iter
     (fun (alphapure,alphathy) ->
 	r := addr_bitseq (hashval_term_addr alphapure)::addr_bitseq (hashval_term_addr alphathy)::!r)

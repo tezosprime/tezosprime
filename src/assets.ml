@@ -28,9 +28,7 @@ type preasset =
   | RightsObj of hashval * int64
   | RightsProp of hashval * int64
   | Marker
-  | TheoryPublication of payaddr * hashval * theoryspec
-  | SignaPublication of payaddr * hashval * hashval option * signaspec
-  | DocPublication of payaddr * hashval * hashval option * doc
+  | DocPublication of payaddr * hashval * doc
 
 let obligation_string o =
   match o with
@@ -50,9 +48,7 @@ let preasset_string u =
   | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
   | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
   | Marker -> "marker"
-  | TheoryPublication(beta,_,_) -> "theory published by " ^ addr_tzpaddrstr (payaddr_addr beta)
-  | SignaPublication(beta,_,_,_) -> "signature published by " ^ addr_tzpaddrstr (payaddr_addr beta)
-  | DocPublication(beta,_,_,_) -> "document published by " ^ addr_tzpaddrstr (payaddr_addr beta)
+  | DocPublication(beta,_,_) -> "document published by " ^ addr_tzpaddrstr (payaddr_addr beta)
 
 
 (*** asset is (assetid,birthday,obligation,preasset) ***)
@@ -75,9 +71,7 @@ let hashpreasset u =
   | RightsObj(h,v) -> hashtag (hashpair h (hashint64 v)) 263l
   | RightsProp(h,v) -> hashtag (hashpair h (hashint64 v)) 264l
   | Marker -> hashint32 265l
-  | TheoryPublication(a,nonce,ths) -> hashtag (hashpair (hashpayaddr a) (hashopair1 nonce (hashtheory (theoryspec_theory ths)))) 266l (*** this only ensures the compiled theory gets a unique hash value ***)
-  | SignaPublication(a,nonce,th,s) -> hashtag (hashpair (hashpayaddr a) (hashpair nonce (hashopair2 th (hashsigna (signaspec_signa s))))) 267l (*** this only ensures the compiled signature gets a unique hash value ***)
-  | DocPublication(a,nonce,th,d) -> hashtag (hashpair (hashpayaddr a) (hashpair nonce (hashopair2 th (hashdoc d)))) 268l
+  | DocPublication(a,nonce,d) -> hashtag (hashpair (hashpayaddr a) (hashpair nonce (hashdoc d))) 268l
 
 let hashobligation (x:obligation) : hashval option =
   match x with
@@ -142,60 +136,40 @@ let asset_value blkh u = preasset_value blkh (assetbday u) (assetpre u)
 let asset_value_sum blkh al =
   List.fold_right Int64.add (List.map (fun a -> match asset_value blkh a with Some v -> v | None -> 0L) al) 0L
 
-let rec output_signaspec_uses_objs (outpl:addr_preasset list) : (hashval * hashval) list =
-  match outpl with
-  | (_,(_,SignaPublication(_,_,th,d)))::outpr ->
-      List.map (fun (h,tph) -> (h,hashtag (hashopair2 th (hashpair h tph)) 32l)) (signaspec_uses_objs d)
-      @ output_signaspec_uses_objs outpr
-  | _::outpr -> output_signaspec_uses_objs outpr
-  | [] -> []
-
-let rec output_signaspec_uses_props (outpl:addr_preasset list) : (hashval * hashval) list =
-  match outpl with
-  | (_,(_,SignaPublication(_,_,th,d)))::outpr ->
-      List.map (fun h -> (h,hashtag (hashopair2 th h) 33l)) (signaspec_uses_props d)
-      @ output_signaspec_uses_props outpr
-  | _::outpr -> output_signaspec_uses_props outpr
-  | [] -> []
-
 let rec output_doc_uses_objs (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
-      List.map (fun (h,tph) -> (h,hashtag (hashopair2 th (hashpair h tph)) 32l)) (doc_uses_objs d)
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
+      List.map (fun (h,tph) -> (h,hashtag (hashpair h tph) 32l)) (doc_uses_objs d)
       @ output_doc_uses_objs outpr
   | _::outpr -> output_doc_uses_objs outpr
   | [] -> []
 
 let rec output_doc_uses_props (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
-      List.map (fun h -> (h,hashtag (hashopair2 th h) 33l)) (doc_uses_props d)
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
+      List.map (fun h -> (h,hashtag h 33l)) (doc_uses_props d)
       @ output_doc_uses_props outpr
   | _::outpr -> output_doc_uses_props outpr
   | [] -> []
 
-let rec output_creates_objs (outpl:addr_preasset list) : (hashval option * hashval * hashval) list =
+let rec output_creates_objs (outpl:addr_preasset list) : (hashval * hashval) list =
   match outpl with
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
-      List.map (fun (h,k) -> (th,h,k)) (doc_creates_objs d) @ output_creates_objs outpr
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
+      List.map (fun (h,k) -> (h,k)) (doc_creates_objs d) @ output_creates_objs outpr
   | _::outpr -> output_creates_objs outpr
   | [] -> []
 
-let rec output_creates_props (outpl:addr_preasset list) : (hashval option * hashval) list =
+let rec output_creates_props (outpl:addr_preasset list) : hashval list =
   match outpl with
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
-      List.map (fun h -> (th,h)) (doc_creates_props d) @ output_creates_props outpr
-  | (_,(_,TheoryPublication(_,_,d)))::outpr -> (*** Axioms created by theories also need to be considered "created" so they will be given owners when published. ***)
-      let (pl,kl) = theoryspec_theory d in
-      let th = hashtheory (pl,kl) in
-      List.map (fun h -> (th,h)) kl @ output_creates_props outpr
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
+      doc_creates_props d @ output_creates_props outpr
   | _::outpr -> output_creates_props outpr
   | [] -> []
 
-let rec output_creates_neg_props (outpl:addr_preasset list) : (hashval option * hashval) list =
+let rec output_creates_neg_props (outpl:addr_preasset list) : hashval list =
   match outpl with
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
-      List.map (fun h -> (th,h)) (doc_creates_neg_props d) @ output_creates_neg_props outpr
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
+      doc_creates_neg_props d @ output_creates_neg_props outpr
   | _::outpr -> output_creates_neg_props outpr
   | [] -> []
 
@@ -233,11 +207,11 @@ let rec obj_rights_mentioned_aux outpl r =
   match outpl with
   | (beta,(obl,RightsObj(h,n)))::outpr ->
       obj_rights_mentioned_aux outpr (h::r)
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
       let duo = doc_uses_objs d in
       obj_rights_mentioned_aux outpr
 	(List.map (fun (h,tph) -> h) duo
-	 @ List.map (fun (h,tph) -> hashtag (hashopair2 th (hashpair h tph)) 32l) duo
+	 @ List.map (fun (h,tph) -> hashtag (hashpair h tph) 32l) duo
 	 @ r)
   | _::outpr -> obj_rights_mentioned_aux outpr r
   | [] -> r
@@ -248,10 +222,10 @@ let rec prop_rights_mentioned_aux outpl r =
   match outpl with
   | (beta,(obl,RightsProp(h,n)))::outpr ->
       prop_rights_mentioned_aux outpr (h::r)
-  | (_,(_,DocPublication(_,_,th,d)))::outpr ->
+  | (_,(_,DocPublication(_,_,d)))::outpr ->
       let dup = doc_uses_props d in
       prop_rights_mentioned_aux outpr
-	(dup @ List.map (fun h -> hashtag (hashopair2 th h) 33l) dup @ r)
+	(dup @ List.map (fun h -> hashtag h 33l) dup @ r)
   | _::outpr -> prop_rights_mentioned_aux outpr r
   | [] -> r
 
@@ -270,8 +244,6 @@ let rec out_cost outpl =
   match outpl with
   | (alpha,(obl,Currency(u)))::outpr -> Int64.add u (out_cost outpr)
   | (alpha,(obl,Bounty(u)))::outpr -> Int64.add u (out_cost outpr)
-  | (alpha,(obl,TheoryPublication(_,_,s)))::outpr -> Int64.add (theoryspec_burncost s) (out_cost outpr)
-  | (alpha,(obl,SignaPublication(_,_,_,s)))::outpr -> Int64.add (signaspec_burncost s) (out_cost outpr)
   | _::outpr -> out_cost outpr
   | [] -> 0L
 
@@ -315,22 +287,10 @@ let seo_preasset o u c =
   | Marker -> (** 100 **)
       let c = o 3 4 c in
       c
-  | TheoryPublication(alpha,h,dl) -> (** 101 **)
-      let c = o 3 5 c in
-      let c = seo_payaddr o alpha c in
-      let c = seo_hashval o h c in
-      seo_theoryspec o dl c
-  | SignaPublication(alpha,h,th,dl) -> (** 110 **)
-      let c = o 3 6 c in
-      let c = seo_payaddr o alpha c in
-      let c = seo_hashval o h c in
-      let c = seo_option seo_hashval o th c in
-      seo_signaspec o dl c
-  | DocPublication(alpha,h,th,dl) -> (** 111 **)
+  | DocPublication(alpha,h,dl) -> (** 111 **)
       let c = o 3 7 c in
       let c = seo_payaddr o alpha c in
       let c = seo_hashval o h c in
-      let c = seo_option seo_hashval o th c in
       seo_doc o dl c
 
 let sei_preasset i c =
@@ -368,22 +328,14 @@ let sei_preasset i c =
   else if x = 4 then
     (Marker,c)
   else if x = 5 then
-    let (alpha,c) = sei_payaddr i c in
-    let (h,c) = sei_hashval i c in
-    let (dl,c) = sei_theoryspec i c in
-    (TheoryPublication(alpha,h,dl),c)
+    raise (Failure "bad asset serialisation")
   else if x = 6 then
-    let (alpha,c) = sei_payaddr i c in
-    let (h,c) = sei_hashval i c in
-    let (th,c) = sei_option sei_hashval i c in
-    let (dl,c) = sei_signaspec i c in
-    (SignaPublication(alpha,h,th,dl),c)
+    raise (Failure "bad asset serialisation")
   else
     let (alpha,c) = sei_payaddr i c in
     let (h,c) = sei_hashval i c in
-    let (th,c) = sei_option sei_hashval i c in
     let (dl,c) = sei_doc i c in
-    (DocPublication(alpha,h,th,dl),c)
+    (DocPublication(alpha,h,dl),c)
 
 let seo_asset o a c = seo_prod4 seo_hashval seo_int64 seo_obligation seo_preasset o a c
 let sei_asset i c = sei_prod4 sei_hashval sei_int64 sei_obligation sei_preasset i c
@@ -455,11 +407,7 @@ let json_preasset u =
   | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
   | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
   | Marker -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("marker"))])
-  | TheoryPublication(beta,nonce,ts) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("theoryspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryspec",json_theoryspec ts)])
-  | SignaPublication(beta,nonce,None,ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("signaspec",json_signaspec None ss)])
-  | SignaPublication(beta,nonce,Some(th),ss) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("signaspec"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("signaspec",json_signaspec (Some(th)) ss)])
-  | DocPublication(beta,nonce,None,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("doc",json_doc None d)])
-  | DocPublication(beta,nonce,Some(th),d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("theoryid",JsonStr(hashval_hexstring th));("doc",json_doc (Some(th)) d)])
+  | DocPublication(beta,nonce,d) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("doc"));("publisher",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("nonce",JsonStr(hashval_hexstring nonce));("doc",json_doc None d)])
 
 let json_asset a =
   let ah = hashval_hexstring (hashasset a) in
@@ -533,30 +481,12 @@ let preasset_from_json j =
 	end
       else if pat = JsonStr("marker") then
 	Marker
-      else if pat = JsonStr("theoryspec") then
-	begin
-	  let beta = payaddr_from_json (List.assoc "publisher" al) in
-	  let nonce = hashval_from_json (List.assoc "nonce" al) in
-	  let ts = theoryspec_from_json (List.assoc "theoryspec" al) in
-	  TheoryPublication(beta,nonce,ts)
-	end
-      else if pat = JsonStr("signaspec") then
-	begin
-	  let beta = payaddr_from_json (List.assoc "publisher" al) in
-	  let nonce = hashval_from_json (List.assoc "nonce" al) in
-	  let jth = (try Some(List.assoc "theoryid" al) with Not_found -> None) in
-	  let th = (match jth with Some(jth) -> Some(hashval_from_json jth) | None -> None) in
-	  let ss = signaspec_from_json (List.assoc "signaspec" al) in
-	  SignaPublication(beta,nonce,th,ss)
-	end
       else if pat = JsonStr("doc") then
 	begin
 	  let beta = payaddr_from_json (List.assoc "publisher" al) in
 	  let nonce = hashval_from_json (List.assoc "nonce" al) in
-	  let jth = (try Some(List.assoc "theoryid" al) with Not_found -> None) in
-	  let th = (match jth with Some(jth) -> Some(hashval_from_json jth) | None -> None) in
 	  let d = doc_from_json (List.assoc "doc" al) in
-	  DocPublication(beta,nonce,th,d)
+	  DocPublication(beta,nonce,d)
 	end
       else
 	raise (Failure("not a preasset"))

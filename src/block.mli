@@ -43,8 +43,7 @@ val verbose_blockcheck : out_channel option ref
 
 type blockheaderdata = {
     prevblockhash : (hashval * poburn) option;
-    newtheoryroot : hashval option;
-    newsignaroot : hashval option;
+    newcouncilroot : hashval;
     newledgerroot : hashval;
     stakeaddr : p2pkhaddr;
     stakeassetid : hashval;
@@ -143,7 +142,7 @@ val txl_of_block : block -> tx * tx list
 val retarget : big_int -> int32 -> big_int
 val difficulty : big_int -> big_int
 
-val valid_block : ttree option -> stree option -> int64 -> stakemod -> targetinfo -> block -> int64 -> int64 -> (ttree option * stree option) option
+val valid_block : int64 -> stakemod -> targetinfo -> block -> int64 -> int64 -> bool
 
 val blockheader_succ_a : hashval -> int64 -> targetinfo -> blockheader -> bool
 val blockheader_succ : blockheader -> blockheader -> bool

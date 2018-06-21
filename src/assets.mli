@@ -21,9 +21,7 @@ type preasset =
   | RightsObj of hashval * int64
   | RightsProp of hashval * int64
   | Marker
-  | TheoryPublication of payaddr * hashval * theoryspec
-  | SignaPublication of payaddr * hashval * hashval option * signaspec
-  | DocPublication of payaddr * hashval * hashval option * doc
+  | DocPublication of payaddr * hashval * doc
 
 val obligation_string : obligation -> string
 val preasset_string : preasset -> string
@@ -54,13 +52,11 @@ val get_spent : addr -> addr_assetid list -> hashval list
 val add_vout : int64 -> hashval -> addr_preasset list -> int32 -> addr_asset list
 val asset_value : int64 -> asset -> int64 option
 val asset_value_sum : int64 -> asset list -> int64
-val output_signaspec_uses_objs : addr_preasset list -> (hashval * hashval) list
-val output_signaspec_uses_props : addr_preasset list -> (hashval * hashval) list
 val output_doc_uses_objs : addr_preasset list -> (hashval * hashval) list
 val output_doc_uses_props : addr_preasset list -> (hashval * hashval) list
-val output_creates_objs : addr_preasset list -> (hashval option * hashval * hashval) list
-val output_creates_props : addr_preasset list -> (hashval option * hashval) list
-val output_creates_neg_props : addr_preasset list -> (hashval option * hashval) list
+val output_creates_objs : addr_preasset list -> (hashval * hashval) list
+val output_creates_props : addr_preasset list -> hashval list
+val output_creates_neg_props : addr_preasset list -> hashval list
 val rights_out_obj : addr_preasset list -> hashval -> int64
 val rights_out_prop : addr_preasset list -> hashval -> int64
 val count_obj_rights : asset list -> hashval -> int64

@@ -1,5 +1,6 @@
 (* Copyright (c) 2016 The Qeditas developers *)
 (* Copyright (c) 2017 The Dalilcoin developers *)
+(* Copyright (c) 2018 The Tezos' (Tezos Prime) developers *)
 (* Distributed under the MIT software license, see the accompanying
    file COPYING or http://www.opensource.org/licenses/mit-license.php. *)
 
@@ -36,27 +37,7 @@ type pf =
 
 type gsign = ((hashval * stp) * trm option) list * (hashval * trm) list
 
-type theoryitem =
-| Thyprim of stp
-| Thyaxiom of trm
-| Thydef of stp * trm
-
-type theoryspec = theoryitem list
-
-type theory = stp list * hashval list
-
-type signaitem =
-| Signasigna of hashval
-| Signaparam of hashval * stp
-| Signadef of stp * trm
-| Signaknown of trm
-
-type signaspec = signaitem list
-
-type signa = hashval list * gsign
-
 type docitem =
-| Docsigna of hashval
 | Docparam of hashval * stp
 | Docdef of stp * trm
 | Docknown of trm

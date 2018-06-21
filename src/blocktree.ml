@@ -39,9 +39,6 @@ let save_processing_deltas () =
       List.iter (fun h -> seocf (seo_hashval seoc h (ch,None))) hl;
       close_out ch
 
-let thytree : (hashval,Mathdata.ttree) Hashtbl.t = Hashtbl.create 1000;;
-let sigtree : (hashval,Mathdata.stree) Hashtbl.t = Hashtbl.create 1000;;
-
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock
 
 type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * poburn) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
@@ -111,180 +108,6 @@ let blkheaders : (hashval,unit) Hashtbl.t = Hashtbl.create 1000;;
 let blkheadernode : (hashval option,blocktree) Hashtbl.t = Hashtbl.create 1000;;
 let orphanblkheaders : (hashval option,hashval * blockheader) Hashtbl.t = Hashtbl.create 1000;;
 let tovalidate : (hashval,unit) Hashtbl.t = Hashtbl.create 100;;
-
-let known_thytree_p thyroot =
-  match thyroot with
-  | None -> true
-  | Some(r) -> Hashtbl.mem thytree r
-
-let known_sigtree_p sigroot =
-  match sigroot with
-  | None -> true
-  | Some(r) -> Hashtbl.mem sigtree r
-
-let lookup_thytree thyroot =
-  match thyroot with
-  | None -> None
-  | Some(r) -> Some(Hashtbl.find thytree r)
-
-let lookup_sigtree sigroot =
-  match sigroot with
-  | None -> None
-  | Some(r) -> Some(Hashtbl.find sigtree r)
-
-let add_thytree thyroot otht =
-  match thyroot,otht with
-  | Some(r),Some(tht) -> if not (Hashtbl.mem thytree r) then Hashtbl.add thytree r tht
-  | _,_ -> ()
-
-let add_sigtree sigroot osigt =
-  match sigroot,osigt with
-  | Some(r),Some(sigt) -> if not (Hashtbl.mem sigtree r) then Hashtbl.add sigtree r sigt
-  | _,_ -> ()
-
-let rec get_all_theories t =
-  match t with
-  | None -> []
-  | Some(HBin(tl,tr)) -> get_all_theories tl @ get_all_theories tr
-  | Some(HLeaf(x)) ->
-      match Mathdata.hashtheory x with
-      | Some(h) -> [(h,x)]
-      | None -> raise (Failure "empty theory ended up in the theory tree somehow")
-
-let rec get_all_signas t loc =
-  match t with
-  | None -> []
-  | Some(HLeaf(x)) -> [(bitseq_hashval (List.rev loc),Mathdata.hashsigna x,x)]
-  | Some(HBin(tl,tr)) -> get_all_signas tl (false::loc) @ get_all_signas tr (true::loc)
-
-let rec get_added_theories t1 t2 =
-  match (t1,t2) with
-  | (None,t2) -> get_all_theories t2
-  | (Some(HLeaf(_)),Some(HLeaf(_))) -> [] (*** assume equal, which should be an invariant ***)
-  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_theories t1l t2l @ get_added_theories t1r t2r (*** inefficient, but new theories should be rare ***)
-  | (_,_) -> raise (Failure("Impossible pair of old and new theory trees"))
-
-let rec get_added_signas t1 t2 loc =
-  match (t1,t2) with
-  | (None,t2) -> get_all_signas t2 loc
-  | (Some(HLeaf(_)),Some(HLeaf(_))) -> [] (*** assume equal, which should be an invariant ***)
-  | (Some(HBin(t1l,t1r)),Some(HBin(t2l,t2r))) -> get_added_signas t1l t2l (false::loc) @ get_added_signas t1r t2r (true::loc) (*** inefficient, but new signatures should be rare ***)
-  | (_,_) -> raise (Failure("Impossible pair of old and new signature trees"))
-
-(*** save information indicating how to rebuild the theory and signature trees upon initialization ***)
-let update_theories oldthyroot oldthytree newthytree =
-  let newthyroot = Mathdata.ottree_hashroot newthytree in
-  if not (oldthyroot = newthyroot) then
-    begin
-      match newthyroot with
-      | None -> raise (Failure "cannot go from nonempty thy tree to empty thy tree")
-      | Some(newthyrootreal) ->
-	  let addedtheories = get_added_theories oldthytree newthytree in
-	  List.iter
-	    (fun (h,thy) -> Mathdata.DbTheory.dbput h thy)
-	    addedtheories;
-	  let ttf = Filename.concat (datadir()) "theorytreeinfo" in
-	  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 ttf in
-	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list seo_hashval) seoc
-		   (oldthyroot,newthyrootreal,List.map (fun (h,_) -> h) addedtheories)
-		   (ch,None));
-	  close_out ch;
-	  add_thytree newthyroot newthytree
-    end
-
-let update_signatures oldsigroot oldsigtree newsigtree =
-  let newsigroot = Mathdata.ostree_hashroot newsigtree in
-  if not (oldsigroot = newsigroot) then
-    begin
-      match newsigroot with
-      | None -> raise (Failure "cannot go from nonempty sig tree to empty sig tree")
-      | Some(newsigrootreal) ->
-	  let addedsignas = get_added_signas oldsigtree newsigtree [] in
-	  List.iter
-	    (fun (_,k,signa) -> Mathdata.DbSigna.dbput k signa)
-	    addedsignas;
-	  let stf = Filename.concat (datadir()) "signatreeinfo" in
-	  let ch = open_out_gen [Open_creat;Open_append;Open_wronly;Open_binary] 0o660 stf in
-	  seocf (seo_prod3 (seo_option seo_hashval) seo_hashval (seo_list (seo_prod seo_hashval seo_hashval)) seoc
-		   (oldsigroot,newsigrootreal,List.map (fun (h,k,_) -> (h,k)) addedsignas)
-		   (ch,None));
-	  close_out ch;
-	  add_sigtree newsigroot newsigtree
-    end
-
-let init_thytrees () =
-  let ttf = Filename.concat (datadir()) "theorytreeinfo" in
-  if Sys.file_exists ttf then
-    let ch = open_in_bin ttf in
-    try
-      while true do
-	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list sei_hashval) seic (ch,None) in
-	try
-	  let oldthytree = lookup_thytree oldroot in
-	  let newthytree = ref oldthytree in
-	  List.iter
-	    (fun h ->
-	      try
-		let th = Mathdata.DbTheory.dbget h in
-		newthytree := Some(Mathdata.ottree_insert !newthytree (hashval_bitseq h) th)
-	      with Not_found ->
-		raise (Failure("fatal error trying to initialize theory trees; unknown theory " ^ (hashval_hexstring h))))
-	    added;
-	  let newroot2 = Mathdata.ottree_hashroot !newthytree in
-	  if newroot2 = Some(newroot) then
-	    begin
-	      match !newthytree with
-	      | Some(ntt) -> Hashtbl.add thytree newroot ntt
-	      | None -> () (*** should not happen ***)
-	    end
-	  else
-	    begin
-	      close_in ch;
-	      raise (Failure("fatal error trying to initialize theory trees; theory tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
-	    end
-	with Not_found ->
-	  close_in ch;
-	  raise (Failure("fatal error trying to initialize theory trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
-      done
-    with End_of_file ->
-      close_in ch
-
-let init_sigtrees () =
-  let stf = Filename.concat (datadir()) "signatreeinfo" in
-  if Sys.file_exists stf then
-    let ch = open_in_bin stf in
-    try
-      while true do
-	let ((oldroot,newroot,added),_) = sei_prod3 (sei_option sei_hashval) sei_hashval (sei_list (sei_prod sei_hashval sei_hashval)) seic (ch,None) in
-	try
-	  let oldsigtree = lookup_sigtree oldroot in
-	  let newsigtree = ref oldsigtree in
-	  List.iter
-	    (fun (h,k) ->
-	      try
-		let s = Mathdata.DbSigna.dbget k in
-		newsigtree := Some(Mathdata.ostree_insert !newsigtree (hashval_bitseq h) s)
-	      with Not_found ->
-		raise (Failure("fatal error trying to initialize signature trees; unknown signa " ^ (hashval_hexstring h))))
-	    added;
-	  let newroot2 = Mathdata.ostree_hashroot !newsigtree in
-	  if newroot2 = Some(newroot) then
-	    begin
-	      match !newsigtree with
-	      | Some(nst) -> Hashtbl.add sigtree newroot nst
-	      | None -> ()
-	    end
-	  else
-	    begin
-	      close_in ch;
-	      raise (Failure("fatal error trying to initialize signature trees; signa tree root mismatch expected " ^ (hashval_hexstring newroot) ^ " but got " ^ (match newroot2 with None -> "None" | Some(h) -> hashval_hexstring h)))
-	    end
-	with Not_found ->
-	  close_in ch;
-	  raise (Failure("fatal error trying to initialize signa trees; did not build tree with root " ^ (match oldroot with None -> "None" | Some(h) -> hashval_hexstring h)))
-      done
-    with End_of_file ->
-      close_in ch
 
 let collect_inv m cnt tosend txinv =
   let (lastchangekey,ctips0l) = ltcdacstatus_dbget !ltc_bestblock in
@@ -533,7 +356,7 @@ and create_new_node_b h pob req =
 		(Some(!genesisblocktreenode),1L,node_children_ref !genesisblocktreenode)
 	  in
 	  let par = if hh = !Config.lastcheckpoint then None else par in
-	  let fnode = BlocktreeNode(par,ref [],Some(h,pob),bhd.newtheoryroot,bhd.newsignaroot,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
+	  let fnode = BlocktreeNode(par,ref [],Some(h,pob),None,None,bhd.newledgerroot,newcsm,bhd.tinfo,bhd.timestamp,zero_big_int,Int64.add blkh 1L,ref ValidBlock,ref false,ref []) in
 	  if hh = !Config.lastcheckpoint then
 	    begin
 	      let checkpointfile = open_out_bin (Filename.concat (datadir()) ("checkpoint_" ^ hh)) in
@@ -593,10 +416,10 @@ and get_or_create_node h req =
     Hashtbl.find blkheadernode (Some(h))
   with Not_found ->
     create_new_node h req
-and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs =
+and validate_block_of_node newnode csm tinf blkhght h blkdel cs =
   let blkdelroot = blockdelta_hashroot blkdel in
   let (blkhd,_) as blkh = DbBlockHeader.dbget h in
-  let BlocktreeNode(_,_,_,tr2,sr2,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
+  let BlocktreeNode(_,_,_,_,_,_,csm2,tinf2,_,newcumulstake,blkhght2,vs,_,chlr) = newnode in
   if not (blkdelroot = blkhd.blockdeltaroot) then (*** if even this fails, then the peer is misbehaving and sending a blockdelta that does not correspond to the header. In this case, ban the peer, drop the connection, and request it from someone else. ***)
     begin
       let b = Buffer.create 1000 in
@@ -610,43 +433,37 @@ and validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs 
   else
     let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
     let blk = (blkh,blkdel) in
-    if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
+    log_string (Printf.sprintf "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght);
+    if valid_block blkhght csm tinf blk lmedtm burned then
       begin
-	let thytree = lookup_thytree thyroot in
-	let sigtree = lookup_sigtree sigroot in
-	log_string (Printf.sprintf "About to check if block %s at height %Ld is valid\n" (hashval_hexstring h) blkhght);
-	match valid_block thytree sigtree blkhght csm tinf blk lmedtm burned with
-	| Some(tht2,sigt2) ->
-	    vs := ValidBlock;
-	    Hashtbl.remove tovalidate h;
-	    processing_deltas := h::!processing_deltas;
-	    DbBlockDelta.dbput h blkdel;
-	    process_delta_real h blkhght blk;
-	    let (bn,cwl) = get_bestnode true in
-	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
-	    update_theories thyroot thytree tht2;
-	    update_signatures sigroot sigtree sigt2;
-	    (*** construct a transformed tree consisting of elements ***)
-	    processing_deltas := List.filter (fun k -> not (k = h)) !processing_deltas;
-	    broadcast_inv [(int_of_msgtype Blockdelta,h)];
-	    List.iter
-	      (fun (h,n) ->
-		let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
-		match !vs with
-		| Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n tr2 sr2 csm2 tinf2 blkhght2 h blkdel cs
-		| _ -> ())
-	      !chlr
-	| None -> (*** We can mark it as invalid because we know this is the only delta that could support the header. ***)
-	    let b = Buffer.create 1000 in
-	    seosbf (seo_blockdelta seosb blkdel (b,None));
-	    log_string (Printf.sprintf "Block delta for %s was invalid; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
-	    let tm = Unix.time() in
-	    cs.banned <- true;
-	    Hashtbl.add bannedpeers cs.addrfrom ();
-	    vs := InvalidBlock
+	vs := ValidBlock;
+	Hashtbl.remove tovalidate h;
+	processing_deltas := h::!processing_deltas;
+	DbBlockDelta.dbput h blkdel;
+	process_delta_real h blkhght blk;
+	let (bn,cwl) = get_bestnode true in
+	let BlocktreeNode(_,_,_,_,_,_,_,_,_,bestcumulstk,_,_,_,_) = bn in
+	(*** construct a transformed tree consisting of elements ***)
+	processing_deltas := List.filter (fun k -> not (k = h)) !processing_deltas;
+	broadcast_inv [(int_of_msgtype Blockdelta,h)];
+	List.iter
+	  (fun (h,n) ->
+	    let BlocktreeNode(_,_,_,_,_,_,_,_,_,_,_,vs,_,_) = n in
+	    match !vs with
+	    | Waiting(_,Some(blkdel,cs)) -> validate_block_of_node n csm2 tinf2 blkhght2 h blkdel cs
+	    | _ -> ())
+	  !chlr
       end
-    else
-      raise (Failure("parent was validated but thyroot and/or sigroot is not known"))
+    else (*** We can mark it as invalid because we know this is the only delta that could support the header. ***)
+      begin
+	let b = Buffer.create 1000 in
+	seosbf (seo_blockdelta seosb blkdel (b,None));
+	log_string (Printf.sprintf "Block delta for %s was invalid; full delta = %s\n" (hashval_hexstring h) (string_hexstring (Buffer.contents b)));
+	let tm = Unix.time() in
+	cs.banned <- true;
+	Hashtbl.add bannedpeers cs.addrfrom ();
+	vs := InvalidBlock
+      end
 and process_new_header_a h hh blkh1 blkhd1 blkhs1 initialization knownvalid =
   try
     process_new_header_aa h hh blkh1 blkhd1 blkhs1 (blockheader_stakeasset blkhd1) initialization knownvalid
@@ -674,12 +491,12 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
       begin
 	try
 	  let Poburn(_,_,lmedtm,burned) = pob in
-	  let BlocktreeNode(_,_,prevh,thyroot,sigroot,ledgerroot,csm,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = prevnode in
+	  let BlocktreeNode(_,_,prevh,_,_,ledgerroot,csm,currtinfo,tmstamp,prevcumulstk,blkhght,validated,blacklisted,succl) = prevnode in
 	  if !blacklisted then (*** child of a blacklisted node, drop and blacklist it ***)
             begin
 	      let newcsm = poburn_stakemod pob in
 	      log_string (Printf.sprintf "Header %s is child of blacklisted node; deleting and blacklisting it.\n" hh);
-              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
+              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),None,None,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_delayed_delta h blkh1 newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
@@ -697,7 +514,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      broadcast_inv [(int_of_msgtype Headers,h)];
 	      let validated = ref (if knownvalid then ValidBlock else Waiting(Unix.time(),None)) in
 	      let newcsm = poburn_stakemod pob in
-	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,validated,ref false,ref []) in
+	      let newnode = BlocktreeNode(Some(prevnode),ref [blkhd1.stakeaddr],Some(h,pob),None,None,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,validated,ref false,ref []) in
 	      (*** add it as a leaf, indicate that we want the block delta to validate it, and check if it's the best ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_delayed_delta h blkh1 newnode;
@@ -707,36 +524,30 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 		try
 		  let blkdel = DbBlockDelta.dbget h in
 		  let blk = (blkh1,blkdel) in
-		  if known_thytree_p thyroot && known_sigtree_p sigroot then (*** these should both be known if the parent block has been validated ***)
+		  if valid_block blkhght csm currtinfo blk lmedtm burned then
 		    begin
-		      let thytree = lookup_thytree thyroot in
-		      let sigtree = lookup_sigtree sigroot in
-		      match valid_block thytree sigtree blkhght csm currtinfo blk lmedtm burned with
-		      | Some(tht2,sigt2) ->
-			  validated := ValidBlock;
-			  update_theories thyroot thytree tht2;
-			  update_signatures sigroot sigtree sigt2
-		      | None -> (*** should not have happened, delete it from the database and request it again. ***)
-			  DbBlockDelta.dbdelete h;
-			  Hashtbl.add tovalidate h ();
-                          if DbBlockHeader.dbexists h then
-                            begin
-                              try
-                                find_and_send_requestdata GetBlockdelta h
-			      with Not_found ->
-                                log_string (Printf.sprintf "No source for block delta of %s; must wait until it is explicitly requested\n" hh)
-                            end
-                          else
-                            begin
-                              try
-                                log_string (Printf.sprintf "Do not have header for %s; trying to request it.\n" hh);
-                                find_and_send_requestdata GetHeader h
-                              with Not_found ->
-                                log_string (Printf.sprintf "No source for block header of %s\n" hh)
-                            end
+		      validated := ValidBlock;
 		    end
 		  else
-		    raise (Failure "unknown thyroot or sigroot while trying to validate block")
+		    begin
+		      DbBlockDelta.dbdelete h;
+		      Hashtbl.add tovalidate h ();
+                      if DbBlockHeader.dbexists h then
+                        begin
+                          try
+                            find_and_send_requestdata GetBlockdelta h
+			  with Not_found ->
+                            log_string (Printf.sprintf "No source for block delta of %s; must wait until it is explicitly requested\n" hh)
+                        end
+                      else
+                        begin
+                          try
+                            log_string (Printf.sprintf "Do not have header for %s; trying to request it.\n" hh);
+                            find_and_send_requestdata GetHeader h
+                          with Not_found ->
+                            log_string (Printf.sprintf "No source for block header of %s\n" hh)
+                        end
+		    end
 		with Not_found ->
 		  Hashtbl.add tovalidate h ();
                   if DbBlockHeader.dbexists h then
@@ -766,7 +577,7 @@ and process_new_header_ab h hh blkh1 blkhd1 blkhs1 a initialization knownvalid p
 	      ignore (valid_blockheader blkhght csm currtinfo blkh1 lmedtm burned);
 	      ignore (blockheader_succ_a ledgerroot tmstamp currtinfo blkh1);
 	      verbose_blockcheck := None;
-              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),blkhd1.newtheoryroot,blkhd1.newsignaroot,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
+              let newnode = BlocktreeNode(Some(prevnode),ref [],Some(h,pob),None,None,blkhd1.newledgerroot,newcsm,blkhd1.tinfo,blkhd1.timestamp,zero_big_int,Int64.add blkhght 1L,ref InvalidBlock,ref true,ref []) in (*** dummy node just to remember it is blacklisted ***)
 	      Hashtbl.add blkheadernode (Some(h)) newnode;
 	      possibly_handle_delayed_delta h blkh1 newnode;
 	      possibly_handle_orphan h newnode initialization knownvalid;
@@ -821,7 +632,7 @@ and process_new_header h hh initialization knownvalid =
 and possibly_handle_delayed_delta h bh n =
   try
     let blkdel = Hashtbl.find delayed_deltas h in
-    let BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
+    let BlocktreeNode(_,_,_,_,_,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
     if DbBlockDelta.dbexists h then (*** was already handled ***)
       begin
 	vsp := ValidBlock;
@@ -830,28 +641,21 @@ and possibly_handle_delayed_delta h bh n =
     else
       begin
 	try
-	  let thytree = lookup_thytree thyroot in
-	  try
-	    let sigtree = lookup_sigtree sigroot in
-	    try
-	      let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
-	      match valid_block thytree sigtree blkhght csm currtinfo (bh,blkdel) lmedtm burned with
-	      | Some(tht2,sigt2) ->
-		  vsp := ValidBlock;
-		  update_theories thyroot thytree tht2;
-		  update_signatures sigroot sigtree sigt2;
-		  DbBlockDelta.dbput h blkdel;
-		  Hashtbl.remove delayed_deltas h
-	      | None -> (*** should not have happened, delete it from the database and request it again. ***)
-		  vsp := InvalidBlock;
-		  Hashtbl.remove delayed_deltas h;
-		  log_string (Printf.sprintf "Invalid block %s\n" (hashval_hexstring h))
-	    with _ ->
-	      log_string (Printf.sprintf "Do not have proof of burn for block %s\n" (hashval_hexstring h));
-	  with Not_found ->
-	    log_string (Printf.sprintf "Could not find signature tree for block\n");
-	with Not_found ->
-	  log_string (Printf.sprintf "Could not find theory tree for block\n");
+	  let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
+	  if valid_block blkhght csm currtinfo (bh,blkdel) lmedtm burned then
+	    begin
+	      vsp := ValidBlock;
+	      DbBlockDelta.dbput h blkdel;
+	      Hashtbl.remove delayed_deltas h
+	    end
+	  else
+	    begin (*** should not have happened, delete it from the database and request it again. ***)
+	      vsp := InvalidBlock;
+	      Hashtbl.remove delayed_deltas h;
+	      log_string (Printf.sprintf "Invalid block %s\n" (hashval_hexstring h))
+	    end
+	with _ ->
+	  log_string (Printf.sprintf "Do not have proof of burn for block %s\n" (hashval_hexstring h));
       end
   with Not_found -> ()
 and possibly_handle_orphan h n initialization knownvalid =
@@ -1295,8 +1099,8 @@ Hashtbl.add msgtype_handler Blockdelta
 		    match par with
 		    | None -> (*** genesis node, parent implicitly valid ***)
 			let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
-		    | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
+			validate_block_of_node newnode !genesisstakemod !genesistarget 1L h blkdel cs
+		    | Some(BlocktreeNode(_,_,_,_,_,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
 			match !vsp with
 			| InvalidBlock -> raise Not_found
 			| Waiting(_,_) ->
@@ -1305,7 +1109,7 @@ Hashtbl.add msgtype_handler Blockdelta
 			| ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
 			    begin
 			      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			      validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
+			      validate_block_of_node newnode csm tinf blkhght h blkdel cs
 			    end
 		  end
 	      | ValidBlock -> (*** for some reason we already think the block is valid even though we did not have the delta in the database; while this probably should not happen, just revalidate it and save into db ***)
@@ -1313,8 +1117,8 @@ Hashtbl.add msgtype_handler Blockdelta
 		    match par with
 		    | None -> (*** genesis node, parent implicitly valid ***)
 			let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			validate_block_of_node newnode None None !genesisstakemod !genesistarget 1L h blkdel cs
-		    | Some(BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
+			validate_block_of_node newnode !genesisstakemod !genesistarget 1L h blkdel cs
+		    | Some(BlocktreeNode(_,_,_,_,_,_,csm,tinf,_,_,blkhght,vsp,_,_)) ->
 			match !vsp with
 			| InvalidBlock -> raise Not_found
 			| Waiting(_,_) ->
@@ -1323,7 +1127,7 @@ Hashtbl.add msgtype_handler Blockdelta
 			| ValidBlock -> (*** validate now, and if valid check if children nodes are waiting to be validated ***)
 			    begin
 			      let (blkdel,_) = deserialize_exc_protect cs (fun () -> sei_blockdelta seis r) in
-			      validate_block_of_node newnode thyroot sigroot csm tinf blkhght h blkdel cs
+			      validate_block_of_node newnode csm tinf blkhght h blkdel cs
 			    end
 		  end
 	      | _ -> ()
@@ -1392,12 +1196,12 @@ Hashtbl.add msgtype_handler STx
 	      begin
 		try
 		  let (n,_) = get_bestnode false in (*** ignore consensus warnings here ***)
-		  let BlocktreeNode(_,_,_,tr,sr,lr,_,_,_,_,blkh,_,_,_) = n in
+		  let BlocktreeNode(_,_,_,_,_,lr,_,_,_,_,blkh,_,_,_) = n in
 		  let unsupportederror alpha k = log_string (Printf.sprintf "Could not find asset %s at address %s in ledger %s; throwing out tx %s\n" (hashval_hexstring k) (Cryptocurr.addr_tzpaddrstr alpha) (hashval_hexstring lr) (hashval_hexstring h)) in
 		  let al = List.map (fun (aid,a) -> a) (ctree_lookup_input_assets true false tauin (CHash(lr)) unsupportederror) in
 		  if tx_signatures_valid blkh al stau then
 		    begin
-		      let nfee = ctree_supports_tx true false (lookup_thytree tr) (lookup_sigtree sr) blkh tau (CHash(lr)) in
+		      let nfee = ctree_supports_tx true false blkh tau (CHash(lr)) in
 		      let fee = Int64.sub 0L nfee in
 		      if fee >= !Config.minrelayfee then
 			begin
@@ -1448,14 +1252,6 @@ let dumpblocktreestate sa =
   Hashtbl.iter (fun h () ->
       Printf.fprintf sa "- tx %s\n" (hashval_hexstring h))
     published_stx;
-  Printf.fprintf sa "=========\nthytree:\n";
-  Hashtbl.iter (fun h _ ->
-    Printf.fprintf sa "- thytree root %s\n" (hashval_hexstring h))
-    thytree;
-  Printf.fprintf sa "=========\nsigtree:\n";
-  Hashtbl.iter (fun h _ ->
-    Printf.fprintf sa "- sigtree root %s\n" (hashval_hexstring h))
-    sigtree;
   Printf.fprintf sa "=========\nblkheaders:\n";
   Hashtbl.iter
     (fun h _ ->
@@ -1561,7 +1357,7 @@ let reprocessblock oc h =
 	  | Some(h,_) -> Hashtbl.find blkheadernode (Some(h))
 	  | None -> Hashtbl.find blkheadernode None
 	in
-	let BlocktreeNode(_,_,_,thyroot,sigroot,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
+	let BlocktreeNode(_,_,_,_,_,_,csm,currtinfo,_,_,blkhght,vsp,_,_) = n in
 	begin
 	  let prevc = load_expanded_ctree (ctree_of_block (bh,bd)) in
 	  let (cstk,txl) = txl_of_block (bh,bd) in (*** the coinstake tx is performed last, i.e., after the txs in the block. ***)
@@ -1572,27 +1368,18 @@ let reprocessblock oc h =
 	  with MaxAssetsAtAddress -> raise (Failure("transformed tree would hold too many assets at an address"))
 	end;
 	try
-	  let thytree = lookup_thytree thyroot in
-	  try
-	    let sigtree = lookup_sigtree sigroot in
-	    try
-	      let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
-	      match valid_block thytree sigtree blkhght csm currtinfo (bh,bd) lmedtm burned with
-	      | Some(tht2,sigt2) ->
-		  vsp := ValidBlock;
-		  update_theories thyroot thytree tht2;
-		  update_signatures sigroot sigtree sigt2
-	      | None -> (*** should not have happened, delete it from the database and request it again. ***)
-		  vsp := InvalidBlock;
-		  Printf.fprintf oc "Invalid block %s\n" (hashval_hexstring h)
-	    with _ ->
-	      Printf.fprintf oc "Do not have proof of burn for block %s\n" (hashval_hexstring h);
-	      flush oc
-	  with Not_found ->
-	    Printf.fprintf oc "Could not find signature tree for block\n";
-	    flush oc
-	with Not_found ->
-	  Printf.fprintf oc "Could not find theory tree for block\n";
+	  let (Poburn(lblkh,ltxh,lmedtm,burned),_) = find_dalilcoin_header_ltc_burn h in
+	  if valid_block blkhght csm currtinfo (bh,bd) lmedtm burned then
+	    begin
+	      vsp := ValidBlock;
+	    end
+	  else
+	    begin
+	      vsp := InvalidBlock;
+	      Printf.fprintf oc "Invalid block %s\n" (hashval_hexstring h)
+	    end
+	with _ ->
+	  Printf.fprintf oc "Do not have proof of burn for block %s\n" (hashval_hexstring h);
 	  flush oc
       with Not_found ->
 	Printf.fprintf oc "Could not find information for parent block %s\n"

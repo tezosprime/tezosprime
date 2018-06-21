@@ -343,7 +343,7 @@ let send_inv_fn : (int -> out_channel -> connstate -> unit) ref = ref (fun _ _ _
 let msgtype_handler : (msgtype,in_channel * out_channel * connstate * string -> unit) Hashtbl.t = Hashtbl.create 50
 
 let send_msg_real c mh replyto mt ms =
-  let magic = if !Config.testnet then 0x44616c54l else 0x44616c4dl in (*** Magic Number for testnet: DalT and for mainnet: DalM ***)
+  let magic = if !Config.testnet then 0x54657a54l else 0x54657a4dl in (*** Magic Number for testnet: DalT and for mainnet: DalM ***)
   let msl = String.length ms in
   seocf (seo_int32 seoc magic (c,None));
   begin
@@ -385,7 +385,7 @@ let queue_reply cs h mt m = queue_msg_real cs (Some(h)) mt m
  If IllformedMsg is thrown, the connection should be severed.
  ***)
 let rec_msg blkh c =
-  let (mag0,mag1,mag2,mag3) = if !Config.testnet then (0x44,0x61,0x6c,0x54) else (0x44,0x61,0x6c,0x4d) in
+  let (mag0,mag1,mag2,mag3) = if !Config.testnet then (0x54,0x65,0x7a,0x54) else (0x54,0x65,0x7a,0x4d) in
   let by0 = input_byte c in
   if not (by0 = mag0) then raise IllformedMsg;
   try

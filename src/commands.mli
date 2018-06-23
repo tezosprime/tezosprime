@@ -28,7 +28,7 @@ val walletwatchaddrs_offlinekey : addr list ref
 val walletwatchaddrs_offlinekey_fresh : addr list ref
 val stakingassets : (p2pkhaddr * hashval * int64 * obligation * int64) list ref
 
-val get_cants_balances_in_ledger : out_channel -> hashval -> int64 * int64 * int64 * int64
+val get_meuniers_balances_in_ledger : out_channel -> hashval -> int64 * int64 * int64 * int64
 
 val load_txpool : unit -> unit
 val save_txpool : unit -> unit
@@ -62,7 +62,7 @@ val savetxtopool : int64 -> hashval -> string -> unit
 val validatetx : out_channel -> int64 -> hashval option -> hashval option -> hashval -> string -> unit
 val sendtx : out_channel -> int64 -> hashval option -> hashval option -> hashval -> string -> unit
 
-val query_at_block : string -> (hashval * Block.poburn) option -> hashval -> int64 -> jsonval
+val query_at_block : string -> hashval option -> hashval -> int64 -> jsonval
 val query : string -> jsonval
 val query_blockheight : int64 -> jsonval
 

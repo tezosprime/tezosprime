@@ -7,7 +7,6 @@ open Big_int
 open Hash
 open Net
 open Signat
-open Ltcrpc
 open Tx
 open Ctre
 open Block
@@ -24,14 +23,14 @@ val process_delta : hashval -> unit
 
 type validationstatus = Waiting of float * (blockdelta * connstate) option | ValidBlock | InvalidBlock
 
-type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * (hashval * poburn) option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
+type blocktree = BlocktreeNode of blocktree option * p2pkhaddr list ref * hashval option * hashval option * hashval option * hashval * stakemod * targetinfo * int64 * big_int * int64 * validationstatus ref * bool ref * (hashval * blocktree) list ref
 
 val genesisblocktreenode : blocktree ref
 val lastcheckpointnode : blocktree ref
 val blkheadernode : (hashval option,blocktree) Hashtbl.t
 val initblocktree : unit -> unit
 val node_recent_stakers : blocktree -> p2pkhaddr list
-val node_prevblockhash : blocktree -> (hashval * poburn) option
+val node_prevblockhash : blocktree -> hashval option
 val node_theoryroot : blocktree -> hashval option
 val node_signaroot : blocktree -> hashval option
 val node_ledgerroot : blocktree -> hashval

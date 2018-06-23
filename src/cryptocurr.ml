@@ -264,7 +264,7 @@ let addr_tzpaddrstr alpha =
   in
   hashval_gen_addrstr pre (x0,x1,x2,x3,x4)
 
-let tezzies_of_cants v =
+let tezzies_of_meuniers v =
   let w = Int64.div v 1000000000L in
   let d = Int64.to_string (Int64.rem v 1000000000L) in
   let dl = String.length d in
@@ -290,7 +290,7 @@ let tezzies_of_cants v =
   done;
   Buffer.contents b
 
-let cants_of_tezzies s =
+let meuniers_of_tezzies s =
   let f = ref 0L in
   let w = ref true in
   let c = ref 0L in
@@ -306,7 +306,7 @@ let cants_of_tezzies s =
       else if cc >= 48 && cc < 58 then
 	f := Int64.add (Int64.mul !f 10L) (Int64.of_int (cc-48))
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of prime tezzies"))
     else
       if cc >= 48 && cc < 58 then
 	begin
@@ -314,7 +314,7 @@ let cants_of_tezzies s =
 	  d := Int64.div !d 10L
 	end
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of prime tezzies"))
   done;
   Int64.add (Int64.mul !f 1000000000L) !c
 
@@ -360,7 +360,7 @@ let litoshis_of_ltc s =
       else if cc >= 48 && cc < 58 then
 	f := Int64.add (Int64.mul !f 10L) (Int64.of_int (cc-48))
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of prime tezzies"))
     else
       if cc >= 48 && cc < 58 then
 	begin
@@ -368,7 +368,7 @@ let litoshis_of_ltc s =
 	  d := Int64.div !d 10L
 	end
       else
-	raise (Failure ("cannot interpret " ^ s ^ " as a number of tezzies"))
+	raise (Failure ("cannot interpret " ^ s ^ " as a number of prime tezzies"))
   done;
   Int64.add (Int64.mul !f 100000000L) !c
 
@@ -388,30 +388,30 @@ let payaddr_from_json j =
   else
     raise (Failure("not a pay address"))
 
-let cants_from_json j =
+let meuniers_from_json j =
   match j with
   | JsonNum(x) -> Int64.of_string x
-  | JsonStr(x) -> cants_of_tezzies x
+  | JsonStr(x) -> meuniers_of_tezzies x
   | JsonObj(jl) ->
       begin
 	try
-	  match List.assoc "cants" jl with
+	  match List.assoc "meuniers" jl with
 	  | JsonNum(x) -> Int64.of_string x
 	  | JsonStr(x) -> Int64.of_string x
 	  | _ -> raise Not_found
 	with Not_found ->
 	  match List.assoc "tezzies" jl with
-	  | JsonNum(x) -> cants_of_tezzies x
-	  | JsonStr(x) -> cants_of_tezzies x
+	  | JsonNum(x) -> meuniers_of_tezzies x
+	  | JsonStr(x) -> meuniers_of_tezzies x
 	  | _ -> raise Not_found
       end
   | _ -> raise Not_found
 
 let tezzies_from_json j =
-  tezzies_of_cants (cants_from_json j)
+  tezzies_of_meuniers (meuniers_from_json j)
 
-let json_cants x =
-  JsonObj([("cants",JsonNum(Int64.to_string x));("tezzies",JsonStr(tezzies_of_cants x))])
+let json_meuniers x =
+  JsonObj([("meuniers",JsonNum(Int64.to_string x));("tezzies",JsonStr(tezzies_of_meuniers x))])
 
 let json_tezzies x =
-  json_cants (cants_of_tezzies x)
+  json_meuniers (meuniers_of_tezzies x)

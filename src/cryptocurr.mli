@@ -23,15 +23,15 @@ val md160_btcaddrstr : md160 -> string
 val addr_tzpaddrstr : addr -> string
 val tzpaddrstr_addr : string -> addr
 val btcaddrstr_addr : string -> addr
-val tezzies_of_cants : int64 -> string
-val cants_of_tezzies : string -> int64
+val tezzies_of_meuniers : int64 -> string
+val meuniers_of_tezzies : string -> int64
 val ltc_of_litoshis : int64 -> string
 val litoshis_of_ltc : string -> int64
 
 val addr_from_json : jsonval -> addr
 val payaddr_from_json : jsonval -> payaddr
-val cants_from_json : jsonval -> int64
+val meuniers_from_json : jsonval -> int64
 val tezzies_from_json : jsonval -> string
 val json_tezzies : string -> jsonval
-val json_cants : int64 -> jsonval
+val json_meuniers : int64 -> jsonval
 

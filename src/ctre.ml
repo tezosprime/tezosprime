@@ -170,19 +170,19 @@ let rec print_hlist_gen f hl g =
   | HNil -> ()
   | HCons((aid,bday,obl,Currency(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] Currency %s tez%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Currency %s prime tez%s (%Ld meunier%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_meuniers v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,Bounty(v)) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] Bounty %s tez%s (%Ld cant%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_cants v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
+	Printf.fprintf f "%s: (id %s) [%Ld] Bounty %s prime tez%s (%Ld meunier%s)\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (tezzies_of_meuniers v) (if v = 100000000000L then "" else "zies") v (if v = 1L then "" else "s");
 	g a;
 	print_hlist_gen f hr g
       end
   | HCons((aid,bday,obl,OwnsObj(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsObj %s %s royalty fee %s prime tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_meuniers r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
@@ -194,7 +194,7 @@ let rec print_hlist_gen f hl g =
       end
   | HCons((aid,bday,obl,OwnsProp(k,gamma,Some(r))) as a,hr) ->
       begin
-	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_cants r) (if r = 100000000000L then "" else "zies");
+	Printf.fprintf f "%s: (id %s) [%Ld] OwnsProp %s %s royalty fee %s prime tez%s\n" (hashval_hexstring (hashasset a)) (hashval_hexstring aid) bday (hashval_hexstring k) (addr_tzpaddrstr (payaddr_addr gamma)) (tezzies_of_meuniers r) (if r = 100000000000L then "" else "zies");
 	g a;
 	print_hlist_gen f hr g
       end
@@ -256,8 +256,8 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Currency ";
-	Buffer.add_string sb (tezzies_of_cants v);
-	Buffer.add_string sb " tezzies; coinage ";
+	Buffer.add_string sb (tezzies_of_meuniers v);
+	Buffer.add_string sb " prime tezzies; coinage ";
 	Buffer.add_string sb (string_of_big_int (coinage blkh bday None v));
 	Buffer.add_char sb '\n';
 	g a;
@@ -272,8 +272,8 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency (Reward, Locked) "
 	else
 	  Buffer.add_string sb "] Currency (Reward) ";
-	Buffer.add_string sb (tezzies_of_cants v);
-	Buffer.add_string sb " tezzies spendable by ";
+	Buffer.add_string sb (tezzies_of_meuniers v);
+	Buffer.add_string sb " prime tezzies spendable by ";
 	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
@@ -298,11 +298,11 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	  Buffer.add_string sb "] Currency (Locked) "
 	else
 	  Buffer.add_string sb "] Currency ";
-	Buffer.add_string sb (tezzies_of_cants v);
+	Buffer.add_string sb (tezzies_of_meuniers v);
 	if v = 100000000000L then
-	  Buffer.add_string sb " tez spendable by "
+	  Buffer.add_string sb " prime tez spendable by "
 	else
-	  Buffer.add_string sb " tezzies spendable by ";
+	  Buffer.add_string sb " prime tezzies spendable by ";
 	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr delta));
 	if locktime > blkh then
 	  begin
@@ -324,11 +324,11 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " [";
 	Buffer.add_string sb (Int64.to_string bday);
 	Buffer.add_string sb "] Bounty ";
-	Buffer.add_string sb (tezzies_of_cants v);
+	Buffer.add_string sb (tezzies_of_meuniers v);
 	if v = 100000000000L then
-	  Buffer.add_string sb " tez\n"
+	  Buffer.add_string sb " prime tez\n"
 	else
-	  Buffer.add_string sb " tezzies\n";
+	  Buffer.add_string sb " prime tezzies\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end
@@ -342,11 +342,11 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
-	Buffer.add_string sb (tezzies_of_cants r);
+	Buffer.add_string sb (tezzies_of_meuniers r);
 	if r = 100000000000L then
-	  Buffer.add_string sb " tez\n"
+	  Buffer.add_string sb " prime tez\n"
 	else
-	  Buffer.add_string sb " tezzies\n";
+	  Buffer.add_string sb " prime tezzies\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end
@@ -373,11 +373,11 @@ let rec print_hlist_to_buffer_gen sb blkh hl g =
 	Buffer.add_string sb " by ";
 	Buffer.add_string sb (addr_tzpaddrstr (payaddr_addr gamma));
 	Buffer.add_string sb " each right costs ";
-	Buffer.add_string sb (tezzies_of_cants r);
+	Buffer.add_string sb (tezzies_of_meuniers r);
 	if r = 100000000000L then
-	  Buffer.add_string sb " tez\n"
+	  Buffer.add_string sb " prime tez\n"
 	else
-	  Buffer.add_string sb " tezzies\n";
+	  Buffer.add_string sb " prime tezzies\n";
 	g a;
 	print_hlist_to_buffer_gen sb blkh hr g
       end

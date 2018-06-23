@@ -32,7 +32,7 @@ let walletwatchaddrs_offlinekey = ref []
 let walletwatchaddrs_offlinekey_fresh = ref []
 let stakingassets = ref []
 
-let cants_balances_in_ledger : (hashval,int64 * int64 * int64 * int64) Hashtbl.t = Hashtbl.create 100
+let meuniers_balances_in_ledger : (hashval,int64 * int64 * int64 * int64) Hashtbl.t = Hashtbl.create 100
 
 let load_txpool () =
   let fn = Filename.concat (datadir()) "txpool" in
@@ -589,7 +589,7 @@ let assets_at_address_in_ledger_json raiseempty alpha par ledgerroot blkh =
 	let jhl = hlist_report_assets_json (Ctre.nehlist_hlist hl) in
 	let s = Buffer.create 100 in
 	Ctre.print_hlist_to_buffer_gen s blkh (Ctre.nehlist_hlist hl) sumcurr;
-	jal := [("address",JsonStr(alphas));("total",JsonNum(tezzies_of_cants !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
+	jal := [("address",JsonStr(alphas));("total",JsonNum(tezzies_of_meuniers !tot));("contents",JsonStr(Buffer.contents s));("currentassets",JsonArr(jhl))]
     | (None,z) ->
 	if raiseempty then
 	  raise EmptyAddress
@@ -753,11 +753,11 @@ let printassets_in_ledger oc ledgerroot =
 	  Printf.fprintf oc "%s: no information\n" (addr_tzpaddrstr alpha);
     )
     !al4;
-  Printf.fprintf oc "Total p2pkh: %s tezzies\n" (tezzies_of_cants !tot1);
-  Printf.fprintf oc "Total p2sh: %s tezzies\n" (tezzies_of_cants !tot2);
-  Printf.fprintf oc "Total via endorsement: %s tezzies\n" (tezzies_of_cants !tot3);
-  Printf.fprintf oc "Total watched: %s tezzies\n" (tezzies_of_cants !tot4);
-  Hashtbl.replace cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
+  Printf.fprintf oc "Total p2pkh: %s prime tezzies\n" (tezzies_of_meuniers !tot1);
+  Printf.fprintf oc "Total p2sh: %s prime tezzies\n" (tezzies_of_meuniers !tot2);
+  Printf.fprintf oc "Total via endorsement: %s prime tezzies\n" (tezzies_of_meuniers !tot3);
+  Printf.fprintf oc "Total watched: %s prime tezzies\n" (tezzies_of_meuniers !tot4);
+  Hashtbl.replace meuniers_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4) (*** preventing recomputation for getting balances if the ledger has not changed ***)
 
 let printassets oc =
   match !artificialledgerroot with
@@ -768,9 +768,9 @@ let printassets oc =
       let BlocktreeNode(_,_,_,_,_,ledgerroot,_,_,_,_,_,_,_,_) = bn in
       printassets_in_ledger oc ledgerroot
 
-let get_cants_balances_in_ledger oc ledgerroot =
+let get_meuniers_balances_in_ledger oc ledgerroot =
   try
-    Hashtbl.find cants_balances_in_ledger ledgerroot
+    Hashtbl.find meuniers_balances_in_ledger ledgerroot
   with Not_found ->
     let ctr = Ctre.CHash(ledgerroot) in
     let warned = ref false in
@@ -880,7 +880,7 @@ let get_cants_balances_in_ledger oc ledgerroot =
 	      (Some(hl),_) -> nehlist_sumcurr tot4 hl
 	    | _ -> ()))
       !walletwatchaddrs_offlinekey;
-    Hashtbl.add cants_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4);
+    Hashtbl.add meuniers_balances_in_ledger ledgerroot (!tot1,!tot2,!tot3,!tot4);
     (!tot1,!tot2,!tot3,!tot4)
 
 let printasset h =
@@ -979,8 +979,8 @@ let printctreeinfo h =
     Printf.printf "Number of rights assets %d\n" !rght;
     Printf.printf "Number of marker assets %d\n" !mrk;
     Printf.printf "Number of publication assets %d\n" !pub;
-    Printf.printf "Total cants in known currency assets %Ld\n" !v;
-    Printf.printf "Total cants in known bounty assets %Ld\n" !b;
+    Printf.printf "Total meuniers in known currency assets %Ld\n" !v;
+    Printf.printf "Total meuniers in known bounty assets %Ld\n" !b;
   with Not_found ->
     Printf.printf "No ctree %s found\n" (hashval_hexstring h)
   
@@ -1039,7 +1039,7 @@ let createtx inpj outpj =
 			| (JsonStr(beta),JsonNum(x)) ->
 			    begin
 			      let beta2 = tzpaddrstr_addr beta in
-			      let v = cants_of_tezzies x in
+			      let v = meuniers_of_tezzies x in
 			      try
 				let lockj = List.assoc "lock" al in
 				match lockj with
@@ -1106,12 +1106,12 @@ let createsplitlocktx ledgerroot alpha beta gamma aid i lkh fee =
 	    end
 	  else
 	    begin
-	      Printf.printf "Asset %s is %s tezzies, which is smaller than %d cants after subtracting the fee of %s\n" (hashval_hexstring aid) (tezzies_of_cants v) i (tezzies_of_cants v); flush stdout
+	      Printf.printf "Asset %s is %s prime tezzies, which is smaller than %d meuniers after subtracting the fee of %s\n" (hashval_hexstring aid) (tezzies_of_meuniers v) i (tezzies_of_meuniers v); flush stdout
 	    end	  
 	end
       else
 	begin
-	  Printf.printf "Asset %s is %s tezzies, which is not greater the fee of %s\n" (hashval_hexstring aid) (tezzies_of_cants v) (tezzies_of_cants v); flush stdout
+	  Printf.printf "Asset %s is %s prime tezzies, which is not greater the fee of %s\n" (hashval_hexstring aid) (tezzies_of_meuniers v) (tezzies_of_meuniers v); flush stdout
 	end
   | _ -> Printf.printf "Asset %s is not currency.\n" (hashval_hexstring aid); flush stdout
 
@@ -1395,11 +1395,11 @@ let validatetx oc blkh tr sr lr staustr =
 	    verbose_supportedcheck := None;
 	    let fee = Int64.sub 0L nfee in
 	    if fee < 0L then
-              Printf.fprintf oc "Tx is supported by the current ledger and but requires %s tezzies more input.\n" (Cryptocurr.tezzies_of_cants (Int64.neg fee))
+              Printf.fprintf oc "Tx is supported by the current ledger and but requires %s prime tezzies more input.\n" (Cryptocurr.tezzies_of_meuniers (Int64.neg fee))
 	    else if fee >= !Config.minrelayfee then
-	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s tezzies (above minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee)
+	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s prime tezzies (above minrelayfee %s prime tezzies)\n" (Cryptocurr.tezzies_of_meuniers fee) (Cryptocurr.tezzies_of_meuniers !Config.minrelayfee)
             else
-	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s tezzies (below minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee);
+	      Printf.fprintf oc "Tx is supported by the current ledger and has fee %s prime tezzies (below minrelayfee %s prime tezzies)\n" (Cryptocurr.tezzies_of_meuniers fee) (Cryptocurr.tezzies_of_meuniers !Config.minrelayfee);
 	    flush oc
 	  with
 	  | NotSupported ->
@@ -1468,7 +1468,7 @@ let sendtx oc blkh tr sr lr staustr =
 		      Printf.fprintf oc "%s\n" (hashval_hexstring stxh);
 		    end
 		  else
-		    Printf.fprintf oc "Tx is supported by the current ledger, but has too low fee of %s tezzies (below minrelayfee %s tezzies)\n" (Cryptocurr.tezzies_of_cants fee) (Cryptocurr.tezzies_of_cants !Config.minrelayfee);
+		    Printf.fprintf oc "Tx is supported by the current ledger, but has too low fee of %s prime tezzies (below minrelayfee %s prime tezzies)\n" (Cryptocurr.tezzies_of_meuniers fee) (Cryptocurr.tezzies_of_meuniers !Config.minrelayfee);
 		  flush oc
 		with
 		| NotSupported ->
@@ -1490,14 +1490,10 @@ let tzp_addr_jsoninfo raiseempty alpha pbh ledgerroot blkh =
   let (jpbh,par) =
     match pbh with
     | None -> (JsonObj([("block",JsonStr("genesis"))]),None)
-    | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
+    | Some(prevh) ->
 	begin
 	  let jpbh = JsonObj([("block",JsonStr(hashval_hexstring prevh));
-			      ("height",JsonNum(Int64.to_string blkh));
-			      ("ltcblock",JsonStr(hashval_hexstring lblkh));
-			      ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-			      ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-			      ("ltcburned",JsonNum(Int64.to_string burned))])
+			      ("height",JsonNum(Int64.to_string blkh))])
 	  in
 	  try
 	    let BlocktreeNode(par,_,_,_,_,_,_,_,_,_,_,_,_,_) = Hashtbl.find blkheadernode (Some(prevh)) in
@@ -1590,23 +1586,15 @@ let query_at_block q pbh ledgerroot blkh =
 	    let jpb =
 	      match pbh with
 	      | None -> []
-	      | Some(prevh,Block.Poburn(lblkh,ltxh,lmedtm,burned)) ->
+	      | Some(prevh) ->
 		  match bblkh with
 		  | Some(bblkh) ->
 		      [("height",JsonNum(Int64.to_string bblkh));
 		        ("prevblock",
-			 JsonObj([("block",JsonStr(hashval_hexstring prevh));
-				  ("ltcblock",JsonStr(hashval_hexstring lblkh));
-				  ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-				  ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-				  ("ltcburned",JsonNum(Int64.to_string burned))]))]
+			 JsonObj([("block",JsonStr(hashval_hexstring prevh))]))]
 		  | None ->
 		      [("prevblock",
-			JsonObj([("block",JsonStr(hashval_hexstring prevh));
-				 ("ltcblock",JsonStr(hashval_hexstring lblkh));
-				 ("ltcburntx",JsonStr(hashval_hexstring ltxh));
-				 ("ltcmedtm",JsonNum(Int64.to_string lmedtm));
-				 ("ltcburned",JsonNum(Int64.to_string burned))]))]
+			JsonObj([("block",JsonStr(hashval_hexstring prevh))]))]
 	    in
 	    let jr =
 	      jpb @
@@ -1640,32 +1628,6 @@ let query_at_block q pbh ledgerroot blkh =
 		let j = JsonObj(("type",JsonStr("block"))::jr) in
 		dbentries := j::!dbentries
 	    end
-	  with Not_found -> ()
-	end;
-(***
-	begin
-	  try
-	    let e = Ltcrpc.DbLtcDacStatus.dbget h in
-	    let j = JsonObj([("type",JsonStr("ltcblock"))]) in
-	    dbentries := j::!dbentries
-	  with Not_found -> ()
-	end;
-***)
-	begin
-	  try
-	    let (burned,lprevtx,dnxt) = Ltcrpc.DbLtcBurnTx.dbget h in
-	    let j = JsonObj([("type",JsonStr("ltcburntx"));
-			     ("burned",JsonNum(Int64.to_string burned));
-			     ("previousltcburntx",JsonStr(hashval_hexstring lprevtx));
-			     ("tzpblock",JsonStr(hashval_hexstring dnxt))]) in
-	    dbentries := j::!dbentries
-	  with Not_found -> ()
-	end;
-	begin
-	  try
-	    let (prevh,tm,hght,txhhs) = Ltcrpc.DbLtcBlock.dbget h in
-	    let j = JsonObj([("type",JsonStr("ltcblock"))]) in
-	    dbentries := j::!dbentries
 	  with Not_found -> ()
 	end;
 	begin
@@ -1720,7 +1682,7 @@ let query_blockheight findblkh =
 	if findblkh = Int64.sub blkhi 1L then
 	  begin
 	    match pbhi with
-	    | Some(h,_) -> query_at_block (hashval_hexstring h) pbh ledgerroot blkh
+	    | Some(h) -> query_at_block (hashval_hexstring h) pbh ledgerroot blkh
 	    | None -> JsonObj([("response",JsonStr("error"))])
 	  end
 	else
@@ -1737,9 +1699,9 @@ let query_blockheight findblkh =
 let preassetinfo_report oc u =
   match u with
   | Currency(v) ->
-      Printf.fprintf oc "Currency: %s tezzies (%Ld cants)\n" (tezzies_of_cants v) v
+      Printf.fprintf oc "Currency: %s prime tezzies (%Ld meuniers)\n" (tezzies_of_meuniers v) v
   | Bounty(v) ->
-      Printf.fprintf oc "Bounty: %s tezzies (%Ld cants)\n" (tezzies_of_cants v) v
+      Printf.fprintf oc "Bounty: %s prime tezzies (%Ld meuniers)\n" (tezzies_of_meuniers v) v
   | OwnsObj(h,alpha,None) ->
       Printf.fprintf oc "Ownership deed for object with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the object cannot be purchased. It must be redefined in new documents.\n";
@@ -1748,7 +1710,7 @@ let preassetinfo_report oc u =
       if r = 0L then
 	Printf.fprintf oc "The object can be freely imported into documents and signatures.\n"
       else
-	Printf.fprintf oc "Each right to import the object into a document costs %s tezzies (%Ld cants), payable to %s.\n" (tezzies_of_cants r) r (addr_tzpaddrstr (payaddr_addr alpha))
+	Printf.fprintf oc "Each right to import the object into a document costs %s prime tezzies (%Ld meuniers), payable to %s.\n" (tezzies_of_meuniers r) r (addr_tzpaddrstr (payaddr_addr alpha))
   | OwnsProp(h,alpha,r) ->
       Printf.fprintf oc "Ownership deed for proposition with id %s (which must be held at address %s).\n" (hashval_hexstring h) (addr_tzpaddrstr (termaddr_addr (hashval_md160 h)));
       Printf.fprintf oc "Rights to import the proposition cannot be purchased. It must be reproven in new documents.\n";

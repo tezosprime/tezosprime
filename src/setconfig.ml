@@ -49,7 +49,7 @@ let int64configvars = [
 ("reward_lock_relative",fun x -> Config.reward_lock_relative := Some(x));
 ("reward_lock_absolute",fun x -> Config.reward_lock_absolute := Some(x))
 ];;
-let cantsoftezziesconfigvars = [
+let meuniersoftezziesconfigvars = [
 ("minrelayfee",fun x -> Config.minrelayfee := x)
 ];;
 let stringoptionconfigvars = [
@@ -129,11 +129,11 @@ let process_config_line l =
 	  if ll > 1 + vl && String.sub l 0 (vl) = v && l.[vl] = '=' then
 	    begin
 	      setl := v::!setl;
-	      r (cants_of_tezzies (String.sub l (vl+1) (ll-(vl+1))));
+	      r (meuniers_of_tezzies (String.sub l (vl+1) (ll-(vl+1))));
 	      raise Done
 	    end
 	  )
-	cantsoftezziesconfigvars;
+	meuniersoftezziesconfigvars;
       List.iter
 	(fun (v,r) ->
 	  let vl = String.length v in

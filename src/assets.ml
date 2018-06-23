@@ -38,12 +38,12 @@ let obligation_string o =
 
 let preasset_string u =
   match u with
-  | Currency(v) -> tezzies_of_cants v ^ " tezzies"
-  | Bounty(v) -> "bounty of " ^ tezzies_of_cants v ^ " tezzies"
+  | Currency(v) -> tezzies_of_meuniers v ^ " prime tezzies"
+  | Bounty(v) -> "bounty of " ^ tezzies_of_meuniers v ^ " prime tezzies"
   | OwnsObj(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
+  | OwnsObj(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as an object with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_meuniers r ^ " prime tezzies"
   | OwnsProp(h,beta,None) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ " with no rights available"
-  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_cants r ^ " tezzies"
+  | OwnsProp(h,beta,Some(r)) -> "ownership of " ^ (hashval_hexstring h) ^ " as a proposition with payaddr " ^ (addr_tzpaddrstr (payaddr_addr beta)) ^ "; each right to use costs " ^ tezzies_of_meuniers r ^ " prime tezzies"
   | OwnsNegProp -> "neg prop ownership"
   | RightsObj(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as an object " ^ (Int64.to_string l) ^ " times"
   | RightsProp(h,l) -> "right to use " ^ (hashval_hexstring h) ^ " as a proposition " ^ (Int64.to_string l) ^ " times"
@@ -397,12 +397,12 @@ let json_obligation obl =
 
 let json_preasset u =
   match u with
-  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("val",json_cants v)])
-  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("val",json_cants v)])
+  | Currency(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("currency"));("val",json_meuniers v)])
+  | Bounty(v) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("bounty"));("val",json_meuniers v)])
   | OwnsObj(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)))])
-  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_cants r)])
+  | OwnsObj(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_meuniers r)])
   | OwnsProp(h,beta,None) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)))])
-  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_cants r)])
+  | OwnsProp(h,beta,Some(r)) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("owneraddress",JsonStr(addr_tzpaddrstr (payaddr_addr beta)));("royalty",json_meuniers r)])
   | OwnsNegProp -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("ownsnegprop"))])
   | RightsObj(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsobj"));("objid",JsonStr(hashval_hexstring h));("objaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
   | RightsProp(h,r) -> JsonObj([("type",JsonStr("preasset"));("preassettype",JsonStr("rightsprop"));("propid",JsonStr(hashval_hexstring h));("propaddr",JsonStr(Cryptocurr.addr_tzpaddrstr (termaddr_addr (hashval_md160 h))));("units",JsonNum(Int64.to_string r))])
@@ -443,26 +443,26 @@ let preasset_from_json j =
       let pat = List.assoc "preassettype" al in
       if pat = JsonStr("currency") then
 	begin
-	  let v = cants_from_json (List.assoc "val" al) in
+	  let v = meuniers_from_json (List.assoc "val" al) in
 	  Currency(v)
 	end
       else if pat = JsonStr("bounty") then
 	begin
-	  let v = cants_from_json (List.assoc "val" al) in
+	  let v = meuniers_from_json (List.assoc "val" al) in
 	  Bounty(v)
 	end
       else if pat = JsonStr("ownsobj") then
 	begin
 	  let h = hashval_from_json (List.assoc "objid" al) in
 	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
-	  let r = try Some(cants_from_json (List.assoc "royalty" al)) with Not_found -> None in
+	  let r = try Some(meuniers_from_json (List.assoc "royalty" al)) with Not_found -> None in
 	  OwnsObj(h,beta,r)
 	end
       else if pat = JsonStr("ownsprop") then
 	begin
 	  let h = hashval_from_json (List.assoc "propid" al) in
 	  let beta = payaddr_from_json (List.assoc "owneraddress" al) in
-	  let r = try Some(cants_from_json (List.assoc "royalty" al)) with Not_found -> None in
+	  let r = try Some(meuniers_from_json (List.assoc "royalty" al)) with Not_found -> None in
 	  OwnsProp(h,beta,r)
 	end
       else if pat = JsonStr("ownsnegprop") then
